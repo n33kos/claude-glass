@@ -260,7 +260,10 @@ Queue, in order:
    glass never sends input to the page.
 
 4. **Custom apps ("mods")**: drop a folder into `~/.claude/claude-glass/apps/` and it works.
-   Design in §8. Not started.
+   Design in §8. Not started. End state: every built-in app uses the mod format too.
+5. **"Claude decides" layout**: a `defaultLayout` option (`claude`) where new desktops start
+   with a fit for their window count (1 full, 2 split, 3 main-left, 4 grid) and the guide tells
+   Claude to pick each desktop's layout for what it's showing (`claude-glass layout`). Not started.
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
@@ -345,6 +348,13 @@ app without touching the core guide.
   Say so in the docs. The view is sandboxed.
 - Later: project-level mods (`<project>/.claude/glass-apps/`), `claude-glass apps install <git url>`.
 
-### Dogfood
-Port one built-in (html or image) to the mod format to prove the interface and serve as the
-reference example. Built-ins may keep native React views, but register through the same loader.
+### Dogfood, then go all the way
+1. Port one built-in (html or image) to the mod format to prove the interface and serve as the
+   reference example.
+2. Once proven, move **every** default app to the mod format and loader: they ship as mods in
+   the plugin (`apps/` next to `src/`), loaded exactly like user mods. The mod interface becomes
+   the primary, first-class way apps exist, and users can copy and modify a default app (a user
+   mod with the same `type` overrides the shipped one, with a note in Settings).
+3. Consequence to plan for: views move from native React to iframes. Check that terminal and
+   conversation (high update rates, big lists) stay smooth over postMessage; send state diffs or
+   batch updates if not.
