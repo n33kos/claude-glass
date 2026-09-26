@@ -267,6 +267,8 @@ Other candidates:
   Electron window (`src/main/webFeed.ts`: sandboxed, in-memory session, no popups/downloads/
   permissions, muted) and streams its paints. Latest activity wins between cdp/shot/web; a cdp
   navigation takes the screen back. Session setting `autoOpen.web`. Payloads captured in fixtures.
+  History: every search/page in order (`history` + `cursor`, cap 100); ‹ › and a history list
+  in the browser bar walk it (view-only `web.go`); new activity jumps back to the latest.
 - Per-app storage files instead of one state.json; state size limits for huge sessions
 - Packaged .app (electron-builder) so the dock shows "Claude Glass" instead of "Electron"
 - Placeholder ghost slot while dragging; keyboard reorder

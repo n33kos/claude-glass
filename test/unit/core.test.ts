@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { browser, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
+import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
@@ -243,15 +243,42 @@ describe('browser app', () => {
     s = applyHook(s, web[0], ctx); // PreToolUse WebSearch
     const b = () => s.appState.browser as BrowserState;
     expect(s.order[0]).toBe('browser'); // auto-opened
-    expect(b().web).toMatchObject({ kind: 'search', query: 'Chrome DevTools Protocol Page.startScreencast', results: null });
+    expect(currentWeb(b())).toMatchObject({ kind: 'search', query: 'Chrome DevTools Protocol Page.startScreencast', results: null });
     s = applyHook(s, web[3], ctx); // PostToolUse WebSearch
-    expect((b().web as any).results[0]).toEqual({ title: expect.stringContaining('Background transparency'), url: 'https://github.com/ChromeDevTools/devtools-protocol/issues/162' });
+    expect(b().history).toHaveLength(1); // results fill in the pending search, no new entry
+    expect((currentWeb(b()) as any).results[0]).toEqual({ title: expect.stringContaining('Background transparency'), url: 'https://github.com/ChromeDevTools/devtools-protocol/issues/162' });
     s = applyHook(s, web[1], ctx); // PreToolUse WebFetch
-    expect(b()).toMatchObject({ view: 'web', web: { kind: 'page', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' } });
+    expect(b().view).toBe('web');
+    expect(currentWeb(b())).toMatchObject({ kind: 'page', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' });
     s = reduce(s, { type: 'app.command', id: 'browser', command: 'attach', args: {} }).state;
     s = reduce(s, { type: 'app.command', id: 'browser', command: 'web.page', args: { url: 'https://x.test/' } }).state;
     expect(b().view).toBe('web');
     s = reduce(s, { type: 'app.command', id: 'browser', command: 'status', args: { status: 'live', url: 'https://app.test/', title: 'App' } }).state;
     expect(b().view).toBe('cdp');
+  });
+});
+
+describe('browser history', () => {
+  const cmd = (s: BrowserState, command: string, args: Record<string, unknown> = {}) => browser.command(s, command, args);
+  it('walks back and forward; new activity jumps to the latest', () => {
+    let s = browser.init();
+    s = cmd(s, 'web.search', { query: 'q1' });
+    s = cmd(s, 'web.page', { url: 'https://a.test/' });
+    s = cmd(s, 'web.page', { url: 'https://a.test/' }); // repeat fetch: no duplicate
+    s = cmd(s, 'web.page', { url: 'https://b.test/' });
+    expect(s.history.map((h) => (h.kind === 'page' ? h.url : h.query))).toEqual(['q1', 'https://a.test/', 'https://b.test/']);
+    s = cmd(s, 'web.go', { index: 0 });
+    expect(currentWeb(s)).toMatchObject({ kind: 'search', query: 'q1' });
+    s = cmd(s, 'web.title', { url: 'https://a.test/', title: 'A' });
+    expect(s.history[1]).toMatchObject({ title: 'A' });
+    s = cmd(s, 'web.page', { url: 'https://c.test/' });
+    expect(s.cursor).toBe(-1);
+    expect(currentWeb(s)).toMatchObject({ url: 'https://c.test/' });
+  });
+  it('going back from the live browser shows web history', () => {
+    let s = cmd(cmd(browser.init(), 'web.page', { url: 'https://a.test/' }), 'attach', {});
+    expect(s.view).toBe('cdp');
+    s = cmd(s, 'web.go', { index: 0 });
+    expect(s.view).toBe('web');
   });
 });

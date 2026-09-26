@@ -1,4 +1,4 @@
-import { type AppDef, type Args, str, unknownCommand } from '../types';
+import { type AppDef, type Args, capTail, str, unknownCommand } from '../types';
 
 // The browser Claude uses, shown live. Three sources; the latest activity decides what's on screen:
 //  - cdp: a Chrome DevTools Protocol endpoint (Playwright/Puppeteer/Chrome with
@@ -22,12 +22,20 @@ export interface BrowserState {
   url?: string; // cdp page
   title?: string;
   shot?: { file: string; url?: string; title?: string; at: number };
-  web?: WebActivity;
+  history: WebActivity[]; // web research in order, oldest first
+  cursor: number; // history index on screen; -1 = follow the latest
   updatedAt: number;
+}
+
+/** The web entry on screen (the cursor's, or the latest). */
+export function currentWeb(s: BrowserState): WebActivity | undefined {
+  const h = s.history ?? [];
+  return h[s.cursor >= 0 && s.cursor < h.length ? s.cursor : h.length - 1];
 }
 
 export const DEFAULT_CDP = 'http://127.0.0.1:9222';
 const MAX_RESULTS = 20;
+const MAX_HISTORY = 100;
 
 /** Accept a port, host:port or http(s) URL, but only on this machine. */
 export function normalizeEndpoint(raw: string): string {
@@ -60,9 +68,15 @@ export const browser: AppDef<BrowserState> = {
     frame: { usage: 'frame --file <png|jpg> [--url U] [--title T]', help: 'Show a screenshot (for browsers without CDP)' },
     detach: { usage: 'detach', help: 'Stop streaming' },
   },
-  init: () => ({ view: 'off', endpoint: null, status: 'off', updatedAt: 0 }),
+  init: () => ({ view: 'off', endpoint: null, status: 'off', history: [], cursor: -1, updatedAt: 0 }),
   command(s, cmd, a: Args) {
     const now = Date.now();
+    const history = s.history ?? [];
+    // New research lands at the end and the view jumps to it (like the diff viewer).
+    const push = (entry: WebActivity, replaceLast = false): BrowserState => ({
+      ...s, view: 'web', cursor: -1, updatedAt: now,
+      history: capTail([...(replaceLast ? history.slice(0, -1) : history), entry], MAX_HISTORY),
+    });
     switch (cmd) {
       case 'attach': {
         const endpoint = normalizeEndpoint(a.cdp === undefined || a.cdp === true ? DEFAULT_CDP : String(a.cdp));
@@ -83,19 +97,38 @@ export const browser: AppDef<BrowserState> = {
         return { ...s, status, url, title, view: navigated ? 'cdp' : s.view, updatedAt: now };
       }
       case 'web.search': {
-        // Internal (hooks). Without results: searching. With results: done.
+        // Internal (hooks). Without results: searching. With results: done, filling in the
+        // pending entry for the same query if there is one.
         const query = str(a, 'query');
-        return { ...s, view: 'web', web: { kind: 'search', query, results: Array.isArray(a.results) ? (a.results as WebResult[]).slice(0, MAX_RESULTS) : null, at: now }, updatedAt: now };
+        const results = Array.isArray(a.results) ? (a.results as WebResult[]).slice(0, MAX_RESULTS) : null;
+        const pending = history.findLastIndex((h) => h.kind === 'search' && h.query === query && h.results === null);
+        if (results && pending !== -1) {
+          const h = history.slice();
+          h[pending] = { ...(h[pending] as Extract<WebActivity, { kind: 'search' }>), results };
+          return { ...s, history: h, updatedAt: now };
+        }
+        return push({ kind: 'search', query, results, at: now });
       }
       case 'web.page': {
         const url = str(a, 'url');
         if (!/^https?:\/\//i.test(url)) return s;
-        if (s.web?.kind === 'page' && s.web.url === url) return s.view === 'web' ? s : { ...s, view: 'web', updatedAt: now };
-        return { ...s, view: 'web', web: { kind: 'page', url, at: now }, updatedAt: now };
+        const last = history[history.length - 1];
+        if (last?.kind === 'page' && last.url === url) return { ...s, view: 'web', cursor: -1, updatedAt: now };
+        return push({ kind: 'page', url, at: now });
       }
       case 'web.title': {
-        if (s.web?.kind !== 'page' || s.web.url !== a.url || s.web.title === a.title) return s;
-        return { ...s, web: { ...s.web, title: String(a.title ?? '') } };
+        const i = history.findLastIndex((h) => h.kind === 'page' && h.url === a.url);
+        const e = history[i];
+        if (!e || e.kind !== 'page' || e.title === a.title) return s;
+        const h = history.slice();
+        h[i] = { ...e, title: String(a.title ?? '') };
+        return { ...s, history: h };
+      }
+      case 'web.go': {
+        // Internal (UI back/forward/history list): only changes which entry is on screen.
+        if (!history.length) return s;
+        const i = Math.max(0, Math.min(history.length - 1, Math.floor(Number(a.index))));
+        return { ...s, view: 'web', cursor: i === history.length - 1 ? -1 : i };
       }
       default:
         return unknownCommand('browser', cmd);

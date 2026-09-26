@@ -288,7 +288,19 @@ try {
       await sleep(800);
       await page.screenshot({ path: join(shots, '09d-web-page.png') });
       const st = JSON.parse(await cli(env, 'state', 'browser')).state;
-      check(st.view === 'web' && st.web.title === 'Screencast docs', `fetched page renders in the browser (title ${st.web?.title})`);
+      const cur = st.history[st.history.length - 1];
+      check(st.view === 'web' && cur.title === 'Screencast docs', `fetched page renders in the browser (title ${cur?.title})`);
+      // History: back shows the search again, the list lets you jump anywhere.
+      await page.locator('.browserview .b-nav button[aria-label="Back"]').click();
+      await sleep(300);
+      check((await page.locator('.b-results li').count()) === 3, 'back returns to the search results');
+      await page.locator('.browserview .b-hist-btn').click();
+      await sleep(250);
+      await page.screenshot({ path: join(shots, '09e-web-history.png') });
+      check((await page.locator('.b-hist li').count()) === 2, 'history list shows every search and page');
+      await page.locator('.b-hist li').first().click();
+      await page.waitForFunction(() => document.querySelector('.browserview .b-stage img')?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
+      check((await page.locator('.b-results').count()) === 0 && (await page.locator('.browserview .b-stage img').count()) === 1, 'picking the page from history shows it again');
     } finally {
       srv.close();
     }

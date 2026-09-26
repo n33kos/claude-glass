@@ -3,7 +3,7 @@ import { app, BrowserWindow, ipcMain, Menu, protocol } from 'electron';
 import { readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { filesDir } from '../core/paths';
-import type { BrowserState } from '../apps/browser';
+import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { GlassCore } from '../core/server';
 import { WebFeed } from './webFeed';
@@ -152,7 +152,8 @@ function syncBrowserStreams() {
 
   // Web research: render the fetched page while the browser window is open and showing it.
   const b = s.appState.browser as BrowserState | undefined;
-  const page = b?.view === 'web' && b.web?.kind === 'page' && s.order.includes('browser') ? b.web.url : null;
+  const w = b?.view === 'web' ? currentWeb(b) : undefined;
+  const page = w?.kind === 'page' && s.order.includes('browser') ? w.url : null;
   if (page) {
     webFeed ??= new WebFeed(
       (data) => sendFrame('browser', 'web', data),

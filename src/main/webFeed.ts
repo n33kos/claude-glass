@@ -34,17 +34,13 @@ export class WebFeed {
   show(url: string) {
     if (url === this.url || !/^https?:\/\//i.test(url)) return;
     this.url = url;
-    const wc = this.window().webContents;
-    wc.startPainting();
-    wc.loadURL(url).catch(() => {}); // failures still paint Chromium's error page
+    this.window().webContents.loadURL(url).catch(() => {}); // failures still paint Chromium's error page
   }
 
-  /** Stop running the page (its scripts, timers, network) when the web view isn't on screen. */
+  /** Throw the page away (its scripts, timers, network) when the web view isn't on screen. */
   hide() {
-    if (!this.url || !this.win || this.win.isDestroyed()) return;
     this.url = null;
-    this.win.webContents.stopPainting();
-    this.win.webContents.loadURL('about:blank').catch(() => {});
+    this.destroy();
   }
 
   destroy() {

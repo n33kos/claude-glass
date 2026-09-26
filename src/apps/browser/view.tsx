@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { fileUrl, timeAgo, type ViewProps } from '../../renderer/viewTypes';
-import type { BrowserState, WebActivity } from './index';
+import { currentWeb, type BrowserState, type WebActivity } from './index';
 
 type Frames = Partial<Record<'cdp' | 'web', string>>;
 
-export function BrowserView({ id, state }: ViewProps<BrowserState>) {
+export function BrowserView({ id, state, run }: ViewProps<BrowserState>) {
   const [frames, setFrames] = useState<Frames>({});
+  const [listOpen, setListOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -15,20 +16,70 @@ export function BrowserView({ id, state }: ViewProps<BrowserState>) {
   }, [id]);
 
   // A new page starts blank instead of showing the previous page's last frame.
-  const pageUrl = state.web?.kind === 'page' ? state.web.url : null;
+  const web = currentWeb(state);
+  const pageUrl = web?.kind === 'page' ? web.url : null;
   useEffect(() => { setFrames((p) => ({ ...p, web: undefined })); }, [pageUrl]);
+
+  // Back/forward walk the web history. From the live browser or a screenshot, back shows the
+  // latest web entry. View-only: nothing here reaches Claude.
+  const history = state.history ?? [];
+  const n = history.length;
+  const at = state.view === 'web' ? (state.cursor >= 0 && state.cursor < n ? state.cursor : n - 1) : n;
+  const go = (i: number) => { setListOpen(false); run('web.go', { index: i }); };
 
   const bar = barFor(state);
   return (
     <div className="browserview">
       <div className="b-bar">
+        <span className="b-nav">
+          <button disabled={at <= 0} onClick={() => go(at - 1)} aria-label="Back" title="Back">‹</button>
+          <button disabled={at >= n - 1} onClick={() => go(at + 1)} aria-label="Forward" title="Forward">›</button>
+        </span>
         <span className={`b-dot ${bar.dot}`} />
         <span className="b-url" title={bar.url}>{bar.url}</span>
         <span className="b-meta">{bar.meta}</span>
+        {n > 0 && (
+          <button className={`b-hist-btn${listOpen ? ' on' : ''}`} onClick={() => setListOpen((v) => !v)} title="History">
+            {at < n ? `${at + 1} / ${n}` : `${n}`} ▾
+          </button>
+        )}
       </div>
-      <div className="b-stage">{stage(state, frames)}</div>
+      <div className="b-stage">
+        {stage(state, web, frames)}
+        {listOpen && <HistoryList history={history} at={at} onPick={go} onClose={() => setListOpen(false)} />}
+      </div>
     </div>
   );
+}
+
+function HistoryList({ history, at, onPick, onClose }: { history: WebActivity[]; at: number; onPick: (i: number) => void; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  // Newest first, like a browser's history menu.
+  const rows = history.map((h, i) => ({ h, i })).reverse();
+  return (
+    <div className="b-hist" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <ol>
+        {rows.map(({ h, i }) => (
+          <li key={i} className={i === at ? 'on' : ''} onClick={() => onPick(i)}>
+            <span className="b-h-kind">{h.kind === 'search' ? '⌕' : '◳'}</span>
+            <span className="b-h-text">
+              <span className="b-h-title">{h.kind === 'search' ? h.query : h.title || host(h.url)}</span>
+              <span className="b-h-sub">{h.kind === 'search' ? (h.results ? `search · ${h.results.length} results` : 'search · …') : h.url}</span>
+            </span>
+            <span className="b-h-time">{timeAgo(h.at)}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function host(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
 function barFor(s: BrowserState): { dot: string; url: string; meta: string } {
@@ -36,7 +87,8 @@ function barFor(s: BrowserState): { dot: string; url: string; meta: string } {
     case 'cdp': return { dot: s.status, url: s.url || s.endpoint || '', meta: s.status === 'live' ? 'live' : 'reconnecting' };
     case 'shot': return { dot: 'shot', url: s.shot?.url || s.shot?.title || 'screenshot', meta: `screenshot · ${timeAgo(s.shot?.at ?? s.updatedAt)}` };
     case 'web': {
-      const w = s.web!;
+      const w = currentWeb(s);
+      if (!w) return { dot: 'off', url: '', meta: '' };
       if (w.kind === 'search') return { dot: w.results ? 'web' : 'busy', url: `Search: ${w.query}`, meta: w.results ? `${w.results.length} results` : 'searching…' };
       return { dot: 'web', url: w.url, meta: w.title ? truncate(w.title, 40) : 'reading…' };
     }
@@ -44,8 +96,8 @@ function barFor(s: BrowserState): { dot: string; url: string; meta: string } {
   }
 }
 
-function stage(s: BrowserState, frames: Frames) {
-  if (s.view === 'web' && s.web) return s.web.kind === 'search' ? <SearchResults web={s.web} /> : frame(frames.web, s.web.title ?? s.web.url, false, <Loading url={s.web.url} />);
+function stage(s: BrowserState, web: WebActivity | undefined, frames: Frames) {
+  if (s.view === 'web' && web) return web.kind === 'search' ? <SearchResults web={web} /> : frame(frames.web, web.title ?? web.url, false, <Loading url={web.url} />);
   if (s.view === 'shot' && s.shot) return frame(fileUrl(s.shot.file), s.shot.title ?? 'screenshot', false, null, true);
   if (s.view === 'cdp' && s.endpoint) {
     const stale = s.status !== 'live';

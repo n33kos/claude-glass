@@ -14,7 +14,7 @@ export const APPS: Record<string, AppDef> = Object.fromEntries(
 );
 
 // Commands used only by hooks/UI; hidden from the catalog Claude sees.
-export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status']);
+export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go']);
 
 export function getApp(type: string): AppDef {
   const app = APPS[type];
