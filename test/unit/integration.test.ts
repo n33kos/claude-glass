@@ -196,3 +196,23 @@ describe('built-in apps ship as mods', () => {
     }
   });
 });
+
+describe('apps CLI', () => {
+  it('apps new creates a starter mod that loads', async () => {
+    await cli('apps', 'new', 'demo-notes');
+    const app = readMod(join(home, 'apps', 'demo-notes'));
+    expect(app).toMatchObject({ type: 'demo-notes', title: 'Demo Notes', source: 'user' });
+    expect(app.command(app.init(), 'set', { text: 'hi' })).toMatchObject({ text: 'hi' });
+    expect(app.guide).toContain('claude-glass app demo-notes set');
+  });
+  it('apps eject copies a built-in that loads as a user mod', async () => {
+    await cli('apps', 'eject', 'image');
+    const app = readMod(join(home, 'apps', 'image'));
+    expect(app).toMatchObject({ type: 'image', source: 'user' });
+    expect(existsSync(join(home, 'apps', 'image', 'src', 'view.tsx'))).toBe(true);
+  });
+  it('apps lists what the live glass loaded', async () => {
+    const out = await cli('apps');
+    expect(out).toContain('builtin  terminal');
+  });
+});

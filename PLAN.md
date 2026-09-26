@@ -182,6 +182,8 @@ Each app: `index.ts` (core definition: `type, title, icon, singleton, descriptio
 init(), command(state, cmd, args)`) and `view.tsx` (React view: `({state, instance, size,
 dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/views.ts` (views).
 
+All apps except settings ship in the mod format (§8, `docs/apps.md`): views in sandboxed frames.
+
 | App | Singleton | Commands | View |
 |---|---|---|---|
 | terminal | yes | `log --text`, `clear` | tool calls as terminal lines, collapsible output, type filter chips |
@@ -191,7 +193,7 @@ dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/view
 | image | no (`images` auto) | `add --file [--caption]` | flip ◀ ▶ |
 | html | no | `render --text/--file` | sandboxed iframe (`allow-scripts`, no same-origin) |
 | browser | yes | `attach [--cdp port\|url]`, `frame --file [--url]`, `detach` (+ hooks: WebSearch results, WebFetch pages) | live CDP screencast of the most recently active tab (Electron main runs `core/cdp.ts`; frames go straight to the renderer, only status/url/title hit the reducer), or the latest pushed screenshot for non-CDP browsers. Local endpoints only; watch-only |
-| settings | yes | — | global + session settings form |
+| settings | yes | — | global + session settings form, custom apps list (native: the shell's own UI) |
 
 ## 5. Testing strategy
 
@@ -259,8 +261,9 @@ Queue, in order:
    Claude to always run the browser headless so the glass is the only view of it. One-way: the
    glass never sends input to the page.
 
-4. **Custom apps ("mods")**: drop a folder into `~/.claude/claude-glass/apps/` and it works.
-   Design in §8. Not started. End state: every built-in app uses the mod format too.
+4. [x] **Custom apps ("mods")** (done 2026-09-26): drop a folder into `~/.claude/claude-glass/apps/`
+   and it works. Design in §8, author docs in `docs/apps.md`. Every built-in app except Settings
+   ships in the mod format; `claude-glass apps [new|eject]`.
 5. [x] **"Claude decides" layout** (done 2026-09-26; `fitLayout`, `guideFor`): a `defaultLayout` option (`claude`) where new desktops start
    with a fit for their window count (1 full, 2 split, 3 main-left, 4 grid) and the guide tells
    Claude to pick each desktop's layout for what it's showing (`claude-glass layout`).
@@ -298,7 +301,7 @@ state.json, Linux support.
 Ruled out (2026-09-26): user→Claude back-channel (breaks the one-way north star) and timeline
 scrubbing (not the direction for this project).
 
-## 8. Custom apps ("mods"): design (not started)
+## 8. Custom apps ("mods"): design (built 2026-09-26)
 
 Goal: Claude Glass is an extensible framework with a few built-in apps. Anyone can write an app,
 drop its folder in place, restart the glass, and it works, including instructions that tell
@@ -347,6 +350,18 @@ app without touching the core guide.
 - Trust: `core.js` runs in the main process with Node access, like any plugin you install.
   Say so in the docs. The view is sandboxed.
 - Later: project-level mods (`<project>/.claude/glass-apps/`), `claude-glass apps install <git url>`.
+
+### As built
+- Loader `src/core/mods.ts`; registry `registerApp`; `app.hook` reducer action runs `onHook`.
+- Views: `glass-app://<type>/` protocol + `FrameView` host + SDK (`src/sdk/glass-app.ts`,
+  `glass-app.css`, React adapter `react.tsx`). Host services: `lightbox`, `aspect`. Frames:
+  `frame` messages. Windows render in a stable DOM order so frames never reload on reorder.
+- Built-ins compile to complete mod folders in `dist/apps/<type>` (core.js, generated
+  manifest, view.html/js/css, sources in `src/`); main attaches them before user mods load.
+- Settings stays native: it is the shell's own configuration UI (global config + session
+  settings), not content. It lists custom apps and load errors.
+- Guide: built into core (`src/core/guide.ts`), served by the glass (`guide` op) so it includes
+  each app's `guide.md`.
 
 ### Dogfood, then go all the way
 1. Port one built-in (html or image) to the mod format to prove the interface and serve as the

@@ -1,9 +1,9 @@
 // claude-glass CLI. Thin client over the per-session Unix socket.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, extname, resolve } from 'node:path';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { basename, extname, join, resolve } from 'node:path';
 import { bindSession, glassIdFor, isBound } from '../core/binding';
 import { loadConfig } from '../core/config';
-import { filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
+import { appsDir, filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
 import { request } from './client';
@@ -99,7 +99,8 @@ const HELP = `claude-glass — Claude's monitor for this Claude Code session
 
 ${GUIDE.split('\n').slice(8).join('\n')}
 
-Other: open | close | status [--all] | state [id] | settings [set <key> <value>] | --session ID | --json`;
+Other: open | close | status [--all] | state [id] | settings [set <key> <value>] | --session ID | --json
+Apps:  apps (list) | apps new <type> | apps eject <type>   (custom apps live in ~/.claude/claude-glass/apps)`;
 
 async function main(argv: string[]) {
   const { pos, flags } = parse(argv);
@@ -224,6 +225,39 @@ async function main(argv: string[]) {
       if (!desk || !layout) throw new Error('usage: claude-glass layout <desktop#> <full|split|main-left|columns|grid>');
       await dispatch(sid, { type: 'desktop.layout', desktop: Number(desk) - 1, layout: layout as any });
       out({ ok: true }, 'ok');
+      return;
+    }
+    case 'apps': {
+      const [sub, type] = rest;
+      const dir = appsDir();
+      if (sub === 'new' || sub === 'eject') {
+        if (!type || !/^[a-z][a-z0-9-]{0,31}$/.test(type)) throw new Error(`usage: claude-glass apps ${sub} <type>   (lowercase letters, digits, dashes)`);
+        const dest = join(dir, type);
+        if (existsSync(dest)) throw new Error(`${dest} already exists`);
+        if (sub === 'new') {
+          cpSync(join(__dirname, '..', 'templates', 'app'), dest, { recursive: true });
+          const title = type.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+          for (const f of readdirSync(dest)) {
+            const p = join(dest, f);
+            writeFileSync(p, readFileSync(p, 'utf8').replaceAll('__TYPE__', type).replaceAll('__TITLE__', title));
+          }
+          console.log(`Created ${dest}\nEdit it, then restart the glass (claude-glass close && claude-glass open).`);
+        } else {
+          const src = join(__dirname, 'apps', type);
+          if (!existsSync(src)) throw new Error(`no built-in app "${type}" (built-ins: ${readdirSync(join(__dirname, 'apps')).join(', ')})`);
+          cpSync(src, dest, { recursive: true });
+          console.log(`Copied the built-in "${type}" app to ${dest}. It now overrides the built-in; restart the glass to load it.\nIts view is compiled React (the TypeScript sources are in src/ for reference); replace view.html to write your own.`);
+        }
+        return;
+      }
+      // List: from the live glass (what actually loaded), else what's on disk.
+      const cat: any[] | null = await call(sessionId(flags), { op: 'catalog' }).catch(() => null);
+      const reports: any[] = await call(sessionId(flags), { op: 'mods' }).catch(() => []);
+      const rows = cat
+        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}`)
+        : ['(glass not open: showing folders only)', ...(existsSync(dir) ? readdirSync(dir).map((d) => `custom   ${d}`) : [])];
+      for (const r of reports) if (!r.ok) rows.push(`FAILED   ${r.type.padEnd(14)} ${r.error}  (${r.dir})`);
+      out({ apps: cat, mods: reports }, [...rows, '', `Custom apps folder: ${dir}`].join('\n'));
       return;
     }
     case 'settings': {

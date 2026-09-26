@@ -28,8 +28,11 @@ Tiling, dragging, desktops, and settings are conveniences for *viewing*, not way
   It must run in plain Node (integration tests do exactly that).
 - Every state change is a reducer action (`src/core/reducer.ts`). UI and CLI share actions.
   Never add a code path that mutates state outside the reducer.
-- New app = `src/apps/<type>/index.ts` + `view.tsx`, register in `src/apps/registry.ts` and
-  `src/renderer/views.ts`. Update the app table in PLAN.md.
+- Apps use the mod format (docs/apps.md). Built-in app = `src/apps/<type>/index.ts` (core,
+  `export default`) + `view.tsx` (`export default`, `AppViewProps`) + `view.css`; register the
+  core in `src/apps/registry.ts` and add the type to `FRAME_APPS` in `scripts/build.mjs`, which
+  compiles it into a mod folder in `dist/apps/<type>`. Views run in sandboxed frames and talk
+  over the bridge (`src/sdk`). Only Settings is native. Update the app table in PLAN.md.
 - Hooks must never block Claude: forwarding hooks are `async: true`; `scripts/hook-forward.sh`
   exits immediately when no socket exists.
 - Tests: use `CLAUDE_GLASS_HOME` and `CLAUDE_GLASS_RUNTIME` pointed at temp dirs. Never touch

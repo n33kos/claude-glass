@@ -1,0 +1,14 @@
+{
+  "apiVersion": 1,
+  "type": "__TYPE__",
+  "title": "__TITLE__",
+  "icon": "✦",
+  "singleton": true,
+  "description": "Describe what this app shows. Claude reads this in the catalog.",
+  "autoOpen": false,
+  "commands": {
+    "set": { "usage": "set --text <text>", "help": "Show some text" },
+    "clear": { "usage": "clear", "help": "Clear it" }
+  },
+  "viewCommands": []
+}

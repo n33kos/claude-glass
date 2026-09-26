@@ -80,10 +80,19 @@ glass; after `/clear` you start fresh, and `claude --resume` picks the old glass
 restarts and resumes all continue in the same window. A folder glass's id is
 `sha256(project dir)[:12]`, the same id Voice Multiplexer uses for the folder.
 
+## Custom apps
+
+Every window is an app, and anyone can write one: drop a folder into
+`~/.claude/claude-glass/apps/` (or run `claude-glass apps new <name>`) and restart the glass.
+Apps can fill themselves from Claude Code hooks, take commands from Claude, and ship their own
+instructions for Claude. The built-in apps use the same format; `claude-glass apps eject <type>`
+copies one so you can change it. See [docs/apps.md](docs/apps.md).
+
 ## Files
 
 ```
 ~/.claude/claude-glass/config.json                 global settings
+~/.claude/claude-glass/apps/<type>/                custom apps
 ~/.claude/claude-glass/sessions/<id>/state.json    a glass's saved state
 ~/.claude/claude-glass/sessions/<id>/glass.log    Electron log
 /tmp/claude-glass-<uid>/<id>.sock                  live glass socket

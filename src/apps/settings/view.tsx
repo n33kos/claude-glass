@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
 import { BACKGROUNDS } from '../../renderer/backgrounds';
-import { dispatch, setConfig } from '../../renderer/store';
+import { apps, dispatch, mods, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -75,6 +75,16 @@ export function SettingsView({ glass, config }: ViewProps) {
           <button type="submit" className="s-btn">Use image</button>
         </form>
       </div>
+
+      <h3>Custom apps</h3>
+      {mods.length === 0 && <p className="s-note">None installed. Add one with <code>claude-glass apps new &lt;name&gt;</code>; they live in <code>~/.claude/claude-glass/apps</code>.</p>}
+      {mods.map((m) => (
+        <div key={m.dir} className={`s-row s-app${m.ok ? '' : ' s-app-bad'}`} title={m.dir}>
+          <span><b>{apps[m.type]?.icon ?? '▢'}</b> {apps[m.type]?.title ?? m.type} <code>{m.type}</code>{m.overrides ? ' · replaces the built-in' : ''}</span>
+          <span className="s-app-status">{m.ok ? 'loaded' : m.error}</span>
+        </div>
+      ))}
+      {mods.length > 0 && <p className="s-note">Changes load when the glass restarts.</p>}
       <p className="s-foot">Session {glass.session.id}</p>
     </div>
   );

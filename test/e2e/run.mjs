@@ -189,6 +189,10 @@ try {
   await page.locator('.dock-item[title="Settings"]').click();
   await sleep(700);
   await page.screenshot({ path: join(shots, '07-settings.png') });
+  await page.locator('.settings').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await sleep(150);
+  await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07d-settings-apps.png') });
+  check((await page.locator('.s-app-bad').count()) === 1 && (await page.locator('.s-app').count()) === 2, 'settings lists custom apps and the one that failed');
   check((await page.locator('.settings').count()) === 1, 'settings opens from the dock');
 
   // Close a window via traffic light, reopen from dock

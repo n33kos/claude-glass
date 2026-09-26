@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- The glass's tokens and base styles: --ink, --ink-dim, --ink-faint, --sky, --sans, --mono... -->
+<link rel="stylesheet" href="glass-app://sdk/glass-app.css">
+<style>
+  body { padding: 16px 18px; overflow: auto; }
+  .empty { color: var(--ink-faint); }
+</style>
+</head>
+<body>
+  <div id="out"></div>
+  <script src="glass-app://sdk/glass-app.js"></script>
+  <script>
+    // props: { state, meta, size: { width, height }, session: { cwd, activity, ended, waiting } }
+    glass.onState(({ state }) => {
+      document.getElementById('out').innerHTML = state.text
+        ? `<p></p>` : '<p class="empty">Nothing yet.</p>';
+      if (state.text) document.querySelector('#out p').textContent = state.text;
+    });
+    // glass.run('<view command>', { ... })  — only commands listed in viewCommands (or "view": true)
+    // glass.host('lightbox', { src, alt })  — full-window image viewer
+  </script>
+</body>
+</html>
