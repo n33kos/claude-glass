@@ -35,6 +35,8 @@ export interface CanvasState {
   version: 1;
   session: SessionInfo;
   order: string[];
+  // Pinned windows: id → slot index in `order`. The reducer keeps them there; others flow around.
+  pinned?: Record<string, number>;
   desktops: LayoutName[];
   instances: Record<string, InstanceMeta>;
   appState: Record<string, unknown>;
@@ -48,6 +50,8 @@ export type Action =
   | { type: 'window.open'; id: string }
   | { type: 'window.close'; id: string }
   | { type: 'window.move'; id: string; index: number }
+  | { type: 'window.pin'; id: string; index?: number }
+  | { type: 'window.unpin'; id: string }
   | { type: 'window.opacity'; id: string; value: number | null }
   | { type: 'desktop.layout'; desktop: number; layout: LayoutName }
   | { type: 'instance.create'; appType: string; id?: string; title?: string; open?: boolean }

@@ -161,6 +161,7 @@ export function App() {
               <WindowFrame
                 key={p.id}
                 meta={meta}
+                pinned={state.pinned?.[p.id] != null}
                 style={style}
                 dragging={dragging}
                 dropTarget={!!drag && !dragging && drag.target === p.index}
@@ -199,7 +200,7 @@ function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number
 }
 
 function WindowFrame(props: {
-  meta: InstanceMeta; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
+  meta: InstanceMeta; pinned: boolean; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
   page: DesktopPage; onDragStart: (e: React.PointerEvent) => void; children: React.ReactNode;
 }) {
   const { meta, page } = props;
@@ -219,6 +220,11 @@ function WindowFrame(props: {
         </div>
         <span className="wtitle"><em>{app?.icon}</em>{meta.title}</span>
         <span className="wid">{meta.id}</span>
+        <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}
+          aria-label={props.pinned ? 'Unpin window' : 'Pin window'} aria-pressed={props.pinned}
+          onClick={() => dispatch(props.pinned ? { type: 'window.unpin', id: meta.id } : { type: 'window.pin', id: meta.id })}>
+          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
+        </button>
         {menu && (
           <div className="layout-menu" onMouseLeave={() => setMenu(false)}>
             {LAYOUT_NAMES.map((l) => (

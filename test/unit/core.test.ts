@@ -53,6 +53,39 @@ describe('reducer', () => {
     s = reduce(s, { type: 'window.move', id: 'conversation', index: 99 }).state;
     expect(s.order).toEqual(['terminal', 'conversation']);
   });
+  it('pinned windows hold their slot while others flow around them', () => {
+    let s = fresh(); // [conversation, terminal]
+    s = reduce(s, { type: 'window.pin', id: 'conversation', index: 1 }).state;
+    expect(s.order).toEqual(['terminal', 'conversation']);
+    s = reduce(s, { type: 'instance.create', appType: 'markdown' }).state;
+    expect(s.order).toEqual(['markdown-1', 'conversation', 'terminal']);
+    s = reduce(s, { type: 'window.move', id: 'terminal', index: 0 }).state;
+    expect(s.order).toEqual(['terminal', 'conversation', 'markdown-1']);
+    s = reduce(s, { type: 'window.move', id: 'terminal', index: 1 }).state; // onto the pin: next free slot
+    expect(s.order).toEqual(['markdown-1', 'conversation', 'terminal']);
+    s = reduce(s, { type: 'window.close', id: 'markdown-1' }).state;
+    expect(s.order).toEqual(['terminal', 'conversation']);
+  });
+  it('moving a pinned window re-pins it; pin past the end lands last; unpin and close clear it', () => {
+    let s = fresh();
+    s = reduce(s, { type: 'instance.create', appType: 'markdown' }).state; // [md, conv, term]
+    s = reduce(s, { type: 'window.pin', id: 'markdown-1' }).state; // pins at current slot 0
+    expect(s.pinned).toEqual({ 'markdown-1': 0 });
+    s = reduce(s, { type: 'window.move', id: 'markdown-1', index: 2 }).state;
+    expect(s.pinned).toEqual({ 'markdown-1': 2 });
+    expect(s.order).toEqual(['conversation', 'terminal', 'markdown-1']);
+    s = reduce(s, { type: 'window.close', id: 'terminal' }).state;
+    expect(s.order).toEqual(['conversation', 'markdown-1']);
+    s = reduce(s, { type: 'window.open', id: 'terminal' }).state;
+    expect(s.order).toEqual(['terminal', 'conversation', 'markdown-1']);
+    s = reduce(s, { type: 'window.pin', id: 'terminal', index: 2 }).state; // takes over the slot
+    expect(s.pinned).toEqual({ terminal: 2 });
+    s = reduce(s, { type: 'window.unpin', id: 'terminal' }).state;
+    expect(s.pinned).toEqual({});
+    s = reduce(s, { type: 'window.pin', id: 'terminal', index: 0 }).state;
+    s = reduce(s, { type: 'window.close', id: 'terminal' }).state;
+    expect(s.pinned).toEqual({});
+  });
   it('singletons are never duplicated', () => {
     let s = fresh();
     const r = reduce(s, { type: 'instance.create', appType: 'terminal' });

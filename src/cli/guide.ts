@@ -16,10 +16,12 @@ Don't overdo it; one well-chosen visual beats many.
       diff: add --path P --before-file A --after-file B     terminal: log --text T
   claude-canvas window open|close <id>        open = bring back at index 0
   claude-canvas window move <id> <index>      move to 0 to bring something to the user's attention
+  claude-canvas window pin <id> [index]       keep a window at a slot; others flow around it. unpin <id>
   claude-canvas layout <desktop#> full|split|main-left|columns|grid
   claude-canvas catalog                       all apps and commands
 
 Rules: run \`claude-canvas view\` before rearranging (the user may have moved things). New windows
-open at index 0. Updating a window never moves it; only move it if it truly needs attention.
+open at index 0 (first unpinned slot). Updating a window never moves it; only move it if it truly
+needs attention. Leave windows the user pinned where they are.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.`;

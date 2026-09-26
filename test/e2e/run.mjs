@@ -121,6 +121,24 @@ try {
     await cli(env, 'window', 'close', 'html-2');
   }
 
+  // Pin: click the pin on the window in slot 1, open a new window, the pinned one stays put.
+  {
+    const ids = () => cli(env, 'view', '--json').then((j) => JSON.parse(j).desktops.flatMap((d) => d.windows.map((w) => w.id)));
+    const target = (await ids())[1];
+    await page.locator(`[data-window="${target}"] .titlebar`).hover();
+    await page.locator(`[data-window="${target}"] .pin`).click();
+    await sleep(300);
+    await cli(env, 'new', 'markdown', '--id', 'pin-test', '--title', 'New window');
+    await sleep(600);
+    const now = await ids();
+    check(now[0] === 'pin-test' && now[1] === target, `pinned window keeps slot 1 when a new window opens (${now.slice(0, 3).join(', ')})`);
+    await page.screenshot({ path: join(shots, '06e-pinned.png') });
+    await cli(env, 'window', 'close', 'pin-test');
+    await page.locator(`[data-window="${target}"] .pin`).click();
+    await sleep(300);
+    check(!(await cli(env, 'view')).includes('[pinned]'), 'clicking the pin again unpins');
+  }
+
   // Settings via dock
   await page.locator('.dock-item[title="Settings"]').click();
   await sleep(700);

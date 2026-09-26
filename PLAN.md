@@ -116,6 +116,7 @@ CanvasState {
   version: 1
   session: { id, cwd, title, startedAt, endedAt?, activity: 'idle'|'working' }
   order: string[]                // open windows, index 0 = primary desktop first slot
+  pinned?: Record<id, slot>      // pinned windows stay at their slot; the rest flow around them
   desktops: LayoutName[]         // per-desktop layout; auto-extended with defaultLayout
   instances: Record<id, { id, type, title, createdAt, opacity? }>
   appState: Record<id, unknown>  // owned by each app's reducer
@@ -130,7 +131,7 @@ Layouts: `full`(1) · `split`(2 side by side) · `main-left`(1 big + 2 small) ·
 ### 4.4 Actions (the shared reducer)
 
 `window.open {id}` (moves to 0) · `window.close {id}` · `window.move {id, index}` ·
-`window.opacity {id, value}` · `desktop.layout {desktop, layout}` ·
+`window.pin {id, index?}` · `window.unpin {id}` · `window.opacity {id, value}` · `desktop.layout {desktop, layout}` ·
 `instance.create {type, id?, title?, open?}` · `instance.rename {id, title}` ·
 `app.command {id, command, args}` · `settings.set {scope, key, value}` ·
 `ui.viewDesktop {index}` · `hook {payload}`.
@@ -163,6 +164,7 @@ claude-canvas new <type> [--id ID] [--title T] [--no-open]
 claude-canvas app <id> <command> [--key value ...] [--file F] [--text T]
 claude-canvas window open|close <id>
 claude-canvas window move <id> <index>
+claude-canvas window pin <id> [index] | unpin <id>
 claude-canvas window opacity <id> <0..1>
 claude-canvas layout <desktop#> <full|split|main-left|columns|grid>
 claude-canvas settings [get | set <scope> <key> <value>]
@@ -213,6 +215,9 @@ dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/view
 **MVP complete (2026-09-26).** Verified: 28 unit/integration tests, Playwright e2e (15 checks +
 screenshots), and a real headless `claude -p --plugin-dir . --session-id <uuid>` run with a live
 canvas (hooks, bin on PATH, session binding, CLI all work).
+
+### Post-MVP feedback round (2026-09-26)
+- [x] Pin a window to its slot (title-bar pin button, `window pin/unpin`); others flow around it
 
 ### Next candidates (not started)
 - Browser stream app (Playwright screencast into a window)

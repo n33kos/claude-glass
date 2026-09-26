@@ -83,7 +83,7 @@ function formatView(v: any): string {
   for (const d of v.desktops) {
     lines.push(`Desktop ${d.desktop + 1} [${d.layout}]`);
     if (!d.windows.length) lines.push('  (empty)');
-    for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title}`);
+    for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title}${w.pinned ? '  [pinned]' : ''}`);
   }
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
   return lines.join('\n');
@@ -194,10 +194,12 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-canvas window open|close|move|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-canvas window open|close|move|pin|unpin|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
+      else if (sub === 'pin') await dispatch(sid, { type: 'window.pin', id, index: arg === undefined ? undefined : Number(arg) });
+      else if (sub === 'unpin') await dispatch(sid, { type: 'window.unpin', id });
       else if (sub === 'opacity') await dispatch(sid, { type: 'window.opacity', id, value: arg === undefined || arg === 'reset' ? null : Number(arg) });
       else if (sub === 'rename') await dispatch(sid, { type: 'instance.rename', id, title: String(arg ?? id) });
       else throw new Error(`unknown window command "${sub}"`);
