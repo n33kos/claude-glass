@@ -223,6 +223,13 @@ canvas (hooks, bin on PATH, session binding, CLI all work).
 - [x] Dock auto-hide (global `dockAutoHide`): dock overlays, stage takes its space, 6px bottom
       hot zone reveals it
 - [x] Dock order follows window order (global `dockOrder`: `windows` default, or `fixed` by type)
+- [x] Dock: separators between desktops, apps on other desktops dimmed, 16px auto-hide hot zone
+- [x] "Waiting on you" (one-way, never answerable in the canvas): `session.waiting` set by
+      PreToolUse AskUserQuestion / PermissionRequest / Notification(permission_prompt), cleared by
+      the matching PostToolUse, UserPromptSubmit, Stop, SessionEnd. Amber presence pill with a
+      summary, read-only question card under the top bar, lock on the held terminal row, edge glow
+      (global `waitingGlow`, default on). PermissionRequest/Notification payload shapes are from
+      docs, not captured yet: capture real ones into the fixtures file.
 
 ### Next candidates (not started)
 - Browser stream app (Playwright screencast into a window)
