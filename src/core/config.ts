@@ -17,6 +17,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   wheelDesktops: true,
   disabledApps: [],
   nestedView: false,
+  windowMode: 'live',
 };
 
 export function loadConfig(): GlobalConfig {
@@ -53,6 +54,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
       const list = Array.isArray(value) ? value : String(value ?? '').split(',');
       return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];
     }
+    case 'windowMode': if (value !== 'live' && value !== 'history') throw new Error('windowMode must be live or history'); return value;
     case 'scope': if (value !== 'session' && value !== 'folder') throw new Error(`scope must be session or folder`); return value;
     case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));

@@ -291,7 +291,8 @@ Queue, in order:
    over the frame → `sendInputEvent` on the offscreen page, via a host service); clicks second,
    with a clear "you're browsing, not what Claude read" state and a "back to Claude's page"
    button.
-9. **Experiment: history mode** (not started; careful, see below).
+9. **Experiment: history mode**: built on branch `experiment/history-mode`, awaiting the user's
+   trial (global `windowMode`, Settings → "New things Claude makes"). Keep or delete the branch.
 10. [x] **Nested view** (tried and kept 2026-09-26): a global setting (`nestedView`), not a
     per-desktop layout. On: one spiral page, layout buttons hidden, `layout` refused with a hint,
     guide tells Claude index 0 is the big pane. Scroll over bars/gaps or ⌘↑/⌘↓ walks it.

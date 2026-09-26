@@ -63,6 +63,13 @@ export function SettingsView({ glass, config }: ViewProps) {
           {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
         </select>
       </label>
+      <label className="s-row">
+        <span>New things Claude makes (experiment)</span>
+        <select value={config.windowMode} onChange={(e) => setConfig('windowMode', e.target.value)}>
+          <option value="live">Update one window</option>
+          <option value="history">New window each turn (history)</option>
+        </select>
+      </label>
       <Toggle label="Scroll outside windows to switch desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />
       <Toggle label="Slowly drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
       <div className="s-row s-col">

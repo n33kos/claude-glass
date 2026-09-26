@@ -11,6 +11,8 @@ export interface HookContext {
   readText(path: string): string | null;
   /** App types the user turned off: hooks leave them untouched. */
   disabled?: ReadonlySet<string>;
+  /** Experiment: 'history' sends each turn's updates to a new window instead of reusing one. */
+  windowMode?: 'live' | 'history';
 }
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
@@ -80,7 +82,7 @@ function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
     case 'UserPromptSubmit': {
       s = setWaiting(s, undefined);
       // endedAt: in folder scope another session may have ended while this one keeps going.
-      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined } }).state;
+      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined, turn: (s.session.turn ?? 0) + 1 } }).state;
       return cmd(s, 'conversation', 'user', { text: String(p.prompt ?? ''), id: p.prompt_id });
     }
     case 'MessageDisplay': {
@@ -127,6 +129,22 @@ function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   }
 }
 
+const HISTORY_KEEP = 24; // per kind; the oldest history windows are dropped beyond this
+
+/**
+ * The one seam for window modes. live: updates go to the fixed window (`changes`, `plan`,
+ * `images`). history: each turn gets its own window (`changes-3`, "Changes · turn 3"), which opens
+ * at slot 0 and pushes older ones toward later desktops: a running visual log.
+ */
+function autoWindow(s: GlassState, ctx: HookContext, opts: Parameters<typeof autoCommand>[1]): GlassState {
+  if (ctx.windowMode !== 'history') return autoCommand(s, opts);
+  const turn = s.session.turn ?? 0;
+  s = autoCommand(s, { ...opts, id: `${opts.id}-${turn}`, title: `${opts.title} · turn ${turn}` });
+  const old = Object.values(s.instances).filter((i) => new RegExp(`^${opts.id}-\\d+$`).test(i.id)).sort((a, b) => a.createdAt - b.createdAt);
+  for (const i of old.slice(0, Math.max(0, old.length - HISTORY_KEEP))) s = reduce(s, { type: 'instance.remove', id: i.id }).state;
+  return s;
+}
+
 const web = (s: GlassState, command: string, args: Record<string, unknown>) =>
   autoCommand(s, { id: 'browser', appType: 'browser', title: 'Browser', command, args, autoOpen: s.settings.autoOpen.web !== false });
 
@@ -141,16 +159,16 @@ function applyToolSideEffects(
     if (Array.isArray(patch) && patch.length) args.hunks = patch;
     else if (tool === 'Write') { args.before = ''; args.after = String(input.content ?? ''); }
     else { args.before = String(input.old_string ?? ''); args.after = String(input.new_string ?? ''); }
-    s = autoCommand(s, { id: 'changes', appType: 'diff', title: 'Changes', command: 'add', args, autoOpen: auto.changes });
+    s = autoWindow(s, ctx, { id: 'changes', appType: 'diff', title: 'Changes', command: 'add', args, autoOpen: auto.changes });
 
     if (PLAN_RE.test(path)) {
       const text = tool === 'Write' ? String(input.content ?? '') : ctx.readText(path);
-      if (text != null) s = autoCommand(s, { id: 'plan', appType: 'markdown', title: 'Plan', command: 'set', args: { text, source: path }, autoOpen: auto.plan });
+      if (text != null) s = autoWindow(s, ctx, { id: 'plan', appType: 'markdown', title: 'Plan', command: 'set', args: { text, source: path }, autoOpen: auto.plan });
     }
   }
 
   if (tool === 'ExitPlanMode' && typeof input.plan === 'string') {
-    s = autoCommand(s, { id: 'plan', appType: 'markdown', title: 'Plan', command: 'set', args: { text: input.plan }, autoOpen: auto.plan });
+    s = autoWindow(s, ctx, { id: 'plan', appType: 'markdown', title: 'Plan', command: 'set', args: { text: input.plan }, autoOpen: auto.plan });
   }
 
   if (tool === 'WebSearch' && input.query && response) {
@@ -159,7 +177,7 @@ function applyToolSideEffects(
 
   if (tool === 'Read' && path && IMAGE_RE.test(path)) {
     const stored = ctx.ingestFile(path);
-    if (stored) s = autoCommand(s, { id: 'images', appType: 'image', title: 'Images', command: 'add', args: { file: stored, name: path.split('/').pop() }, autoOpen: auto.images });
+    if (stored) s = autoWindow(s, ctx, { id: 'images', appType: 'image', title: 'Images', command: 'add', args: { file: stored, name: path.split('/').pop() }, autoOpen: auto.images });
   }
   return s;
 }

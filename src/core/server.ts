@@ -69,6 +69,7 @@ export class GlassCore {
     this.commit(applyHook(this.state, payload, {
       ingestFile: (p) => this.ingestFile(p),
       disabled: new Set(this.config.disabledApps ?? []),
+      windowMode: this.config.windowMode,
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
     }));
   }
