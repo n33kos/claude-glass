@@ -7,6 +7,7 @@ import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
 import { computeDesktops, effectiveLayout } from '../../src/core/layout';
+import { guideFor } from '../../src/cli/guide';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
 import type { GlassState } from '../../src/core/types';
@@ -280,5 +281,18 @@ describe('browser history', () => {
     expect(s.view).toBe('cdp');
     s = cmd(s, 'web.go', { index: 0 });
     expect(s.view).toBe('web');
+  });
+});
+
+describe('"Claude decides" layout', () => {
+  it('fits new desktops to the windows left; explicit layouts win', () => {
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`);
+    expect(computeDesktops(ids(3), [], 'claude').map((p) => p.layout)).toEqual(['main-left']);
+    expect(computeDesktops(ids(6), [], 'claude').map((p) => p.layout)).toEqual(['grid', 'split']);
+    expect(computeDesktops(ids(6), ['full'], 'claude').map((p) => p.layout)).toEqual(['full', 'grid', 'full']);
+  });
+  it('tells Claude to pick layouts only in that mode', () => {
+    expect(guideFor({ defaultLayout: 'claude' })).toContain('Layouts are yours to pick');
+    expect(guideFor({ defaultLayout: 'grid' })).not.toContain('Layouts are yours to pick');
   });
 });

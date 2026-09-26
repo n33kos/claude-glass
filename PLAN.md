@@ -261,9 +261,9 @@ Queue, in order:
 
 4. **Custom apps ("mods")**: drop a folder into `~/.claude/claude-glass/apps/` and it works.
    Design in §8. Not started. End state: every built-in app uses the mod format too.
-5. **"Claude decides" layout**: a `defaultLayout` option (`claude`) where new desktops start
+5. [x] **"Claude decides" layout** (done 2026-09-26; `fitLayout`, `guideFor`): a `defaultLayout` option (`claude`) where new desktops start
    with a fit for their window count (1 full, 2 split, 3 main-left, 4 grid) and the guide tells
-   Claude to pick each desktop's layout for what it's showing (`claude-glass layout`). Not started.
+   Claude to pick each desktop's layout for what it's showing (`claude-glass layout`).
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell

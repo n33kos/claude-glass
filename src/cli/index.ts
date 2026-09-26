@@ -8,7 +8,7 @@ import { filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '.
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
 import { request } from './client';
-import { GUIDE } from './guide';
+import { GUIDE, guideFor } from './guide';
 import { launchGlass } from './launch';
 
 interface Parsed { pos: string[]; flags: Record<string, string | true> }
@@ -119,7 +119,7 @@ async function main(argv: string[]) {
       const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
       console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
-      console.log(GUIDE);
+      console.log(guideFor(loadConfig()));
       return;
     }
     case 'close': {
@@ -266,7 +266,7 @@ async function main(argv: string[]) {
       }
       if (open) {
         if (live) await request(socketPath(sid), { op: 'hook', payload: p }, 1000).catch(() => {});
-        console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: GUIDE } }));
+        console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: guideFor(config) } }));
       }
       return;
     }

@@ -33,13 +33,23 @@ export interface DesktopPage {
   windows: string[]; // ids actually placed (may be fewer than slots)
 }
 
-/** Slice `order` across desktops. Desktops beyond `desktops` use `fallback`. Always >= 1 page. */
-export function computeDesktops(order: string[], desktops: LayoutName[], fallback: LayoutName): DesktopPage[] {
+/** The layout that fits `n` windows best (used by the "claude" default). */
+export function fitLayout(n: number): LayoutName {
+  return n <= 1 ? 'full' : n === 2 ? 'split' : n === 3 ? 'main-left' : 'grid';
+}
+
+export const isDefaultLayout = (v: unknown): v is LayoutName | 'claude' => v === 'claude' || isLayout(v);
+
+/**
+ * Slice `order` across desktops. Desktops beyond `desktops` use `fallback`; fallback "claude"
+ * fits each new desktop to the windows left to place. Always >= 1 page.
+ */
+export function computeDesktops(order: string[], desktops: LayoutName[], fallback: LayoutName | 'claude'): DesktopPage[] {
   const pages: DesktopPage[] = [];
   let start = 0;
   let i = 0;
   do {
-    const layout = desktops[i] ?? fallback;
+    const layout = desktops[i] ?? (fallback === 'claude' ? fitLayout(order.length - start) : fallback);
     const n = LAYOUTS[layout].slots.length;
     pages.push({ index: i, layout, start, windows: order.slice(start, start + n) });
     start += n;

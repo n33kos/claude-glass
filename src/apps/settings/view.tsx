@@ -58,6 +58,7 @@ export function SettingsView({ glass, config }: ViewProps) {
       <label className="s-row">
         <span>Layout for new desktops</span>
         <select value={config.defaultLayout} onChange={(e) => setConfig('defaultLayout', e.target.value)}>
+          <option value="claude">Claude decides</option>
           {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
         </select>
       </label>

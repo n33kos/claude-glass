@@ -37,7 +37,7 @@ export interface SessionSettings {
 export interface GlobalConfig {
   autoStart: boolean;
   background: string; // preset name or absolute image path
-  defaultLayout: LayoutName;
+  defaultLayout: LayoutName | 'claude'; // claude: new desktops fit their window count; Claude picks layouts
   windowOpacity: number;
   dockAutoHide: boolean; // dock overlays and hides; windows get its space
   dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type

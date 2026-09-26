@@ -1,5 +1,7 @@
 // Printed by `claude-glass open` and injected by SessionStart when the glass is live.
 // Keep it short: it lands in Claude's context.
+import type { GlobalConfig } from '../core/types';
+
 export const GUIDE = `# Claude Glass is open for this session
 
 The user can see a window: Claude's monitor/screen share. It fills itself from hooks:
@@ -46,3 +48,17 @@ DevTools port, then attach and bring it forward:
   claude-glass app browser attach [--cdp 9222] && claude-glass window move browser 0
 It follows the most recently active tab. Browsers without CDP (Firefox, WebKit): save a
 screenshot after each step and run \`claude-glass app browser frame --file shot.png [--url U]\`.`;
+
+
+const CLAUDE_LAYOUT = `
+
+Layouts are yours to pick (the user chose "Claude decides"). New desktops start with a layout
+that fits their window count; when you put things on screen, set the desktop's layout for what it
+shows: one thing to read closely → full; two to compare → split; a focus plus context →
+main-left; three peers → columns; four at a glance → grid. Change it when the work changes, not
+on every update.`;
+
+/** The guide for this user's settings (and, later, installed apps). */
+export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'>): string {
+  return GUIDE + (config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '');
+}
