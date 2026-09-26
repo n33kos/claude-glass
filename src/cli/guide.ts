@@ -8,6 +8,10 @@ conversation, terminal (every tool call), "changes" (diffs of your edits), "plan
 visually when that would help: plans, diagrams, comparisons, mockups, screenshots, summaries.
 Don't overdo it; one well-chosen visual beats many.
 
+Work visibly while the canvas is open. Hooks only see your dedicated tools, so prefer the ones
+that feed the canvas: change files with Edit/Write (never sed, python, or heredocs through Bash;
+those edits never reach "changes"), write plans to plan files, and Read images you want to discuss.
+
   claude-canvas view                          layout: desktops, windows (index 0 = first slot), closed apps
   claude-canvas show <file> [--title T]       .md → markdown, image → image viewer, .html → html canvas
   claude-canvas new <type> [--id ID] [--title T]    types: markdown, html, image, diff

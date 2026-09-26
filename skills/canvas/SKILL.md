@@ -7,7 +7,9 @@ description: Open or use Claude Canvas, a window that acts as your monitor/scree
 
 Claude Canvas is a desktop window bound to this Claude Code session. It shows the user what
 you are doing: conversation, every tool call (terminal), diffs of your edits ("changes"), plan
-files ("plan"), images you read ("images"). Those fill in automatically from hooks.
+files ("plan"), images you read ("images"). Those fill in automatically from hooks, but only
+for dedicated tools: while the canvas is open, edit files with Edit/Write (not Bash), so the user
+sees the diffs.
 
 The `claude-canvas` command is on your PATH (from this plugin's `bin/`). It knows your session
 from `CLAUDE_CODE_SESSION_ID`.
