@@ -7,13 +7,14 @@ import { markdown } from './markdown';
 import { image } from './image';
 import { html } from './html';
 import { settings } from './settings';
+import { browser } from './browser';
 
 export const APPS: Record<string, AppDef> = Object.fromEntries(
-  [terminal, conversation, diff, markdown, image, html, settings].map((a) => [a.type, a]),
+  [terminal, conversation, diff, markdown, image, html, browser, settings].map((a) => [a.type, a]),
 );
 
 // Commands used only by hooks/UI; hidden from the catalog Claude sees.
-export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd']);
+export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status']);
 
 export function getApp(type: string): AppDef {
   const app = APPS[type];

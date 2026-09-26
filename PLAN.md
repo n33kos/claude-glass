@@ -57,7 +57,7 @@ this repo.
 | View control | The view (which desktop you're looking at) is never moved by Claude or by updates. Updates never reorder. Claude may deliberately `window move <id> 0` |
 | Apps | React components in a registry with a shared interface (strategy pattern). Each declares defaults: singleton vs multi-instance, commands, init state |
 | MVP apps | terminal (singleton, all tool calls, filterable), conversation (singleton), diff viewer, markdown viewer, image viewer, freeform HTML (sandboxed iframe — the only iframe), settings |
-| Later | Live browser stream, subagents app |
+| Later | Subagents app |
 | Look | macOS/iOS glassy. Background (configurable in config.json, no UI yet), per-window opacity, dock at bottom with running indicators (optional auto-hide; icons follow window order), settings is an app. Close to macOS but deliberately distinguishable from the real desktop. Title bar: close + layout picker. Drag to reorder; drag to screen edge → next desktop |
 | Settings | Global (config.json) and per-session (session state), separated |
 | Instructions to Claude | A plugin skill (only its description sits in context) + `claude-glass open` prints the usage guide when the glass turns on. SessionStart re-injects the guide only if the glass is live (autostart / resume / compact) |
@@ -190,6 +190,7 @@ dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/view
 | markdown | no (`plan` auto) | `set --text/--file`, `append` | rendered markdown |
 | image | no (`images` auto) | `add --file [--caption]` | flip ◀ ▶ |
 | html | no | `render --text/--file` | sandboxed iframe (`allow-scripts`, no same-origin) |
+| browser | yes | `attach [--cdp port\|url]`, `frame --file [--url]`, `detach` | live CDP screencast of the most recently active tab (Electron main runs `core/cdp.ts`; frames go straight to the renderer, only status/url/title hit the reducer), or the latest pushed screenshot for non-CDP browsers. Local endpoints only; watch-only |
 | settings | yes | — | global + session settings form |
 
 ## 5. Testing strategy
@@ -252,9 +253,11 @@ Queue, in order:
    SessionStart hook symlinks `<runtime>/<session_id>.sock` → `<folder id>.sock`, so the hook
    forwarder and CLI keep addressing sockets by session id and need no lookup.
 2. [x] **Image lightbox** (done 2026-09-26; see below).
-3. **Browser stream app**: show the browser Claude drives (Playwright or Chrome) live in a
-   window. One-way: frames flow in, nothing flows back. Needs a design pass first (CDP
-   screencast from a debugging port is the likely route).
+3. [x] **Browser stream app** (done 2026-09-26). Any Chromium with a DevTools port
+   (Playwright, Puppeteer, Chrome `--remote-debugging-port`) streams via CDP
+   `Page.startScreencast`; anything else pushes screenshots with `frame --file`. The guide tells
+   Claude to always run the browser headless so the glass is the only view of it. One-way: the
+   glass never sends input to the page.
 
 Other candidates:
 - Per-app storage files instead of one state.json; state size limits for huge sessions
@@ -274,7 +277,7 @@ Other candidates:
 
 ## 7. Future ideas (not MVP)
 
-Browser stream app (Playwright screencast), subagents app, per-app files instead of one
+Subagents app, per-app files instead of one
 state.json, Linux support.
 
 Ruled out (2026-09-26): user→Claude back-channel (breaks the one-way north star) and timeline

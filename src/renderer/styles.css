@@ -290,6 +290,21 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 /* ---- image --------------------------------------------------------------------- */
 .imageview { height: 100%; display: flex; }
+.browserview { height: 100%; display: flex; flex-direction: column; }
+.b-bar { flex: none; display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 6px 12px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06); font-size: 12px; color: var(--ink-dim); min-width: 0; }
+.b-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
+.b-dot.live { background: #4ade80; box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
+.b-dot.waiting { background: #fbbf24; }
+.b-dot.pushed { background: #60a5fa; }
+.b-url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.b-meta { flex: none; color: var(--ink-faint); }
+.b-stage { flex: 1; min-height: 0; display: flex; padding: 10px; }
+.b-stage img { flex: 1; min-width: 0; min-height: 0; width: 100%; object-fit: contain; object-position: top center; }
+.b-stage img.stale { opacity: .45; filter: grayscale(.6); }
+.b-empty { margin: auto; text-align: center; color: var(--ink-faint); font-family: var(--sans); display: grid; gap: 8px; padding: 20px; }
+.b-hint { font-size: 12px; }
+.b-empty code { font-family: var(--mono); color: var(--ink-dim); }
 .imageview figure { margin: 0; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .imageview img { flex: 1; min-height: 0; object-fit: contain; padding: 12px; width: 100%; }
 .imageview figcaption { flex: none; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 12px 10px; color: var(--ink-dim); font-size: 12px; }

@@ -1,6 +1,7 @@
 // claude-glass CLI. Thin client over the per-session Unix socket.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import { APPS } from '../apps/registry';
 import { bindSession, glassIdFor, isBound } from '../core/binding';
 import { loadConfig } from '../core/config';
 import { filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
@@ -61,7 +62,7 @@ function commandArgs(appType: string, command: string, flags: Parsed['flags'], s
   if (typeof args.file === 'string') {
     const path = resolve(args.file);
     if (!existsSync(path)) throw new Error(`file not found: ${path}`);
-    if (appType === 'image') {
+    if (appType === 'image' || (appType === 'browser' && command === 'frame')) {
       args.file = ingest(sid, path);
       args.name = basename(path);
     } else if (args.text === undefined) {
@@ -171,7 +172,12 @@ async function main(argv: string[]) {
       const sid = sessionId(flags);
       const [id, command] = rest;
       if (!id || !command) throw new Error('usage: claude-glass app <id> <command> [--flags]');
-      const st = await call(sid, { op: 'state', id });
+      // Singletons (browser, terminal...) are addressed by type; the first use creates and opens one.
+      const st = await call(sid, { op: 'state', id }).catch(async (e) => {
+        if (!APPS[id]?.singleton) throw e;
+        await dispatch(sid, { type: 'instance.create', appType: id });
+        return call(sid, { op: 'state', id });
+      });
       const { json: _j, ...f } = flags;
       await dispatch(sid, { type: 'app.command', id, command, args: commandArgs(st.instance.type, command, f, sid) });
       out({ ok: true }, 'ok');

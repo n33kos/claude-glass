@@ -14,7 +14,7 @@ those edits never reach "changes"), write plans to plan files, and Read images y
 
   claude-glass view                          layout: desktops, windows (index 0 = first slot), closed apps
   claude-glass show <file> [--id ID] [--title T]   .md → markdown, image → image, .html → html. Opens at 0
-  claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff
+  claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff, browser
   claude-glass app <id> <command> [--text T | --file F] [--key value]
       markdown: set|append   html: render   image: add --file F [--caption C]
       diff: add --path P --before-file A --after-file B     terminal: log --text T
@@ -36,4 +36,13 @@ windows, so directing attention is your job:
   unpin windows the user pinned; the rest flow around them. Don't reshuffle on every tool call;
   move windows when the topic changes.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
-cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.`;
+cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.
+
+Browser: when you drive a browser, stream it here instead of opening a window. ALWAYS run it
+headless (the glass is the user's view of it; a second visible browser is just noise) with a
+DevTools port, then attach and bring it forward:
+  Playwright: chromium.launch({ headless: true, args: ['--remote-debugging-port=9222'] })
+  Chrome/Chromium: --headless=new --remote-debugging-port=9222
+  claude-glass app browser attach [--cdp 9222] && claude-glass window move browser 0
+It follows the most recently active tab. Browsers without CDP (Firefox, WebKit): save a
+screenshot after each step and run \`claude-glass app browser frame --file shot.png [--url U]\`.`;

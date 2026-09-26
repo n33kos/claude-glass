@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { _electron as electron } from 'playwright';
+import { chromium, _electron as electron } from 'playwright';
 import { cli, hook, seed } from './seed.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -231,6 +231,36 @@ try {
   await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'ask1', tool_input: {}, tool_response: {} });
   await sleep(400);
   check((await page.locator('.question-card').count()) === 0 && (await page.locator('.presence-waiting').count()) === 0, 'answering clears the waiting state');
+
+  // Browser app: screencast a real headless Chromium over CDP, then a pushed screenshot.
+  {
+    const port = 9400 + Math.floor(Math.random() * 400);
+    const browser = await chromium.launch({ args: [`--remote-debugging-port=${port}`] });
+    try {
+      const bp = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      await bp.setContent(`<title>Checkout</title><body style="margin:0;font:28px system-ui;background:linear-gradient(135deg,#fde68a,#f9a8d4);height:100vh;display:grid;place-items:center">
+        <div style="background:#fff;padding:40px 56px;border-radius:18px;box-shadow:0 20px 50px #0003"><h1 style="margin:0 0 12px">Checkout</h1>
+        <p style="margin:0;color:#555">Claude is filling in this form in Playwright.</p></div></body>`);
+      await cli(env, 'app', 'browser', 'attach', '--cdp', String(port));
+      await page.waitForSelector('.browserview .b-stage img', { timeout: 8000 }).catch(() => {});
+      await sleep(1200);
+      await page.screenshot({ path: join(shots, '09-browser-live.png') });
+      const st = JSON.parse(await cli(env, 'state', 'browser')).state;
+      check(st.status === 'live' && st.title === 'Checkout', `browser streams a CDP page (status ${st.status}, title ${st.title})`);
+      const frameOk = await page.locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
+      check(frameOk, 'browser view shows screencast frames');
+    } finally {
+      await browser.close();
+    }
+    await sleep(1600);
+    const gone = JSON.parse(await cli(env, 'state', 'browser')).state;
+    check(gone.status === 'waiting', `browser goes to waiting when Chromium quits (got ${gone.status})`);
+    await cli(env, 'app', 'browser', 'frame', '--file', join(shots, '02-seeded.png'), '--url', 'https://example.com/firefox');
+    await sleep(500);
+    await page.screenshot({ path: join(shots, '09b-browser-pushed.png') });
+    const pushed = await page.locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
+    check(pushed, 'browser view shows a pushed screenshot');
+  }
 
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });

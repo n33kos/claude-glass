@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { browser, normalizeEndpoint } from '../../src/apps/browser';
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
@@ -213,5 +214,27 @@ describe('linediff', () => {
     const h = diffLines('', 'x\ny');
     expect(h[0].lines).toEqual(['+x', '+y']);
     expect(h[0].newStart).toBe(1);
+  });
+});
+
+describe('browser app', () => {
+  it('accepts local CDP endpoints only', () => {
+    expect(normalizeEndpoint('9222')).toBe('http://127.0.0.1:9222');
+    expect(normalizeEndpoint('localhost:9333')).toBe('http://localhost:9333');
+    expect(normalizeEndpoint('ws://127.0.0.1:9222/devtools/browser/x')).toBe('http://127.0.0.1:9222');
+    expect(() => normalizeEndpoint('http://evil.example:9222')).toThrow(/this machine/);
+  });
+  it('attach → status → detach; stale status after detach is ignored', () => {
+    let s = browser.command(browser.init(), 'attach', {});
+    expect(s).toMatchObject({ endpoint: 'http://127.0.0.1:9222', status: 'waiting' });
+    s = browser.command(s, 'status', { status: 'live', url: 'https://a.test/', title: 'A' });
+    expect(s).toMatchObject({ status: 'live', url: 'https://a.test/', title: 'A' });
+    expect(browser.command(s, 'status', { status: 'live', url: 'https://a.test/', title: 'A' })).toBe(s);
+    s = browser.command(s, 'detach', {});
+    expect(browser.command(s, 'status', { status: 'live' })).toBe(s);
+  });
+  it('frame shows a pushed screenshot and stops streaming', () => {
+    const s = browser.command(browser.command(browser.init(), 'attach', {}), 'frame', { file: '/f/shot.png', url: 'https://b.test/' });
+    expect(s).toMatchObject({ endpoint: null, status: 'pushed', frame: '/f/shot.png', url: 'https://b.test/' });
   });
 });

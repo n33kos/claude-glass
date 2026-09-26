@@ -172,7 +172,9 @@ describe('folder scope', () => {
 
   it('the CLI resolves the session to its folder glass', async () => {
     const r = await run(join(root, 'bin/claude-glass'), ['view', '--json'], '', { CLAUDE_CODE_SESSION_ID: 'sess-after-clear' });
-    expect(JSON.parse(r.stdout).session.id).toBe(gid);
+    const v = JSON.parse(r.stdout);
+    expect(v.session.id).toBe(gid);
+    expect(v.session.title).toBe('cg-folder-proj'); // folder name, not the full path
   });
 
   it('switching back to session scope unbinds on the next SessionStart', async () => {

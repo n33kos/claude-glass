@@ -3,6 +3,8 @@ import { app, BrowserWindow, ipcMain, Menu, protocol } from 'electron';
 import { readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { filesDir } from '../core/paths';
+import type { BrowserState } from '../apps/browser';
+import { BrowserStream } from '../core/cdp';
 import { GlassCore } from '../core/server';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
 
@@ -80,6 +82,7 @@ async function boot() {
   ipcMain.handle('glass:dispatch', (_e, action: Action) => {
     try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
+  ipcMain.handle('glass:lastFrame', (_e, id: string) => lastFrames.get(id) ?? null);
   ipcMain.handle('glass:config', (_e, key: string, value: unknown) => {
     try { return { ok: true, result: core.setConfig(key, value) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
@@ -103,10 +106,44 @@ async function boot() {
     }, 30);
   });
 
+  syncBrowserStreams();
+  core.subscribe(syncBrowserStreams);
+
   const icon = join(__dirname, '..', 'assets', 'icon.png');
   if (process.platform === 'darwin') try { app.dock?.setIcon(icon); } catch {}
   buildMenu();
   createWindow();
+}
+
+// Browser app: one CDP screencast per open browser window with an endpoint. Frames bypass the
+// reducer (a video feed, not state); the stream reports status/url/title through it.
+const streams = new Map<string, BrowserStream>();
+const lastFrames = new Map<string, string>();
+
+function syncBrowserStreams() {
+  const s = core.state;
+  const want = new Map<string, string>();
+  for (const [id, inst] of Object.entries(s.instances)) {
+    const endpoint = (s.appState[id] as BrowserState | undefined)?.endpoint;
+    if (inst.type === 'browser' && endpoint && s.order.includes(id)) want.set(id, endpoint);
+  }
+  for (const [id, stream] of streams) {
+    if (want.get(id) !== stream.endpoint) { stream.stop(); streams.delete(id); }
+  }
+  for (const [id, endpoint] of want) {
+    if (streams.has(id)) continue;
+    const stream = new BrowserStream(endpoint, {
+      frame: (data) => {
+        lastFrames.set(id, data);
+        if (win && !win.isDestroyed()) win.webContents.send('glass:frame', { id, data });
+      },
+      status: (st) => setImmediate(() => {
+        if (streams.get(id) === stream) core.dispatch({ type: 'app.command', id, command: 'status', args: { ...st } });
+      }),
+    });
+    streams.set(id, stream);
+    stream.start();
+  }
 }
 
 function createWindow() {
@@ -147,6 +184,7 @@ function buildMenu() {
 async function shutdown() {
   if (quitting) return;
   quitting = true;
+  for (const s of streams.values()) s.stop();
   try { await core?.close(); } catch {}
   if (win && !win.isDestroyed()) win.destroy();
   app.exit(0);
