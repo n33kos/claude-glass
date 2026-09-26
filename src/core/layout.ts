@@ -1,0 +1,65 @@
+// Tiling math: one ordered window array, cut into desktops by each desktop's layout.
+import type { LayoutName } from './types';
+
+export interface SlotRect { x: number; y: number; w: number; h: number } // fractions 0..1
+
+export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> = {
+  full: { label: 'Full', slots: [{ x: 0, y: 0, w: 1, h: 1 }] },
+  split: { label: 'Side by side', slots: [{ x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.5, y: 0, w: 0.5, h: 1 }] },
+  'main-left': {
+    label: 'One big, two small',
+    slots: [{ x: 0, y: 0, w: 0.6, h: 1 }, { x: 0.6, y: 0, w: 0.4, h: 0.5 }, { x: 0.6, y: 0.5, w: 0.4, h: 0.5 }],
+  },
+  columns: {
+    label: 'Three tall',
+    slots: [{ x: 0, y: 0, w: 1 / 3, h: 1 }, { x: 1 / 3, y: 0, w: 1 / 3, h: 1 }, { x: 2 / 3, y: 0, w: 1 / 3, h: 1 }],
+  },
+  grid: {
+    label: 'Grid',
+    slots: [{ x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }, { x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }],
+  },
+};
+
+export const LAYOUT_NAMES = Object.keys(LAYOUTS) as LayoutName[];
+
+export function isLayout(v: unknown): v is LayoutName {
+  return typeof v === 'string' && v in LAYOUTS;
+}
+
+export interface DesktopPage {
+  index: number;
+  layout: LayoutName;
+  start: number; // index into order of the first slot
+  windows: string[]; // ids actually placed (may be fewer than slots)
+}
+
+/** Slice `order` across desktops. Desktops beyond `desktops` use `fallback`. Always >= 1 page. */
+export function computeDesktops(order: string[], desktops: LayoutName[], fallback: LayoutName): DesktopPage[] {
+  const pages: DesktopPage[] = [];
+  let start = 0;
+  let i = 0;
+  do {
+    const layout = desktops[i] ?? fallback;
+    const n = LAYOUTS[layout].slots.length;
+    pages.push({ index: i, layout, start, windows: order.slice(start, start + n) });
+    start += n;
+    i++;
+  } while (start < order.length || i < desktops.length);
+  // Drop trailing empty desktops beyond the first.
+  while (pages.length > 1 && pages[pages.length - 1].windows.length === 0) pages.pop();
+  return pages;
+}
+
+/**
+ * When a window's desktop has fewer windows than slots (last desktop), the layout still has
+ * empty slots. The renderer stretches: for a partially filled final desktop we pick the layout
+ * of matching size so there are no holes.
+ */
+export function effectiveLayout(page: DesktopPage): LayoutName {
+  const n = page.windows.length;
+  const want = LAYOUTS[page.layout].slots.length;
+  if (n >= want || n === 0) return page.layout;
+  if (n === 1) return 'full';
+  if (n === 2) return 'split';
+  return page.layout === 'grid' ? 'main-left' : page.layout;
+}

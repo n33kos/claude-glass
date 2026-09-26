@@ -1,0 +1,22 @@
+// Core-side app registry. Add new apps here (and their view in src/renderer/views.ts).
+import type { AppDef } from './types';
+import { terminal } from './terminal';
+import { conversation } from './conversation';
+import { diff } from './diff';
+import { markdown } from './markdown';
+import { image } from './image';
+import { html } from './html';
+import { settings } from './settings';
+
+export const APPS: Record<string, AppDef> = Object.fromEntries(
+  [terminal, conversation, diff, markdown, image, html, settings].map((a) => [a.type, a]),
+);
+
+// Commands used only by hooks/UI; hidden from the catalog Claude sees.
+export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd']);
+
+export function getApp(type: string): AppDef {
+  const app = APPS[type];
+  if (!app) throw new Error(`unknown app type "${type}" (known: ${Object.keys(APPS).join(', ')})`);
+  return app;
+}

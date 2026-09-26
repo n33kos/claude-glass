@@ -1,0 +1,152 @@
+// The one reducer. UI drags, CLI commands, and hooks all end up here.
+import { APPS, getApp } from '../apps/registry';
+import { isLayout } from './layout';
+import type { Action, CanvasState, InstanceMeta, SessionInfo } from './types';
+
+export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<SessionInfo>): CanvasState {
+  const base: CanvasState = {
+    version: 1,
+    session: {
+      title: session.cwd ? session.cwd.split('/').filter(Boolean).pop() ?? 'Claude' : 'Claude',
+      startedAt: Date.now(),
+      activity: 'idle',
+      ...session,
+    },
+    order: [],
+    desktops: ['main-left'],
+    instances: {},
+    appState: {},
+    settings: { autoOpen: { changes: true, plan: true, images: true } },
+    ui: { viewingDesktop: 0 },
+    autoOpened: [],
+  };
+  // Default windows: conversation + terminal.
+  let s = reduce(base, { type: 'instance.create', appType: 'terminal' }).state;
+  s = reduce(s, { type: 'instance.create', appType: 'conversation' }).state;
+  return s;
+}
+
+export interface ReduceResult {
+  state: CanvasState;
+  result?: unknown;
+}
+
+const clampIndex = (i: number, len: number) => Math.max(0, Math.min(len, Math.floor(i)));
+
+function requireInstance(s: CanvasState, id: string): InstanceMeta {
+  const inst = s.instances[id];
+  if (!inst) throw new Error(`no such window/app instance "${id}"`);
+  return inst;
+}
+
+function nextId(s: CanvasState, type: string): string {
+  for (let n = 1; ; n++) if (!s.instances[`${type}-${n}`]) return `${type}-${n}`;
+}
+
+function openAtZero(order: string[], id: string): string[] {
+  return [id, ...order.filter((x) => x !== id)];
+}
+
+export function reduce(s: CanvasState, a: Action): ReduceResult {
+  switch (a.type) {
+    case 'window.open':
+      requireInstance(s, a.id);
+      return { state: { ...s, order: openAtZero(s.order, a.id) } };
+
+    case 'window.close':
+      requireInstance(s, a.id);
+      return { state: { ...s, order: s.order.filter((x) => x !== a.id) } };
+
+    case 'window.move': {
+      requireInstance(s, a.id);
+      const rest = s.order.filter((x) => x !== a.id);
+      const i = clampIndex(a.index, rest.length);
+      return { state: { ...s, order: [...rest.slice(0, i), a.id, ...rest.slice(i)] } };
+    }
+
+    case 'window.opacity': {
+      const inst = requireInstance(s, a.id);
+      const v = a.value == null ? undefined : Math.max(0.2, Math.min(1, Number(a.value)));
+      return { state: { ...s, instances: { ...s.instances, [a.id]: { ...inst, opacity: v } } } };
+    }
+
+    case 'desktop.layout': {
+      if (!isLayout(a.layout)) throw new Error(`unknown layout "${a.layout}"`);
+      const d = Math.max(0, Math.floor(a.desktop));
+      const desktops = s.desktops.slice();
+      while (desktops.length <= d) desktops.push(desktops[desktops.length - 1] ?? 'main-left');
+      desktops[d] = a.layout;
+      return { state: { ...s, desktops } };
+    }
+
+    case 'instance.create': {
+      const app = getApp(a.appType);
+      if (app.singleton && s.instances[app.type]) {
+        const state = a.open === false ? s : { ...s, order: openAtZero(s.order, app.type) };
+        return { state, result: app.type };
+      }
+      const id = app.singleton ? app.type : a.id ?? nextId(s, app.type);
+      if (!/^[A-Za-z0-9._-]{1,64}$/.test(id)) throw new Error(`invalid instance id "${id}"`);
+      if (s.instances[id]) {
+        if (s.instances[id].type !== app.type) throw new Error(`instance "${id}" already exists with type ${s.instances[id].type}`);
+        const state = a.open === false ? s : { ...s, order: openAtZero(s.order, id) };
+        return { state, result: id };
+      }
+      const meta: InstanceMeta = { id, type: app.type, title: a.title ?? app.title, createdAt: Date.now() };
+      const state: CanvasState = {
+        ...s,
+        instances: { ...s.instances, [id]: meta },
+        appState: { ...s.appState, [id]: app.init() },
+        order: a.open === false ? s.order : openAtZero(s.order, id),
+      };
+      return { state, result: id };
+    }
+
+    case 'instance.rename': {
+      const inst = requireInstance(s, a.id);
+      return { state: { ...s, instances: { ...s.instances, [a.id]: { ...inst, title: String(a.title) } } } };
+    }
+
+    case 'app.command': {
+      const inst = requireInstance(s, a.id);
+      const app = APPS[inst.type];
+      const next = app.command(s.appState[a.id] ?? app.init(), a.command, a.args ?? {});
+      return { state: { ...s, appState: { ...s.appState, [a.id]: next } } };
+    }
+
+    case 'settings.set': {
+      const settings = structuredClone(s.settings) as any;
+      const path = a.key.split('.');
+      let obj = settings;
+      for (const k of path.slice(0, -1)) obj = obj[k] ??= {};
+      obj[path[path.length - 1]] = a.value;
+      return { state: { ...s, settings } };
+    }
+
+    case 'session.update':
+      return { state: { ...s, session: { ...s.session, ...a.patch } } };
+
+    case 'ui.viewDesktop':
+      return { state: { ...s, ui: { ...s.ui, viewingDesktop: Math.max(0, Math.floor(a.index)) } } };
+
+    default:
+      throw new Error(`unknown action ${(a as any)?.type}`);
+  }
+}
+
+/** Create-if-needed then run an app command; open the window the first time only (auto-open). */
+export function autoCommand(
+  s: CanvasState,
+  opts: { id: string; appType: string; title: string; command: string; args: Record<string, unknown>; autoOpen: boolean },
+): CanvasState {
+  let state = s;
+  if (!state.instances[opts.id]) {
+    state = reduce(state, { type: 'instance.create', appType: opts.appType, id: opts.id, title: opts.title, open: false }).state;
+  }
+  state = reduce(state, { type: 'app.command', id: opts.id, command: opts.command, args: opts.args }).state;
+  if (opts.autoOpen && !state.autoOpened.includes(opts.id)) {
+    const opened = state.order.includes(opts.id) ? state : reduce(state, { type: 'window.open', id: opts.id }).state;
+    state = { ...opened, autoOpened: [...state.autoOpened, opts.id] };
+  }
+  return state;
+}

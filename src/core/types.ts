@@ -1,0 +1,69 @@
+// Core data model. Pure types, shared by core, main, renderer, and CLI.
+
+export type LayoutName = 'full' | 'split' | 'main-left' | 'columns' | 'grid';
+
+export interface InstanceMeta {
+  id: string;
+  type: string;
+  title: string;
+  createdAt: number;
+  opacity?: number;
+}
+
+export interface SessionInfo {
+  id: string;
+  cwd: string;
+  title: string;
+  startedAt: number;
+  endedAt?: number;
+  activity: 'idle' | 'working';
+}
+
+export interface SessionSettings {
+  autoOpen: { changes: boolean; plan: boolean; images: boolean };
+  windowOpacity?: number;
+}
+
+export interface GlobalConfig {
+  autoStart: boolean;
+  background: string; // preset name or absolute image path
+  defaultLayout: LayoutName;
+  windowOpacity: number;
+}
+
+export interface CanvasState {
+  version: 1;
+  session: SessionInfo;
+  order: string[];
+  desktops: LayoutName[];
+  instances: Record<string, InstanceMeta>;
+  appState: Record<string, unknown>;
+  settings: SessionSettings;
+  ui: { viewingDesktop: number };
+  // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
+  autoOpened: string[];
+}
+
+export type Action =
+  | { type: 'window.open'; id: string }
+  | { type: 'window.close'; id: string }
+  | { type: 'window.move'; id: string; index: number }
+  | { type: 'window.opacity'; id: string; value: number | null }
+  | { type: 'desktop.layout'; desktop: number; layout: LayoutName }
+  | { type: 'instance.create'; appType: string; id?: string; title?: string; open?: boolean }
+  | { type: 'instance.rename'; id: string; title: string }
+  | { type: 'app.command'; id: string; command: string; args?: Record<string, unknown> }
+  | { type: 'settings.set'; key: string; value: unknown }
+  | { type: 'session.update'; patch: Partial<SessionInfo> }
+  | { type: 'ui.viewDesktop'; index: number };
+
+export interface Envelope {
+  op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'config' | 'quit';
+  [k: string]: unknown;
+}
+
+export interface Reply {
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+}

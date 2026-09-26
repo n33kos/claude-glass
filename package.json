@@ -1,0 +1,33 @@
+{
+  "name": "claude-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude's monitor: a per-session visual canvas for Claude Code sessions",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "npm run build && node test/e2e/run.mjs",
+    "demo": "npm run build && node scripts/demo.mjs"
+  },
+  "author": "Nicholas Suski",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "dompurify": "^3.4.16",
+    "electron": "^44.4.5",
+    "marked": "^18.0.14",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}
