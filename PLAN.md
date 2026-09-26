@@ -274,6 +274,7 @@ Queue, in order:
    hooks leave it untouched via `withoutDisabled`, commands are refused with a clear error, it
    leaves the catalog and guide); `apps eject` renamed `apps copy`.
 7. **Experiment: history mode** (not started; careful, see below).
+8. **Experiment: nested layout** (not started; see 6c). Works with either window mode.
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
@@ -325,6 +326,25 @@ cyclomatic complexity. So:
 - **Setting:** global `windowMode: 'live' | 'history'` (default live). Off = exactly today.
 - **Try it on a branch** (`experiment/history-mode`), use it for real sessions, then decide:
   merge, adjust, or delete the branch. No partial merges.
+
+## 6c. Experiment: nested layout (design, not started)
+
+Idea: one screen, no desktops. The newest window takes the biggest pane (half the screen); each
+older one gets half of what's left, alternating direction (a spiral of ever-smaller panes), so
+history recedes into deeper and deeper subdivisions. Scrolling walks the focus: scroll down and
+every window steps up one level (the next-older one becomes the big pane); scroll up steps back.
+Pairs naturally with history mode but also works with today's live windows.
+
+Keep it contained:
+- **It's just a layout.** Add `nested` to the layouts, computed by one pure function
+  `nestedRects(count, focus)` next to `computeDesktops`: a nested desktop takes every window, so
+  there is only one page. No reducer or app changes.
+- **Focus is view state:** `ui.focus` (like `ui.viewingDesktop`), set by the wheel instead of
+  switching desktops while this layout is active; Claude's `window move <id> 0` still works.
+- **Bound the depth:** past ~6 levels panes are too small to read; the rest collapse into one
+  "+N older" tile you scroll into.
+- **Animate** pane moves with the existing transform transitions so the recession reads.
+- Same rule as history mode: try it on a branch, keep it only if it feels good.
 
 ## 7. Future ideas (not MVP)
 
