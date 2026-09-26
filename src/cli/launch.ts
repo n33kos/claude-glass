@@ -1,6 +1,6 @@
 // Spawn a detached Electron process for one session and wait until its socket answers.
 import { spawn } from 'node:child_process';
-import { mkdirSync, openSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 import { logPath, sessionDir, socketPath } from '../core/paths';
 import { isLive } from '../core/server';
@@ -9,8 +9,10 @@ export async function launchGlass(sessionId: string, cwd: string, timeoutMs = 15
   const sock = socketPath(sessionId);
   if (await isLive(sock)) return 'already';
   mkdirSync(sessionDir(sessionId), { recursive: true });
+  // macOS: prefer the renamed bundle (dock/menu say "Claude Glass"); else plain Electron.
+  const packaged = join(__dirname, 'Claude Glass.app', 'Contents', 'MacOS', 'Electron');
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const electronBin: string = require('electron');
+  const electronBin: string = existsSync(packaged) ? packaged : require('electron');
   const mainJs = join(__dirname, 'main.js');
   const log = openSync(logPath(sessionId), 'a');
   const env = { ...process.env };

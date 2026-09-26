@@ -314,7 +314,9 @@ Other candidates:
   in the nested spiral) keep their frame but don't mount their app view; they mount when they come
   near. Keeps history mode fast without storage limits (no caps on history for now; revisit if
   state.json gets heavy).
-- Packaged .app (electron-builder) so the dock shows "Claude Glass" instead of "Electron"
+- [x] Packaged .app (2026-09-26): `scripts/make-app.mjs` (macOS, part of `npm run build`) clones
+  Electron.app to `dist/Claude Glass.app` (APFS clone), renames it, swaps in our icon, re-signs ad
+  hoc; the launcher prefers it. No new dependency. Dock/menu bar say "Claude Glass".
 - Placeholder ghost slot while dragging
 - [x] **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
   wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only

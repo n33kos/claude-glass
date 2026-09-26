@@ -5,7 +5,7 @@
   "description": "Claude's monitor: a per-session visual window for Claude Code sessions",
   "main": "dist/main.js",
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/build.mjs && node scripts/make-app.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "e2e": "npm run build && node test/e2e/run.mjs",
