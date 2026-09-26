@@ -2,6 +2,19 @@
 
 Read `PLAN.md` first (design record + milestone status), then `README.md`.
 
+## North star: a window into Claude's desktop
+Claude Canvas is a one-way window into what Claude is doing. Claude shows; the user watches.
+Tiling, dragging, desktops, and settings are conveniences for *viewing*, not ways to talk back.
+
+- Prefer one-way (Claude → canvas) for every feature. It keeps the architecture clean.
+- Some user interaction is fine when it only changes how things are viewed (layout, opacity,
+  which revision is shown). It must never need to reach Claude.
+- Be very wary of two-way features (sending signals back into the Claude session). Every
+  workflow (terminal, tmux, voice, IDE) receives input differently, and a back-channel would
+  make the plugin hard for anyone else to adopt. If one is ever added, it must be optional and
+  must not shape the core.
+- Not a file browser, IDE, or editor. Apps render what Claude did or chose to show.
+
 ## Commands
 - `npm install` — deps (Electron, React, esbuild, vitest, playwright)
 - `npm run build` — esbuild bundles everything into `dist/` (cli, main, preload, renderer)

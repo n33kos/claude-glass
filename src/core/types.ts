@@ -29,6 +29,8 @@ export interface GlobalConfig {
   background: string; // preset name or absolute image path
   defaultLayout: LayoutName;
   windowOpacity: number;
+  dockAutoHide: boolean; // dock overlays and hides; windows get its space
+  dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
 }
 
 export interface CanvasState {

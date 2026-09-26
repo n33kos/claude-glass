@@ -34,6 +34,14 @@ export function SettingsView({ canvas, config }: ViewProps) {
 
       <h3>All canvases</h3>
       <Toggle label="Open a canvas when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
+      <Toggle label="Auto-hide the dock (shows at the bottom edge)" on={config.dockAutoHide} onChange={(v) => setConfig('dockAutoHide', v)} />
+      <label className="s-row">
+        <span>Dock order</span>
+        <select value={config.dockOrder} onChange={(e) => setConfig('dockOrder', e.target.value)}>
+          <option value="windows">Match window order</option>
+          <option value="fixed">Fixed by app type</option>
+        </select>
+      </label>
       <label className="s-row">
         <span>Window opacity ({Math.round(config.windowOpacity * 100)}%)</span>
         <input type="range" min={0.2} max={1} step={0.02} value={config.windowOpacity} onChange={(e) => setConfig('windowOpacity', Number(e.target.value))} />

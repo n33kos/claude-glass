@@ -55,7 +55,7 @@ this repo.
 | Apps | React components in a registry with a shared interface (strategy pattern). Each declares defaults: singleton vs multi-instance, commands, init state |
 | MVP apps | terminal (singleton, all tool calls, filterable), conversation (singleton), diff viewer, markdown viewer, image viewer, freeform HTML (sandboxed iframe — the only iframe), settings |
 | Later | Live browser stream, user→Claude back-channel, subagents app, timeline scrubbing |
-| Look | macOS/iOS glassy. Background (configurable in config.json, no UI yet), per-window opacity, dock at bottom with running indicators, settings is an app. Title bar: close + layout picker. Drag to reorder; drag to screen edge → next desktop |
+| Look | macOS/iOS glassy. Background (configurable in config.json, no UI yet), per-window opacity, dock at bottom with running indicators (optional auto-hide; icons follow window order), settings is an app. Close to macOS but deliberately distinguishable from the real desktop. Title bar: close + layout picker. Drag to reorder; drag to screen edge → next desktop |
 | Settings | Global (config.json) and per-session (session state), separated |
 | Instructions to Claude | A plugin skill (only its description sits in context) + `claude-canvas open` prints the usage guide when the canvas turns on. SessionStart re-injects the guide only if the canvas is live (autostart / resume / compact) |
 
@@ -218,6 +218,11 @@ canvas (hooks, bin on PATH, session binding, CLI all work).
 
 ### Post-MVP feedback round (2026-09-26)
 - [x] Pin a window to its slot (title-bar pin button, `window pin/unpin`); others flow around it
+- [x] Look less like real macOS: blue (not yellow) "move to front" light; darker, squarer dock,
+      no magnify, bar-style running indicator
+- [x] Dock auto-hide (global `dockAutoHide`): dock overlays, stage takes its space, 6px bottom
+      hot zone reveals it
+- [x] Dock order follows window order (global `dockOrder`: `windows` default, or `fixed` by type)
 
 ### Next candidates (not started)
 - Browser stream app (Playwright screencast into a window)

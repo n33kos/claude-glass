@@ -132,7 +132,7 @@ export function App() {
   const s = state.session;
   const presence = s.endedAt ? 'ended' : s.activity;
   return (
-    <div className="canvas" style={backgroundStyle(config.background)}>
+    <div className={`canvas${config.dockAutoHide ? ' dock-autohide' : ''}`} style={backgroundStyle(config.background)}>
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>
@@ -181,6 +181,7 @@ export function App() {
         </div>
       </main>
 
+      {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
       <Dock pages={pages} onReveal={(id) => {
         const p = placed.find((x) => x.id === id);
         setView(p ? p.page : 0);
@@ -252,10 +253,16 @@ function LayoutGlyph({ name }: { name: LayoutName }) {
 }
 
 function Dock({ pages, onReveal }: { pages: DesktopPage[]; onReveal: (id: string) => void }) {
-  const { state } = useSnapshot();
-  const rank = (m: InstanceMeta) => (m.type === 'conversation' ? 0 : m.type === 'terminal' ? 1 : m.type === 'settings' ? 3 : 2);
-  const items = Object.values(state.instances).filter((m) => m.type !== 'settings').sort((a, b) => rank(a) - rank(b) || a.createdAt - b.createdAt);
+  const { state, config } = useSnapshot();
   const open = new Set(pages.flatMap((p) => p.windows));
+  const tile = new Map(pages.flatMap((p) => p.windows).map((id, i) => [id, i]));
+  const rank = (m: InstanceMeta) => (m.type === 'conversation' ? 0 : m.type === 'terminal' ? 1 : 2);
+  const fixed = (a: InstanceMeta, b: InstanceMeta) => rank(a) - rank(b) || a.createdAt - b.createdAt;
+  // "windows": open apps in tile order (left to right = first slot onward), closed apps after.
+  const byWindows = (a: InstanceMeta, b: InstanceMeta) =>
+    (tile.get(a.id) ?? Infinity) - (tile.get(b.id) ?? Infinity) || fixed(a, b);
+  const items = Object.values(state.instances).filter((m) => m.type !== 'settings')
+    .sort(config.dockOrder === 'fixed' ? fixed : byWindows);
   const settingsOpen = open.has('settings');
   return (
     <footer className="dock-wrap">

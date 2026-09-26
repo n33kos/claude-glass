@@ -150,6 +150,32 @@ try {
   await sleep(500);
   check(!(await cli(env, 'view')).match(/\bsettings\s+settings/), 'close button closes the window');
 
+  // Dock order follows window order; auto-hide gives the space back and reveals at the bottom edge.
+  {
+    const winIds = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows.map((w) => w.id));
+    const dockTitles = await page.locator('.dock-item').evaluateAll((els) => els.map((e) => e.getAttribute('title')));
+    const winTitles = await Promise.all(winIds.map((id) => page.locator(`[data-window="${id}"] .wtitle`).innerText()));
+    check(dockTitles.slice(0, winTitles.length).join('|') === winTitles.map((t) => t.replace(/^\S+\s*/, '')).join('|') ||
+      dockTitles.slice(0, winTitles.length).every((t, i) => winTitles[i].endsWith(t)), `dock order matches window order (${dockTitles.slice(0, 4).join(', ')})`);
+    const stageH = () => page.locator('.stage').evaluate((e) => e.clientHeight);
+    const before = await stageH();
+    await cli(env, 'settings', 'set', 'dockAutoHide', 'true');
+    await sleep(700);
+    const after = await stageH();
+    const hiddenTop = await page.locator('.dock').evaluate((e) => e.getBoundingClientRect().top);
+    await page.screenshot({ path: join(shots, '07b-dock-hidden.png') });
+    check(after > before && hiddenTop >= after + 40 - 2, `auto-hide gives the stage the dock's space (${before} → ${after}) and hides it`);
+    const vp = page.viewportSize() ?? (await page.evaluate(() => ({ width: innerWidth, height: innerHeight })));
+    await page.mouse.move(vp.width / 2, vp.height - 2);
+    await sleep(500);
+    const shownBottom = await page.locator('.dock').evaluate((e) => e.getBoundingClientRect().bottom);
+    await page.screenshot({ path: join(shots, '07c-dock-revealed.png') });
+    check(shownBottom <= vp.height, 'hovering the bottom edge reveals the dock');
+    await page.mouse.move(vp.width / 2, vp.height / 2);
+    await cli(env, 'settings', 'set', 'dockAutoHide', 'false');
+    await sleep(500);
+  }
+
   // Streaming + working state
   await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'Show me the final diff.' });
   await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1' });
