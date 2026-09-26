@@ -8,7 +8,7 @@ import { coerceConfigValue, loadConfig, saveConfig, writeJsonAtomic } from './co
 import { guideFor } from './guide';
 import { applyHook } from './hooks';
 import { loadMods, type ModReport } from './mods';
-import { computeDesktops } from './layout';
+import { computeDesktops, desktopsFor } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
 import type { Action, GlassState, Envelope, GlobalConfig, Reply } from './types';
@@ -57,6 +57,9 @@ export class GlassCore {
 
   dispatch(action: Action): unknown {
     this.assertEnabled(action);
+    if (action.type === 'desktop.layout' && this.config.nestedView) {
+      throw new Error('the user has the nested view on (newest window big, older ones smaller); layouts don\'t apply. Use window move <id> 0 to put something in the big pane.');
+    }
     const { state, result } = reduce(this.state, action);
     this.commit(state);
     return result ?? null;
@@ -100,7 +103,7 @@ export class GlassCore {
 
   view() {
     const s = this.state;
-    const pages = computeDesktops(s.order, s.desktops, this.config.defaultLayout);
+    const pages = computeDesktops(s.order, desktopsFor(s.desktops, this.config.nestedView), this.config.defaultLayout);
     const meta = (id: string) => ({ id, type: s.instances[id].type, title: s.instances[id].title });
     return {
       session: { id: s.session.id, title: s.session.title, cwd: s.session.cwd, activity: s.session.activity, ended: !!s.session.endedAt },

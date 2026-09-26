@@ -228,3 +228,18 @@ describe('turning apps off', () => {
     expect(await cli('new', 'html')).toMatch(/^html-/);
   });
 });
+
+describe('nested view', () => {
+  it('turns the glass into one nested page and refuses layouts', async () => {
+    core.setConfig('nestedView', true);
+    const v = JSON.parse(await cli('view', '--json'));
+    expect(v.desktops).toHaveLength(1);
+    expect(v.desktops[0].layout).toBe('nested');
+    const r = await run(join(root, 'bin/claude-glass'), ['layout', '1', 'grid']);
+    expect(r.stderr).toContain('nested view');
+    expect(JSON.parse(await cli('view', '--json')).desktops[0].layout).toBe('nested');
+    core.setConfig('nestedView', false);
+    const bad = await run(join(root, 'bin/claude-glass'), ['layout', '1', 'nested']);
+    expect(bad.status).not.toBe(0);
+  });
+});

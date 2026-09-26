@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   scope: 'session',
   wheelDesktops: true,
   disabledApps: [],
+  nestedView: false,
 };
 
 export function loadConfig(): GlobalConfig {
@@ -46,7 +47,8 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'dockAutoHide':
     case 'waitingGlow':
     case 'animateBackground':
-    case 'wheelDesktops': return value === true || value === 'true';
+    case 'wheelDesktops':
+    case 'nestedView': return value === true || value === 'true';
     case 'disabledApps': {
       const list = Array.isArray(value) ? value : String(value ?? '').split(',');
       return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];

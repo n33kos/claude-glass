@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
+import { computeDesktops, desktopsFor, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
 import { FrameView } from './FrameView';
@@ -38,7 +38,8 @@ function place(pages: DesktopPage[], W: number, H: number, focus: number): Place
 
 export function App() {
   const { state, config } = useSnapshot();
-  const pages = useMemo(() => computeDesktops(state.order, state.desktops, config.defaultLayout), [state.order, state.desktops, config.defaultLayout]);
+  const pages = useMemo(() => computeDesktops(state.order, desktopsFor(state.desktops, config.nestedView), config.defaultLayout),
+    [state.order, state.desktops, config.defaultLayout, config.nestedView]);
   const [view, setViewRaw] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
   // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
@@ -297,7 +298,7 @@ function WindowFrame(props: {
         <div className="lights">
           <button className="light close" title="Close window" aria-label="Close window" onClick={() => dispatch({ type: 'window.close', id: meta.id })} />
           <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />
-          <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />
+          {props.page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
         </div>
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em>{app?.icon}</em>{meta.title}</span>
         <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}

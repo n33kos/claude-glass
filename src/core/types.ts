@@ -45,7 +45,8 @@ export interface GlobalConfig {
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
-  scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
+  scope: 'session' | 'folder';
+  nestedView: boolean; // one screen: newest window big, older ones spiral into smaller panes // one glass per session, or one per project folder shared by its sessions
 }
 
 export interface GlassState {

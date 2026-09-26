@@ -292,8 +292,9 @@ Queue, in order:
    with a clear "you're browsing, not what Claude read" state and a "back to Claude's page"
    button.
 9. **Experiment: history mode** (not started; careful, see below).
-10. **Experiment: nested layout**: built on branch `experiment/nested-layout`, awaiting the
-    user's trial (layout menu → "Nested (experiment)"; scroll over bars/gaps or ⌘↑/⌘↓). Keep or delete.
+10. [x] **Nested view** (tried and kept 2026-09-26): a global setting (`nestedView`), not a
+    per-desktop layout. On: one spiral page, layout buttons hidden, `layout` refused with a hint,
+    guide tells Claude index 0 is the big pane. Scroll over bars/gaps or ⌘↑/⌘↓ walks it.
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell

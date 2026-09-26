@@ -55,6 +55,7 @@ export function SettingsView({ glass, config }: ViewProps) {
         <span>Window opacity ({Math.round(config.windowOpacity * 100)}%)</span>
         <input type="range" min={0.2} max={1} step={0.02} value={config.windowOpacity} onChange={(e) => setConfig('windowOpacity', Number(e.target.value))} />
       </label>
+      <Toggle label="Nested view: newest window big, older ones spiral smaller (scroll to walk back)" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />
       <label className="s-row">
         <span>Layout for new desktops</span>
         <select value={config.defaultLayout} onChange={(e) => setConfig('defaultLayout', e.target.value)}>

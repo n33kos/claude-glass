@@ -17,7 +17,7 @@ export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> =
   // Experiment: every window on one desktop, each older one in half of what's left (a spiral).
   // Slots are computed per window count by nestedSlots(); this list is only for the menu icon.
   nested: {
-    label: 'Nested (experiment)',
+    label: 'Nested',
     slots: [{ x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }, { x: 0.75, y: 0.5, w: 0.25, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.25, h: 0.5 }],
   },
   grid: {
@@ -26,7 +26,11 @@ export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> =
   },
 };
 
-export const LAYOUT_NAMES = Object.keys(LAYOUTS) as LayoutName[];
+// Choosable per desktop. Nested isn't: it's a whole-glass view (global `nestedView`).
+export const LAYOUT_NAMES = (Object.keys(LAYOUTS) as LayoutName[]).filter((l) => l !== 'nested');
+
+/** Desktops to lay out: the glass's own, or one nested page when the nested view is on. */
+export const desktopsFor = (desktops: LayoutName[], nestedView: boolean): LayoutName[] => (nestedView ? ['nested'] : desktops);
 
 export const NESTED_DEPTH = 6; // panes past this are too small to read; they stay hidden
 
@@ -47,7 +51,7 @@ export function nestedSlots(n: number): SlotRect[] {
 }
 
 export function isLayout(v: unknown): v is LayoutName {
-  return typeof v === 'string' && v in LAYOUTS;
+  return typeof v === 'string' && v in LAYOUTS && v !== 'nested'; // nested is the global nestedView, not a desktop layout
 }
 
 export interface DesktopPage {

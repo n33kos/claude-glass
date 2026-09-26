@@ -423,6 +423,17 @@ try {
     check(guide?.source === 'user', 'mod is in the catalog');
   }
 
+  // Nested view (global setting): one spiral page, no layout button.
+  {
+    await cli(env, 'settings', 'set', 'nestedView', 'true');
+    await sleep(700);
+    await page.screenshot({ path: join(shots, '11-nested-view.png') });
+    check((await page.locator('.light.layout').count()) === 0 && (await page.locator('.pager button').count()) === 1, 'nested view: one page, layout buttons hidden');
+    await cli(env, 'settings', 'set', 'nestedView', 'false');
+    await sleep(500);
+    check((await page.locator('.light.layout').count()) > 0, 'nested view off: layout buttons back');
+  }
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);
