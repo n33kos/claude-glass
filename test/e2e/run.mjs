@@ -93,11 +93,14 @@ try {
   await cli(env, 'show', join(shots, '01-empty.png'), '--title', 'Screenshot');
   await sleep(800);
   await page.screenshot({ path: join(shots, '06b-image.png') });
-  const imgOk = await page.locator('.imageview img').evaluate((img) => img.complete && img.naturalWidth > 0);
+  const imgFrame = page.frameLocator('iframe[src="glass-app://image/view.html"]');
+  await imgFrame.locator('.imageview img').waitFor({ timeout: 5000 });
+  await sleep(300);
+  const imgOk = await imgFrame.locator('.imageview img').evaluate((img) => img.complete && img.naturalWidth > 0);
   check(imgOk, 'image viewer loads the stored image');
 
   // Lightbox: click opens a full-window overlay, wheel zooms, Esc closes
-  await page.locator('.imageview img').click();
+  await imgFrame.locator('.imageview img').click();
   await sleep(250);
   check(await page.locator('.lightbox').count() === 1, 'clicking an image opens the lightbox');
   await page.screenshot({ path: join(shots, '06f-lightbox.png') });

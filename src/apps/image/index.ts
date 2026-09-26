@@ -20,7 +20,7 @@ export const image: AppDef<ImageState> = {
   description: 'Image viewer with history; flip left/right. Images Claude reads land in the "images" instance automatically.',
   commands: {
     add: { usage: 'add --file <path> [--caption <text>]', help: 'Show an image (it is copied into the session)' },
-    select: { usage: 'select --index <n>', help: 'Show image n (0-based, -1 = latest)' },
+    select: { usage: 'select --index <n>', help: 'Show image n (0-based, -1 = latest)', view: true },
     clear: { usage: 'clear', help: 'Remove all images' },
   },
   init: () => ({ images: [], index: -1 }),
@@ -40,3 +40,5 @@ export const image: AppDef<ImageState> = {
     }
   },
 };
+
+export default image;

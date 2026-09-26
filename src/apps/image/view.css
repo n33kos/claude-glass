@@ -1,0 +1,10 @@
+/* Image viewer. */
+.img-empty { color: var(--ink-faint); font-family: var(--sans); height: 100%; display: grid; place-items: center; text-align: center; padding: 20px; }
+.imageview { height: 100%; display: flex; }
+.imageview figure { margin: 0; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.imageview img { flex: 1; min-height: 0; object-fit: contain; padding: 12px; width: 100%; }
+.imageview figcaption { flex: none; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 12px 10px; color: var(--ink-dim); font-size: 12px; }
+.imageview figcaption button { width: 24px; height: 22px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); font-size: 16px; line-height: 20px; }
+.imageview figcaption button:disabled { opacity: .3; }
+.img-count { color: var(--ink-faint); }
+.img-zoomable { cursor: zoom-in; }

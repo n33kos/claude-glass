@@ -4,7 +4,6 @@ import { BrowserView } from '../apps/browser/view';
 import { ConversationView } from '../apps/conversation/view';
 import { DiffView } from '../apps/diff/view';
 import { HtmlView } from '../apps/html/view';
-import { ImageView } from '../apps/image/view';
 import { MarkdownView } from '../apps/markdown/view';
 import { SettingsView } from '../apps/settings/view';
 import { TerminalView } from '../apps/terminal/view';
@@ -15,7 +14,6 @@ export const VIEWS: Record<string, ComponentType<ViewProps>> = {
   conversation: ConversationView,
   diff: DiffView,
   markdown: MarkdownView,
-  image: ImageView,
   html: HtmlView,
   browser: BrowserView,
   settings: SettingsView,

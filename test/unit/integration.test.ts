@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { folderGlassId } from '../../src/core/binding';
+import { readMod } from '../../src/core/mods';
 import { GlassCore } from '../../src/core/server';
 
 const root = join(__dirname, '../..');
@@ -182,5 +183,16 @@ describe('folder scope', () => {
     const r = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: 'sess-after-clear', source: 'resume', cwd: dir }));
     expect(r.stdout).toBe('');
     expect(existsSync(join(runtime, 'sess-after-clear.sock'))).toBe(false);
+  });
+});
+
+describe('built-in apps ship as mods', () => {
+  it('each compiled dist/apps/<type> folder loads through the mod loader', () => {
+    for (const type of ['image']) {
+      const app = readMod(join(root, 'dist/apps', type));
+      expect(app.type).toBe(type);
+      expect(typeof app.init()).toBe('object');
+      expect(existsSync(join(root, 'dist/apps', type, 'view.html'))).toBe(true);
+    }
   });
 });

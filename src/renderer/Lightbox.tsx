@@ -6,6 +6,9 @@ import { createPortal } from 'react-dom';
 export function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   const [t, setT] = useState({ scale: 1, x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // Take focus (it may sit inside an app's frame) so Esc reaches us.
+  useEffect(() => { box.current?.focus(); }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -26,7 +29,7 @@ export function Lightbox({ src, alt, onClose }: { src: string; alt: string; onCl
   };
 
   return createPortal(
-    <div className="lightbox" onWheel={onWheel}
+    <div className="lightbox" ref={box} tabIndex={-1} onWheel={onWheel}
       onPointerDown={(e) => { drag.current = { x: e.clientX, y: e.clientY, moved: false }; (e.target as Element).setPointerCapture?.(e.pointerId); }}
       onPointerMove={(e) => {
         const d = drag.current;

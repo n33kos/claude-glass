@@ -22,7 +22,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
   const [ready, setReady] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
-  const session = { activity: glass.session.activity, waiting: !!glass.session.waiting, ended: !!glass.session.endedAt };
+  const session = { cwd: glass.session.cwd, activity: glass.session.activity, ended: !!glass.session.endedAt, waiting: glass.session.waiting ?? null };
   const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session };
   const post = (msg: object) => ref.current?.contentWindow?.postMessage({ glass: 1, ...msg }, '*');
 
@@ -49,7 +49,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
 
   // Props on ready and on every change (state slices keep identity when unchanged).
   useEffect(() => { if (ready) post({ kind: 'props', props }); },
-    [ready, state, width, height, meta.title, session.activity, session.waiting, session.ended]); // eslint-disable-line react-hooks/exhaustive-deps
+    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live frames for this instance (browser stream).
   useEffect(() => {

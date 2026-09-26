@@ -11,7 +11,12 @@ export interface GlassProps<S = any> {
   meta: { id: string; type: string; title: string };
   state: S;
   size: { width: number; height: number };
-  session: { activity: 'idle' | 'working'; waiting: boolean; ended: boolean };
+  session: {
+    cwd: string;
+    activity: 'idle' | 'working';
+    ended: boolean;
+    waiting: { kind: 'question' | 'permission'; summary: string; tool?: string; toolUseId?: string } | null;
+  };
 }
 
 type Listener = (p: GlassProps) => void;

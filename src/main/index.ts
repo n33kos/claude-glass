@@ -7,6 +7,7 @@ import { appInfo } from '../apps/types';
 import { filesDir } from '../core/paths';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
+import { attachBuiltinViews } from '../core/mods';
 import { GlassCore } from '../core/server';
 import { WebFeed } from './webFeed';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
@@ -66,6 +67,7 @@ let win: BrowserWindow | null = null;
 let quitting = false;
 
 async function boot() {
+  attachBuiltinViews(join(__dirname, 'apps'));
   core = new GlassCore(sessionId!, cwd);
   try {
     await core.listen();

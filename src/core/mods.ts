@@ -86,3 +86,15 @@ export function readMod(modDir: string): AppDef {
     dir: modDir,
   };
 }
+
+/**
+ * Built-in apps whose views ship in the mod format (dist/apps/<type>/view.html) get their folder
+ * attached so the shell frames them like any mod. Call before loadMods so user mods still win.
+ */
+export function attachBuiltinViews(dir: string): void {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    const app = APPS[name];
+    if (app?.source === 'builtin' && existsSync(join(dir, name, 'view.html'))) registerApp({ ...app, dir: join(dir, name) });
+  }
+}
