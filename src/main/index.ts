@@ -112,8 +112,9 @@ function firstPartyCookiesForDeclaredOrigins() {
       const eq = pair.indexOf('=');
       if (eq < 1) continue;
       const maxAge = Number(attrs.find((a) => /^max-age=/i.test(a))?.split('=')[1]);
+      const path = attrs.find((a) => /^path=/i.test(a))?.split('=')[1] || '/';
       ses.cookies.set({
-        url: cookieUrl(d.url), name: pair.slice(0, eq), value: pair.slice(eq + 1), httpOnly: attrs.some((a) => /^httponly$/i.test(a)),
+        url: cookieUrl(d.url), path, name: pair.slice(0, eq), value: pair.slice(eq + 1), httpOnly: attrs.some((a) => /^httponly$/i.test(a)),
         ...(maxAge > 0 ? { expirationDate: Date.now() / 1000 + maxAge } : {}),
       }).catch(() => {});
     }
