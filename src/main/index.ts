@@ -26,6 +26,8 @@ if (!sessionId) {
 }
 
 app.setName('Claude Glass');
+// Developer aid: CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open → inspect the real glass over CDP.
+if (process.env.CLAUDE_GLASS_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.CLAUDE_GLASS_DEBUG_PORT);
 protocol.registerSchemesAsPrivileged([
   { scheme: 'glass-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   { scheme: 'glass-html', privileges: { standard: true, secure: true } },
@@ -200,9 +202,16 @@ async function boot() {
     const p = APPS[type]?.permissions;
     if (!p) return false;
     const ses = session.defaultSession;
-    for (const origin of [`glass-app://${type}`, ...p.network.filter((o) => o.startsWith('http'))]) {
+    const origins = [`glass-app://${type}`, ...p.network.filter((o) => o.startsWith('http'))];
+    for (const origin of origins) {
       await ses.clearStorageData({ origin }).catch(() => {});
       for (const c of await ses.cookies.get({ url: origin }).catch(() => [])) await ses.cookies.remove(origin, c.name).catch(() => {});
+    }
+    // Embedded pages keep storage in a partition keyed to the glass, which clearStorageData by
+    // origin doesn't reach: clear it from inside their live frames too.
+    for (const f of win && !win.isDestroyed() ? win.webContents.mainFrame.framesInSubtree : []) {
+      if (!origins.some((o) => f.url.startsWith(o))) continue;
+      await f.executeJavaScript('try { localStorage.clear(); sessionStorage.clear(); } catch {}').catch(() => {});
     }
     return true;
   });
