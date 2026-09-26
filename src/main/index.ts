@@ -195,6 +195,17 @@ async function boot() {
   ipcMain.on('glass:webInput', (_e, input: WebInput & { id?: string }) => {
     if (input && (input.type === 'wheel' || input.type === 'click')) webFeeds.get(String(input.id))?.input(input);
   });
+  // Settings → "Reset data": forget what an app and the pages it embeds stored (storage + cookies).
+  ipcMain.handle('glass:resetAppData', async (_e, type: string) => {
+    const p = APPS[type]?.permissions;
+    if (!p) return false;
+    const ses = session.defaultSession;
+    for (const origin of [`glass-app://${type}`, ...p.network.filter((o) => o.startsWith('http'))]) {
+      await ses.clearStorageData({ origin }).catch(() => {});
+      for (const c of await ses.cookies.get({ url: origin }).catch(() => [])) await ses.cookies.remove(origin, c.name).catch(() => {});
+    }
+    return true;
+  });
   ipcMain.handle('glass:lastFrame', (_e, id: string) => lastFrames.get(id) ?? null);
   ipcMain.handle('glass:config', (_e, key: string, value: unknown) => {
     try { return { ok: true, result: core.setConfig(key, value) }; } catch (e: any) { return { ok: false, error: e.message }; }

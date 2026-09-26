@@ -488,6 +488,17 @@ try {
     const withP = await read('perm-demo'), without = await read('noperm-demo');
     check(withP === 'net:hello store:1 mic:granted', `an app gets the network, storage and microphone it declared (${withP})`);
     check(without.startsWith('net:blocked store:blocked mic:') && !without.endsWith('granted'), `an app without permissions gets none (${without})`);
+    // Reopening keeps storage (count goes up); Settings → Reset data clears it (back to 1).
+    await cli(env, 'window', 'close', 'perm-demo'); await sleep(200);
+    await cli(env, 'window', 'open', 'perm-demo'); await sleep(1200);
+    const again = await read('perm-demo');
+    await cli(env, 'window', 'open', 'settings'); await sleep(500);
+    await page.locator('.s-app', { hasText: 'perm-demo' }).locator('.s-reset').click(); await sleep(500);
+    await cli(env, 'window', 'close', 'perm-demo'); await sleep(200);
+    await cli(env, 'window', 'open', 'perm-demo'); await sleep(1200);
+    const reset = await read('perm-demo');
+    check(again.includes('store:2') && reset.includes('store:1'), `Reset data clears an app's storage (${again.split(' ')[1]} → ${reset.split(' ')[1]})`);
+    await cli(env, 'window', 'close', 'settings');
     await cli(env, 'window', 'close', 'perm-demo');
     await cli(env, 'window', 'close', 'noperm-demo');
     permSrv.close();

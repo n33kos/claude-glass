@@ -133,6 +133,9 @@ would drop their `SameSite` cookies (a login cookie on a WebSocket, say). For de
 only, the glass keeps the cookies those servers set and sends them back to the same origin, as if
 the page were first-party. Nothing changes for any other site.
 
+Settings has a **Reset data** link for apps with `network` or `storage`: it clears the app's
+storage and the storage and cookies of its declared origins (e.g. to log an embedded page out).
+
 Everything else, for every app, stays denied. Apps with these permissions can talk back to other
 services (a voice app, say): that's allowed as the app's own choice, but it never reaches the
 glass core, which stays one-way.

@@ -102,7 +102,8 @@ export function SettingsView({ glass, config }: ViewProps) {
           <Toggle key={a.type} on={on}
             onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
             label={<span className="s-app"><b>{a.icon}</b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
-              {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}</span>}</span>} />
+              {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
+                {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
         );
       })}
       {mods.filter((m) => !m.ok).map((m) => (
@@ -120,4 +121,14 @@ export function SettingsView({ glass, config }: ViewProps) {
 function permissionText(p: { network: string[]; microphone: boolean; storage: boolean }): string {
   return [p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '']
     .filter(Boolean).join(' · ');
+}
+
+/** Forget what an app (and pages it embeds) stored: logins, cookies, saved data. Reopen its window after. */
+function ResetData({ type }: { type: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button className="s-link s-reset" onClick={(e) => { e.preventDefault(); void window.glass.resetAppData(type).then(() => setDone(true)); }}>
+      {done ? 'Data reset: reload its window' : 'Reset data'}
+    </button>
+  );
 }
