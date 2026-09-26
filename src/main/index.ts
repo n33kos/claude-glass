@@ -75,12 +75,18 @@ const permsOf = (url: string | undefined): AppPermissions => {
 };
 
 /**
- * Deny every permission (Electron grants all by default) except the microphone, and only to
- * the frames of apps whose manifest asks for it.
+ * Deny every permission (Electron grants all by default) except the microphone, and only to the
+ * frames of apps whose manifest asks for it, or to pages they embed from their declared origins.
  */
 function lockPermissions() {
   const ses = session.defaultSession;
-  const micOk = (url: string | undefined, types?: string[]) => permsOf(url).microphone && !(types ?? []).includes('video');
+  const micApp = (url: string | undefined) => {
+    if (permsOf(url).microphone) return true;
+    let origin = '';
+    try { origin = new URL(url ?? '').origin; } catch { return false; }
+    return Object.values(APPS).some((a) => a.permissions?.microphone && a.permissions.network.includes(origin));
+  };
+  const micOk = (url: string | undefined, types?: string[]) => micApp(url) && !(types ?? []).includes('video');
   ses.setPermissionRequestHandler((_wc, permission, cb, details) =>
     cb(permission === 'media' && micOk(details.requestingUrl, (details as { mediaTypes?: string[] }).mediaTypes)));
   ses.setPermissionCheckHandler((_wc, permission, origin, details) =>

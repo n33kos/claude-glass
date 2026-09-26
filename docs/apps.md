@@ -125,7 +125,7 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 | Permission | What the view gets |
 |---|---|
 | `network` | fetch/WebSocket/scripts/images/frames to exactly these origins (http(s)/ws(s), no wildcards). Servers still apply their own CORS. |
-| `microphone` | `getUserMedia({ audio: true })` (never the camera). macOS will also ask the user once. |
+| `microphone` | `getUserMedia({ audio: true })` (never the camera), for the view and for pages it embeds from its `network` origins (give the inner iframe `allow="microphone"`). macOS will also ask the user once. |
 | `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
 
 Everything else, for every app, stays denied. Apps with these permissions can talk back to other

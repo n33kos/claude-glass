@@ -68,7 +68,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
           that asked for the microphone gets it via Permissions Policy (main grants it per app). */}
       <iframe ref={ref} className="appframe" src={`glass-app://${app.type}/view.html`} title={meta.title}
         sandbox={app.permissions.storage ? 'allow-scripts allow-same-origin' : 'allow-scripts'}
-        allow={app.permissions.microphone ? 'microphone' : undefined} />
+        allow={app.permissions.microphone ? ["microphone 'src'", ...app.permissions.network.filter((o) => o.startsWith('http'))].join(' ') : undefined} />
       {lightbox && <Lightbox {...lightbox} onClose={() => setLightbox(null)} />}
     </>
   );
