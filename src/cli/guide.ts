@@ -21,4 +21,5 @@ Don't overdo it; one well-chosen visual beats many.
 
 Rules: run \`claude-canvas view\` before rearranging (the user may have moved things). New windows
 open at index 0. Updating a window never moves it; only move it if it truly needs attention.
-HTML canvases are sandboxed iframes: inline all CSS/JS, no network.`;
+HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
+cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.`;

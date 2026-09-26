@@ -126,6 +126,8 @@ function createWindow() {
     },
   });
   win.loadFile(join(__dirname, 'renderer', 'index.html'));
+  // Launched from a CLI/hook in the background: come to the front so the user sees it.
+  if (!process.env.CLAUDE_CANVAS_HIDDEN) win.once('ready-to-show', () => app.focus({ steal: true }));
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.on('closed', () => { win = null; shutdown(); });

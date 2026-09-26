@@ -75,6 +75,52 @@ try {
   check(after[2] === before[0], `drag moves ${before[0]} to slot 3 (got ${after.join(',')})`);
   void t0;
 
+  // Image viewer, served through the canvas-file protocol
+  await cli(env, 'show', join(shots, '01-empty.png'), '--title', 'Screenshot');
+  await sleep(800);
+  await page.screenshot({ path: join(shots, '06b-image.png') });
+  const imgOk = await page.locator('.imageview img').evaluate((img) => img.complete && img.naturalWidth > 0);
+  check(imgOk, 'image viewer loads the stored image');
+
+  // Drag to the right edge, hold, drop → lands on desktop 2
+  {
+    const first = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    const tb = await page.locator(`[data-window="${first}"] .titlebar`).boundingBox();
+    const vw = await page.evaluate(() => window.innerWidth);
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(vw - 8, 400, { steps: 10 });
+    await sleep(900);
+    await page.mouse.move(vw / 2, 400, { steps: 6 });
+    await sleep(100);
+    await page.screenshot({ path: join(shots, '06c-edge-drag.png') });
+    await page.mouse.up();
+    await sleep(700);
+    const v2 = JSON.parse(await cli(env, 'view', '--json'));
+    const onD2 = v2.desktops[1]?.windows.some((w) => w.id === first);
+    check(onD2, `edge drag moves ${first} onto desktop 2`);
+    await page.locator('.pager button').nth(0).click();
+    await sleep(500);
+  }
+
+  // Informational: CDN scripts load inside the sandboxed html canvas (needs network).
+  {
+    const { writeFileSync } = await import('node:fs');
+    const f = join(home, 'cdn.html');
+    writeFileSync(f, `<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+      <body style="margin:0;background:#fff"><canvas id=c></canvas><script>
+      document.title = typeof Chart;
+      new Chart(document.getElementById('c'), { type: 'bar', data: { labels: ['Before','After'], datasets: [{ label: 'Renders', data: [50, 2] }] } });
+      </script></body>`);
+    await cli(env, 'show', f, '--title', 'Chart via CDN');
+    await sleep(2500);
+    const frame = page.frames().find((fr) => fr.url().startsWith('canvas-html://html-2'));
+    const t = frame ? await frame.title().catch(() => '?') : 'no frame';
+    console.log(`  (info) Chart.js in sandbox: ${t === 'function' ? 'loaded' : 'not loaded: ' + t}`);
+    await page.screenshot({ path: join(shots, '06d-cdn-chart.png') });
+    await cli(env, 'window', 'close', 'html-2');
+  }
+
   // Settings via dock
   await page.locator('.dock-item[title="Settings"]').click();
   await sleep(700);
