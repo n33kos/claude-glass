@@ -26,6 +26,8 @@ delete env.ELECTRON_RUN_AS_NODE;
 const errors = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
+// App views live in sandboxed frames; this finds one app's frame by instance id.
+const appFrame = (page, id) => page.frameLocator(`[data-window="${id}"] iframe.appframe`);
 const check = (cond, msg) => { if (!cond) { failures++; console.error(`✗ ${msg}`); } else console.log(`✓ ${msg}`); };
 
 const app = await electron.launch({ args: [join(root, 'dist/main.js'), '--session', SID, '--cwd', root], env });
@@ -51,8 +53,8 @@ try {
   const view = await cli(env, 'view');
   console.log(view);
   check(view.includes('Desktop 2'), 'overflow spills onto desktop 2');
-  check((await page.locator('.t-entry').count()) >= 5, 'terminal shows tool calls');
-  check((await page.locator('.msg.assistant').count()) === 2, 'conversation shows assistant messages');
+  check((await appFrame(page, 'terminal').locator('.t-entry').count()) >= 5, 'terminal shows tool calls');
+  check((await appFrame(page, 'conversation').locator('.msg.assistant').count()) === 2, 'conversation shows assistant messages');
 
   // Desktop 2
   await page.locator('.pager button').nth(1).click();
@@ -114,6 +116,17 @@ try {
   await page.keyboard.press('Escape');
   await sleep(150);
   check(await page.locator('.lightbox').count() === 0, 'Esc closes the lightbox');
+
+  // Reordering windows must not reload app frames (they'd flicker and lose scroll).
+  {
+    const mark = () => appFrame(page, 'terminal').locator('body').evaluate((b) => (b.dataset.mark ??= String(Math.random())));
+    const before = await mark();
+    await cli(env, 'window', 'move', 'terminal', '0');
+    await sleep(400);
+    await cli(env, 'window', 'move', 'terminal', '3');
+    await sleep(400);
+    check((await mark()) === before, 'reordering windows keeps app frames alive');
+  }
 
   // Drag to the right edge, hold, drop → lands on desktop 2
   {
@@ -225,7 +238,11 @@ try {
   await hook(env, { hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1' });
   await sleep(500);
   await page.screenshot({ path: join(shots, '08b-waiting-permission.png') });
-  check((await page.locator('.presence-waiting').count()) === 1 && (await page.locator('.t-locked').count()) === 1, 'permission prompt shows waiting pill and locks the terminal row');
+  check((await page.locator('.presence-waiting').count()) === 1 && (await appFrame(page, 'terminal').locator('.t-locked').count()) === 1, 'permission prompt shows waiting pill and locks the terminal row');
+  {
+    const gap = await appFrame(page, 'terminal').locator('.t-scroll').evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+    check(gap < 5, `terminal stays scrolled to the newest entry (gap ${gap}px)`);
+  }
   check((await page.locator('.glass.waiting-glow').count()) === 1, 'waiting glow is on by default');
   await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1', tool_response: { stdout: 'built' } });
   await hook(env, {

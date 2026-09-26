@@ -157,7 +157,9 @@ export function App() {
 
       <main className="stage" ref={stageRef}>
         <div className="strip" style={{ transform: `translateX(${-v * size.W}px)` }}>
-          {placed.map((p) => {
+          {/* Stable DOM order (by id): windows are placed by transform, so a reorder never moves
+              a node, and app frames never reload. */}
+          {[...placed].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((p) => {
             const meta = state.instances[p.id];
             if (!meta) return null;
             const dragging = drag?.id === p.id;

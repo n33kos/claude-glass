@@ -57,3 +57,5 @@ export const conversation: AppDef<ConversationState> = {
     }
   },
 };
+
+export default conversation;

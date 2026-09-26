@@ -1,9 +1,9 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { renderMarkdown } from '../../renderer/markdown';
-import type { ViewProps } from '../../renderer/viewTypes';
+import type { AppViewProps } from '../../sdk/react';
 import type { MarkdownState } from './index';
 
-export function MarkdownView({ state }: ViewProps<MarkdownState>) {
+export default function MarkdownView({ state }: AppViewProps<MarkdownState>) {
   const html = useMemo(() => renderMarkdown(state.content), [state.content]);
   const ref = useRef<HTMLDivElement>(null);
   const prev = useRef(state.content);

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStickToBottom } from '../../renderer/hooks';
-import type { ViewProps } from '../../renderer/viewTypes';
+import type { AppViewProps } from '../../sdk/react';
 import type { TermEntry, TerminalState } from './index';
 
 const PREVIEW_LINES = 8;
@@ -34,13 +34,13 @@ function Entry({ e, cwd, locked }: { e: TermEntry; cwd: string; locked: boolean 
   );
 }
 
-export function TerminalView({ state, run, glass }: ViewProps<TerminalState>) {
+export default function TerminalView({ state, run, session }: AppViewProps<TerminalState>) {
   const tools = useMemo(() => [...new Set(state.entries.filter((e) => e.tool).map((e) => e.tool!))].sort(), [state.entries]);
   const hidden = new Set(state.hidden);
   const visible = state.entries.filter((e) => !e.tool || !hidden.has(e.tool));
   const ref = useStickToBottom<HTMLDivElement>(visible[visible.length - 1]?.id, visible[visible.length - 1]?.status);
   // The call held up by a permission prompt: matched by id, else the latest running call (of that tool).
-  const w = glass.session.endedAt ? undefined : glass.session.waiting;
+  const w = session.ended ? undefined : session.waiting;
   const lockedId = w?.kind !== 'permission' ? undefined
     : w.toolUseId && state.entries.some((e) => e.id === w.toolUseId) ? w.toolUseId
     : [...state.entries].reverse().find((e) => e.status === 'running' && (!w.tool || e.tool === w.tool))?.id;
@@ -56,7 +56,7 @@ export function TerminalView({ state, run, glass }: ViewProps<TerminalState>) {
       )}
       <div className="t-scroll" ref={ref}>
         {visible.length === 0 && <div className="t-empty">Tool calls show up here as Claude works.</div>}
-        {visible.map((e) => <Entry key={e.id} e={e} cwd={glass.session.cwd} locked={e.id === lockedId} />)}
+        {visible.map((e) => <Entry key={e.id} e={e} cwd={session.cwd} locked={e.id === lockedId} />)}
       </div>
     </div>
   );

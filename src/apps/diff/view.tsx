@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import type { ViewProps } from '../../renderer/viewTypes';
+import type { AppViewProps } from '../../sdk/react';
 import { timeAgo } from '../../renderer/viewTypes';
 import type { DiffState, Revision } from './index';
 
@@ -38,7 +38,7 @@ function Hunks({ rev }: { rev: Revision }) {
   );
 }
 
-export function DiffView({ state, run, width, glass }: ViewProps<DiffState>) {
+export default function DiffView({ state, run, width, session }: AppViewProps<DiffState>) {
   // Newest edit first: when a new revision lands, the file list scrolls back to its top entry.
   const filesRef = useRef<HTMLUListElement>(null);
   const newest = state.files[0] ? `${state.files[0]}:${state.revisions[state.files[0]]?.length}` : '';
@@ -50,7 +50,7 @@ export function DiffView({ state, run, width, glass }: ViewProps<DiffState>) {
   const idx = cur < 0 || cur >= revs.length ? revs.length - 1 : cur;
   const rev = revs[idx];
   const wide = width > 640;
-  const cwd = glass.session.cwd;
+  const cwd = session.cwd;
   const count = (r: Revision) => {
     let a = 0, d = 0;
     for (const h of r.hunks) for (const l of h.lines) { if (l[0] === '+') a++; else if (l[0] === '-') d++; }

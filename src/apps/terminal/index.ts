@@ -102,6 +102,7 @@ export const terminal: AppDef<TerminalState> = {
   title: 'Terminal',
   icon: '❯',
   singleton: true,
+  viewCommands: ['filter'],
   description: 'Every tool call Claude makes, shown as terminal activity. Filled automatically by hooks.',
   commands: {
     log: { usage: 'log --text <line>', help: 'Print a line of your own into the terminal' },
@@ -144,3 +145,5 @@ export const terminal: AppDef<TerminalState> = {
     }
   },
 };
+
+export default terminal;

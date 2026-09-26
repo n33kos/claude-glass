@@ -8,7 +8,7 @@ const common = { bundle: true, sourcemap: 'inline', logLevel: 'warning', target:
 const require = createRequire(import.meta.url);
 
 // Built-in apps that ship in the mod format (the rest still have native views; see PLAN §8).
-const FRAME_APPS = ['image'];
+const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal'];
 // Kept in sync with INTERNAL_COMMANDS in src/apps/registry.ts (hidden from Claude's catalog).
 const INTERNAL = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go']);
 

@@ -26,7 +26,7 @@ export const diff: AppDef<DiffState> = {
   description: 'Visual diffs per file; flip left/right through each revision. File edits land in the "changes" instance automatically.',
   commands: {
     add: { usage: 'add --path <file> (--before <text> --after <text> | --before-file F --after-file F)', help: 'Add a diff revision for a file' },
-    select: { usage: 'select --path <file>', help: 'Show a file' },
+    select: { usage: 'select --path <file>', help: 'Show a file', view: true },
     clear: { usage: 'clear', help: 'Remove all diffs' },
   },
   init: () => ({ files: [], revisions: {}, selected: null, cursor: {} }),
@@ -58,3 +58,5 @@ export const diff: AppDef<DiffState> = {
     }
   },
 };
+
+export default diff;

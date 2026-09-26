@@ -33,3 +33,5 @@ export const markdown: AppDef<MarkdownState> = {
     }
   },
 };
+
+export default markdown;

@@ -25,6 +25,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
   const session = { cwd: glass.session.cwd, activity: glass.session.activity, ended: !!glass.session.endedAt, waiting: glass.session.waiting ?? null };
   const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session };
   const post = (msg: object) => ref.current?.contentWindow?.postMessage({ glass: 1, ...msg }, '*');
+  const latest = useRef(props);
+  latest.current = props;
 
   // Messages from this frame only.
   useEffect(() => {
@@ -32,7 +34,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
       if (e.source !== ref.current?.contentWindow) return;
       const m = e.data;
       if (!m || m.glass !== 1) return;
-      if (m.kind === 'ready') setReady(true);
+      // A frame reloads whenever it moves in the DOM (window reorder): always answer 'ready'.
+      if (m.kind === 'ready') { setReady(true); post({ kind: 'props', props: latest.current }); }
       else if (m.kind === 'run' && typeof m.command === 'string') {
         if (app.viewCommands.includes(m.command)) void run(m.command, m.args && typeof m.args === 'object' ? m.args : {});
         else console.warn(`app ${app.type}: view may not run "${m.command}" (not a view command)`);

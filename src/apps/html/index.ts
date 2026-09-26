@@ -27,3 +27,5 @@ export const html: AppDef<HtmlState> = {
     }
   },
 };
+
+export default html;
