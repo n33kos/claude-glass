@@ -251,7 +251,7 @@ Queue, in order:
    the same algorithm as Voice Multiplexer's relay session id, so the two ids match. Binding: the
    SessionStart hook symlinks `<runtime>/<session_id>.sock` → `<folder id>.sock`, so the hook
    forwarder and CLI keep addressing sockets by session id and need no lookup.
-2. **Image lightbox** (below).
+2. [x] **Image lightbox** (done 2026-09-26; see below).
 3. **Browser stream app**: show the browser Claude drives (Playwright or Chrome) live in a
    window. One-way: frames flow in, nothing flows back. Needs a design pass first (CDP
    screencast from a debugging port is the likely route).
@@ -260,7 +260,7 @@ Other candidates:
 - Per-app storage files instead of one state.json; state size limits for huge sessions
 - Packaged .app (electron-builder) so the dock shows "Claude Glass" instead of "Electron"
 - Placeholder ghost slot while dragging; keyboard reorder
-- **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
+- [x] **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
   wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only
   (view state, no reducer action), so it's small. Good for small screenshots and diagrams.
 - **Thoughts app** (explore first, skip if it's unreasonable): list Claude's thinking. No hook

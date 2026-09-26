@@ -89,6 +89,22 @@ try {
   const imgOk = await page.locator('.imageview img').evaluate((img) => img.complete && img.naturalWidth > 0);
   check(imgOk, 'image viewer loads the stored image');
 
+  // Lightbox: click opens a full-window overlay, wheel zooms, Esc closes
+  await page.locator('.imageview img').click();
+  await sleep(250);
+  check(await page.locator('.lightbox').count() === 1, 'clicking an image opens the lightbox');
+  await page.screenshot({ path: join(shots, '06f-lightbox.png') });
+  const vp = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  await page.mouse.move(vp.w * 0.35, vp.h * 0.4);
+  for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -200); await sleep(40); }
+  await sleep(200);
+  const zoom = await page.locator('.lb-zoom').textContent();
+  check(parseInt(zoom) > 150, `wheel zooms the lightbox (got ${zoom})`);
+  await page.screenshot({ path: join(shots, '06g-lightbox-zoomed.png') });
+  await page.keyboard.press('Escape');
+  await sleep(150);
+  check(await page.locator('.lightbox').count() === 0, 'Esc closes the lightbox');
+
   // Drag to the right edge, hold, drop → lands on desktop 2
   {
     const first = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
