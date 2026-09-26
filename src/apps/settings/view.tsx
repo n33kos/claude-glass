@@ -101,7 +101,8 @@ export function SettingsView({ glass, config }: ViewProps) {
         return (
           <Toggle key={a.type} on={on}
             onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
-            label={<span className="s-app"><b>{a.icon}</b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}</span>} />
+            label={<span className="s-app"><b>{a.icon}</b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
+              {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}</span>}</span>} />
         );
       })}
       {mods.filter((m) => !m.ok).map((m) => (
@@ -114,4 +115,9 @@ export function SettingsView({ glass, config }: ViewProps) {
       <p className="s-foot">Session {glass.session.id}</p>
     </div>
   );
+}
+
+function permissionText(p: { network: string[]; microphone: boolean; storage: boolean }): string {
+  return [p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '']
+    .filter(Boolean).join(' · ');
 }

@@ -254,7 +254,7 @@ async function main(argv: string[]) {
       const cat: any[] | null = await call(sessionId(flags), { op: 'catalog' }).catch(() => null);
       const reports: any[] = await call(sessionId(flags), { op: 'mods' }).catch(() => []);
       const rows = cat
-        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}`)
+        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}${a.permissions ? `  [can use: ${[...a.permissions.network, a.permissions.microphone && 'microphone', a.permissions.storage && 'storage'].filter(Boolean).join(', ')}]` : ''}`)
         : ['(glass not open: showing folders only)', ...(existsSync(dir) ? readdirSync(dir).map((d) => `custom   ${d}`) : [])];
       for (const r of reports) if (!r.ok) rows.push(`FAILED   ${r.type.padEnd(14)} ${r.error}  (${r.dir})`);
       out({ apps: cat, mods: reports }, [...rows, '', `Custom apps folder: ${dir}`].join('\n'));

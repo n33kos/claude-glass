@@ -128,6 +128,7 @@ export class GlassCore {
     return Object.values(APPS).filter((a) => !this.config.disabledApps?.includes(a.type)).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
       source: a.source,
+      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage) ? { permissions: a.permissions } : {}),
       commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
     }));
   }

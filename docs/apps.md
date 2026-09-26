@@ -109,6 +109,29 @@ Appended to the instructions Claude gets when the glass opens (up to 1,500 chara
 when to use your app and which commands to run. This is how you shape Claude's behavior with
 your app.
 
+## Permissions
+
+By default a view has no network, no microphone and no storage. An app that needs them says so
+in its manifest; the user sees what each app can use in Settings (and in `claude-glass apps`).
+
+```json
+"permissions": {
+  "network": ["http://127.0.0.1:3100", "ws://127.0.0.1:3100"],
+  "microphone": true,
+  "storage": true
+}
+```
+
+| Permission | What the view gets |
+|---|---|
+| `network` | fetch/WebSocket/scripts/images/frames to exactly these origins (http(s)/ws(s), no wildcards). Servers still apply their own CORS. |
+| `microphone` | `getUserMedia({ audio: true })` (never the camera). macOS will also ask the user once. |
+| `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
+
+Everything else, for every app, stays denied. Apps with these permissions can talk back to other
+services (a voice app, say): that's allowed as the app's own choice, but it never reaches the
+glass core, which stays one-way.
+
 ## Turning apps off
 
 Settings lists every app with a switch. A turned-off app's windows close, hooks leave it alone,

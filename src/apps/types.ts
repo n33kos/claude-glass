@@ -25,6 +25,7 @@ export interface AppDef<S = any> {
   internal?: string[]; // commands only hooks/the view use; hidden from Claude's catalog
   viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
   guide?: string; // instructions for Claude, appended to the glass guide
+  permissions?: AppPermissions;
   source?: 'builtin' | 'user';
   dir?: string; // mod folder: its view.html is served into a sandboxed frame
 }
@@ -51,6 +52,32 @@ export function clip(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + `\n… (${s.length - max} more chars)` : s;
 }
 
+/**
+ * Extra capabilities an app's view may ask for in its manifest. None by default: views are
+ * sandboxed with no network, microphone or storage. Shown to the user in Settings.
+ */
+export interface AppPermissions {
+  network: string[]; // origins the view may reach (fetch, WebSocket, scripts, images, frames), e.g. "http://127.0.0.1:3100"
+  microphone: boolean;
+  storage: boolean; // its own persistent localStorage/IndexedDB (origin glass-app://<type>)
+}
+
+export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false };
+
+/** Validate a manifest's permissions: explicit http(s)/ws(s) origins only, no wildcards. */
+export function parsePermissions(raw: unknown): AppPermissions {
+  if (raw == null) return NO_PERMISSIONS;
+  if (typeof raw !== 'object') throw new Error('permissions must be an object');
+  const r = raw as Record<string, unknown>;
+  const network = (Array.isArray(r.network) ? r.network : []).map((o) => {
+    let u: URL;
+    try { u = new URL(String(o)); } catch { throw new Error(`permissions.network: "${o}" is not a URL`); }
+    if (!/^(https?|wss?):$/.test(u.protocol) || u.hostname.includes('*')) throw new Error(`permissions.network: "${o}" must be an http(s) or ws(s) origin`);
+    return `${u.protocol}//${u.host}`;
+  });
+  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true };
+}
+
 /** What the renderer needs to know about an app. */
 export interface AppInfo {
   type: string;
@@ -59,10 +86,11 @@ export interface AppInfo {
   singleton: boolean;
   frame: boolean; // view is a mod-style frame (glass-app://<type>/view.html)
   viewCommands: string[];
+  permissions: AppPermissions;
 }
 
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands] };
+  return { type: app.type, title: app.title, icon: app.icon, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS };
 }

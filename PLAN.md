@@ -302,6 +302,11 @@ Queue, in order:
 11. [x] **Polish (2026-09-26)**: wallpaper drift ~2.5x faster and wider with a soft brightness
     pulse; Settings "All sessions" grouped under Sessions / Windows & layout / Look / Dock.
 
+12. [x] **App permissions (2026-09-26)**: manifests may ask for `network` (explicit origins),
+    `microphone`, `storage`; per-app CSP, sandbox `allow-same-origin` for storage, Permissions
+    Policy + a locked session permission handler (Electron granted everything by default; now
+    everything is denied except declared mic). Shown in Settings and `claude-glass apps`.
+
 Other candidates:
 - [x] Web research in the browser app (2026-09-26): PreToolUse WebSearch shows the query,
   PostToolUse lists results natively; PreToolUse WebFetch renders the page in a hidden offscreen

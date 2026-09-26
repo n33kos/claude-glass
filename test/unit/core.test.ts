@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
+import { parsePermissions } from '../../src/apps/types';
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
@@ -393,4 +394,15 @@ describe('history mode (experiment)', () => {
     expect((s.appState[browsers[0].id] as BrowserState).history[0]).toMatchObject({ kind: 'search', results: expect.any(Array) });
   });
 
+});
+
+describe('app permissions', () => {
+  it('none by default; explicit origins only', () => {
+    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false });
+    expect(parsePermissions({ network: ['http://127.0.0.1:3100/api', 'ws://127.0.0.1:3100'], microphone: true, storage: true }))
+      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true });
+    expect(() => parsePermissions({ network: ['*'] })).toThrow();
+    expect(() => parsePermissions({ network: ['file:///etc'] })).toThrow(/origin/);
+    expect(() => parsePermissions({ network: ['https://*.example.com'] })).toThrow();
+  });
 });

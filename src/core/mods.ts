@@ -7,7 +7,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { APPS, registerApp } from '../apps/registry';
-import type { AppDef, CommandSpec } from '../apps/types';
+import { parsePermissions, type AppDef, type CommandSpec } from '../apps/types';
 import { appsDir } from './paths';
 
 export const MOD_API_VERSION = 1;
@@ -24,6 +24,7 @@ export interface ModManifest {
   internal?: string[];
   viewCommands?: string[];
   autoOpen?: boolean;
+  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean };
 }
 
 export interface ModReport { type: string; dir: string; ok: boolean; error?: string; overrides?: boolean }
@@ -56,6 +57,8 @@ export function readMod(modDir: string): AppDef {
     if (typeof c?.usage !== 'string' || typeof c?.help !== 'string') throw new Error(`command "${k}" needs usage and help`);
   }
 
+  const permissions = parsePermissions(m.permissions);
+
   const corePath = join(modDir, 'core.js');
   delete require.cache[require.resolve(corePath)];
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -82,6 +85,7 @@ export function readMod(modDir: string): AppDef {
     command: core.command,
     onHook: core.onHook,
     guide,
+    permissions,
     source: 'user',
     dir: modDir,
   };

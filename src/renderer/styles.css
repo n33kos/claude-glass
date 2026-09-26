@@ -213,6 +213,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .s-foot { color: var(--ink-faint); font: 11px var(--mono); margin-top: 16px; }
 .s-note { color: var(--ink-faint); font-size: 12px; margin: 2px 2px 8px; }
 .s-note code, .s-app code { font: 11px var(--mono); color: var(--ink-dim); }
+.s-perms { display: block; margin-top: 3px; font-size: 11px; color: var(--warn); }
 .s-app b { font-weight: 400; margin-right: 4px; }
 .s-app-status { color: var(--ok); font-size: 12px; text-align: right; }
 .s-app-bad .s-app-status { color: var(--bad); }

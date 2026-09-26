@@ -1,9 +1,9 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
-import { app, BrowserWindow, ipcMain, Menu, protocol } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, protocol, session } from 'electron';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
-import { appInfo } from '../apps/types';
+import { appInfo, NO_PERMISSIONS, type AppPermissions } from '../apps/types';
 import { filesDir } from '../core/paths';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
@@ -51,23 +51,48 @@ const HTML_CSP = [
 ].join('; ');
 
 // App views (built-in and mods) run in sandboxed frames served from glass-app://<type>/...,
-// the SDK from glass-app://sdk/. Scripts from the app itself or the usual CDNs; no network.
-const APP_CSP = [
-  "default-src 'none'",
-  "script-src glass-app: 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com",
-  "style-src glass-app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-  'font-src glass-app: data: https://fonts.gstatic.com',
-  'img-src glass-app: glass-file: data: blob:',
-  'media-src glass-app: glass-file: data: blob:',
-  'frame-src glass-html:',
-  "connect-src 'none'",
-].join('; ');
+// the SDK from glass-app://sdk/. Scripts from the app itself or the usual CDNs; no network unless
+// the app's manifest asks for specific origins (permissions.network).
+function appCsp(p: AppPermissions): string {
+  const net = p.network.join(' ');
+  return [
+    "default-src 'none'",
+    `script-src glass-app: 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com ${net}`,
+    `style-src glass-app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net ${net}`,
+    `font-src glass-app: data: https://fonts.gstatic.com ${net}`,
+    `img-src glass-app: glass-file: data: blob: ${net}`,
+    `media-src glass-app: glass-file: data: blob: ${net}`,
+    `frame-src glass-html: ${net}`,
+    `connect-src ${net || "'none'"}`,
+  ].join('; ');
+}
+
+const permsOf = (url: string | undefined): AppPermissions => {
+  try {
+    const u = new URL(url ?? '');
+    return u.protocol === 'glass-app:' ? APPS[u.hostname]?.permissions ?? NO_PERMISSIONS : NO_PERMISSIONS;
+  } catch { return NO_PERMISSIONS; }
+};
+
+/**
+ * Deny every permission (Electron grants all by default) except the microphone, and only to
+ * the frames of apps whose manifest asks for it.
+ */
+function lockPermissions() {
+  const ses = session.defaultSession;
+  const micOk = (url: string | undefined, types?: string[]) => permsOf(url).microphone && !(types ?? []).includes('video');
+  ses.setPermissionRequestHandler((_wc, permission, cb, details) =>
+    cb(permission === 'media' && micOk(details.requestingUrl, (details as { mediaTypes?: string[] }).mediaTypes)));
+  ses.setPermissionCheckHandler((_wc, permission, origin, details) =>
+    permission === 'media' && micOk((details as { requestingUrl?: string }).requestingUrl ?? origin));
+}
 
 let core: GlassCore;
 let win: BrowserWindow | null = null;
 let quitting = false;
 
 async function boot() {
+  lockPermissions();
   attachBuiltinViews(join(__dirname, 'apps'));
   core = new GlassCore(sessionId!, cwd);
   try {
@@ -103,7 +128,7 @@ async function boot() {
     if (!existsSync(path)) return new Response('not found', { status: 404 });
     const type = MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
     const headers: Record<string, string> = { 'content-type': type };
-    if (type.startsWith('text/html')) headers['content-security-policy'] = APP_CSP;
+    if (type.startsWith('text/html')) headers['content-security-policy'] = appCsp(APPS[url.hostname]?.permissions ?? NO_PERMISSIONS);
     return new Response(readFileSync(path), { headers });
   });
 

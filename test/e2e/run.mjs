@@ -30,7 +30,25 @@ let failures = 0;
 const appFrame = (page, id) => page.frameLocator(`[data-window="${id}"] iframe.appframe`);
 const check = (cond, msg) => { if (!cond) { failures++; console.error(`✗ ${msg}`); } else console.log(`✓ ${msg}`); };
 
-const app = await electron.launch({ args: [join(root, 'dist/main.js'), '--session', SID, '--cwd', root], env });
+// Permissions: two identical demo apps, one declaring network + storage + microphone, one declaring nothing.
+const permSrv = createServer((_q, r) => { r.setHeader('access-control-allow-origin', '*'); r.end('hello'); });
+await new Promise((res) => permSrv.listen(0, '127.0.0.1', res));
+const permOrigin = `http://127.0.0.1:${permSrv.address().port}`;
+const demoView = `<!doctype html><meta charset="utf-8"><body style="color:#fff;font:14px system-ui;padding:12px">
+<div id="net"></div><div id="store"></div><div id="mic"></div>
+<script src="glass-app://sdk/glass-app.js"></script><script>
+fetch('${permOrigin}/').then((r) => r.text()).then((t) => { net.textContent = 'net:' + t; }).catch(() => { net.textContent = 'net:blocked'; });
+try { const n = Number(localStorage.getItem('n') || 0) + 1; localStorage.setItem('n', n); store.textContent = 'store:' + n; } catch { store.textContent = 'store:blocked'; }
+navigator.permissions.query({ name: 'microphone' }).then((p) => { mic.textContent = 'mic:' + p.state; }).catch((e) => { mic.textContent = 'mic:' + e.name; });
+</script>`;
+for (const [type, permissions] of [['perm-demo', { network: [permOrigin], storage: true, microphone: true }], ['noperm-demo', undefined]]) {
+  mkdirSync(join(home, 'apps', type), { recursive: true });
+  writeFileSync(join(home, 'apps', type, 'glass-app.json'), JSON.stringify({ apiVersion: 1, type, title: type, singleton: true, permissions }));
+  writeFileSync(join(home, 'apps', type, 'core.js'), 'exports.init = () => ({}); exports.command = (s) => s;');
+  writeFileSync(join(home, 'apps', type, 'view.html'), demoView);
+}
+
+const app = await electron.launch({ args: ['--use-fake-device-for-media-stream', join(root, 'dist/main.js'), '--session', SID, '--cwd', root], env });
 try {
   const page = await app.firstWindow();
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -459,6 +477,22 @@ try {
     for (let i = 0; i < pagesN; i++) await page.keyboard.press('Meta+ArrowLeft');
     for (const id of made) await cli(env, 'window', 'close', id);
     await sleep(400);
+  }
+
+  // App permissions: granted only as declared.
+  {
+    await cli(env, 'new', 'perm-demo');
+    await cli(env, 'new', 'noperm-demo');
+    await sleep(1500);
+    const read = async (id) => (await appFrame(page, id).locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+    const withP = await read('perm-demo'), without = await read('noperm-demo');
+    check(withP === 'net:hello store:1 mic:granted', `an app gets the network, storage and microphone it declared (${withP})`);
+    check(without.startsWith('net:blocked store:blocked mic:') && !without.endsWith('granted'), `an app without permissions gets none (${without})`);
+    await cli(env, 'window', 'close', 'perm-demo');
+    await cli(env, 'window', 'close', 'noperm-demo');
+    permSrv.close();
+    // The blocked demo's CSP/permission-policy console errors are the point of the test, not failures.
+    for (let i = errors.length - 1; i >= 0; i--) if (errors[i].includes(permOrigin) || /Permissions policy violation: microphone/.test(errors[i])) errors.splice(i, 1);
   }
 
   // Session ended
