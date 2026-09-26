@@ -11,8 +11,10 @@ export interface HookContext {
   readText(path: string): string | null;
   /** App types the user turned off: hooks leave them untouched. */
   disabled?: ReadonlySet<string>;
-  /** Experiment: 'history' sends each turn's updates to a new window instead of reusing one. */
+  /** Experiment: 'history' gives every action its own new window instead of reusing one. */
   windowMode?: 'live' | 'history';
+  /** Set per hook: the tool call this hook belongs to (history mode keys windows by it). */
+  toolUseId?: string;
 }
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
@@ -45,7 +47,7 @@ const endsWait = (w: Waiting | undefined, p: any) => !!w && (!w.toolUseId || !p.
 
 export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   // Built-in effects first, then any app that watches hooks itself (onHook).
-  const next = reduce(builtinHook(s, p, ctx), { type: 'app.hook', payload: p }).state;
+  const next = reduce(builtinHook(s, p, { ...ctx, toolUseId: p?.tool_use_id ? String(p.tool_use_id) : undefined }), { type: 'app.hook', payload: p }).state;
   return ctx.disabled?.size ? withoutDisabled(s, next, ctx.disabled) : next;
 }
 
@@ -82,7 +84,7 @@ function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
     case 'UserPromptSubmit': {
       s = setWaiting(s, undefined);
       // endedAt: in folder scope another session may have ended while this one keeps going.
-      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined, turn: (s.session.turn ?? 0) + 1 } }).state;
+      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined } }).state;
       return cmd(s, 'conversation', 'user', { text: String(p.prompt ?? ''), id: p.prompt_id });
     }
     case 'MessageDisplay': {
@@ -95,8 +97,8 @@ function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
       s = reduce(s, { type: 'session.update', patch: { activity: 'working' } }).state;
       if (p.tool_name === 'AskUserQuestion') s = setWaiting(s, questionWait(p));
       // Web research shows up in the browser as it starts: the query, or the page being fetched.
-      if (p.tool_name === 'WebSearch' && p.tool_input?.query) s = web(s, 'web.search', { query: String(p.tool_input.query) });
-      if (p.tool_name === 'WebFetch' && p.tool_input?.url) s = web(s, 'web.page', { url: String(p.tool_input.url) });
+      if (p.tool_name === 'WebSearch' && p.tool_input?.query) s = web(s, ctx, 'web.search', { query: String(p.tool_input.query) });
+      if (p.tool_name === 'WebFetch' && p.tool_input?.url) s = web(s, ctx, 'web.page', { url: String(p.tool_input.url) });
       return cmd(s, 'terminal', 'tool.start', { id: p.tool_use_id ?? `t-${Date.now()}`, tool: p.tool_name, input: p.tool_input });
     case 'PostToolUse':
     case 'PostToolUseFailure': {
@@ -133,20 +135,22 @@ const HISTORY_KEEP = 24; // per kind; the oldest history windows are dropped bey
 
 /**
  * The one seam for window modes. live: updates go to the fixed window (`changes`, `plan`,
- * `images`). history: each turn gets its own window (`changes-3`, "Changes · turn 3"), which opens
- * at slot 0 and pushes older ones toward later desktops: a running visual log.
+ * `images`, `browser`). history: every action gets its own window, keyed by its tool call (so a
+ * search's start and its results share one). New windows open at
+ * slot 0 and push older ones toward later desktops: a running visual log.
  */
 function autoWindow(s: GlassState, ctx: HookContext, opts: Parameters<typeof autoCommand>[1]): GlassState {
   if (ctx.windowMode !== 'history') return autoCommand(s, opts);
-  const turn = s.session.turn ?? 0;
-  s = autoCommand(s, { ...opts, id: `${opts.id}-${turn}`, title: `${opts.title} · turn ${turn}` });
-  const old = Object.values(s.instances).filter((i) => new RegExp(`^${opts.id}-\\d+$`).test(i.id)).sort((a, b) => a.createdAt - b.createdAt);
+  const key = (ctx.toolUseId ?? String(Date.now())).replace(/[^A-Za-z0-9]/g, '').slice(-10);
+  s = autoCommand(s, { ...opts, id: `${opts.id}-${key}` });
+  const mine = new RegExp(`^${opts.id}-[A-Za-z0-9]+$`);
+  const old = Object.values(s.instances).filter((i) => mine.test(i.id)).sort((a, b) => a.createdAt - b.createdAt);
   for (const i of old.slice(0, Math.max(0, old.length - HISTORY_KEEP))) s = reduce(s, { type: 'instance.remove', id: i.id }).state;
   return s;
 }
 
-const web = (s: GlassState, command: string, args: Record<string, unknown>) =>
-  autoCommand(s, { id: 'browser', appType: 'browser', title: 'Browser', command, args, autoOpen: s.settings.autoOpen.web !== false });
+const web = (s: GlassState, ctx: HookContext, command: string, args: Record<string, unknown>) =>
+  autoWindow(s, ctx, { id: 'browser', appType: 'browser', title: 'Browser', command, args, autoOpen: s.settings.autoOpen.web !== false });
 
 function applyToolSideEffects(
   s: GlassState, tool: string, input: any, response: any, ctx: HookContext, auto: GlassState['settings']['autoOpen'],
@@ -172,7 +176,7 @@ function applyToolSideEffects(
   }
 
   if (tool === 'WebSearch' && input.query && response) {
-    s = web(s, 'web.search', { query: String(response.query ?? input.query), results: searchResults(response) });
+    s = web(s, ctx, 'web.search', { query: String(input.query), results: searchResults(response) });
   }
 
   if (tool === 'Read' && path && IMAGE_RE.test(path)) {

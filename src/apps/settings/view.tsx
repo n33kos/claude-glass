@@ -67,7 +67,7 @@ export function SettingsView({ glass, config }: ViewProps) {
         <span>New things Claude makes (experiment)</span>
         <select value={config.windowMode} onChange={(e) => setConfig('windowMode', e.target.value)}>
           <option value="live">Update one window</option>
-          <option value="history">New window each turn (history)</option>
+          <option value="history">New window for every action (history)</option>
         </select>
       </label>
       <Toggle label="Scroll outside windows to switch desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />

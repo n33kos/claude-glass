@@ -17,7 +17,6 @@ export interface SessionInfo {
   startedAt: number;
   endedAt?: number;
   activity: 'idle' | 'working';
-  turn?: number; // user prompts so far (history mode names windows by turn)
   waiting?: Waiting; // Claude is blocked on the user (shown read-only; answered in Claude Code)
 }
 
@@ -48,7 +47,7 @@ export interface GlobalConfig {
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
   scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
   nestedView: boolean; // one screen: newest window big, older ones spiral into smaller panes
-  windowMode: 'live' | 'history'; // experiment: history = a new Changes/Plan/Images window per turn
+  windowMode: 'live' | 'history'; // experiment: history = a new window for every edit, plan, image, search and page
 }
 
 export interface GlassState {

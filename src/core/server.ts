@@ -56,6 +56,13 @@ export class GlassCore {
   }
 
   dispatch(action: Action): unknown {
+    // History mode: each page has its own browser window; a highlight goes to the newest page.
+    if (action.type === 'app.command' && action.id === 'browser' && action.command === 'highlight' && this.config.windowMode === 'history') {
+      const pages = Object.values(this.state.instances)
+        .filter((i) => i.type === 'browser' && (this.state.appState[i.id] as { history?: { kind: string }[] })?.history?.some((h) => h.kind === 'page'))
+        .sort((a, b) => b.createdAt - a.createdAt);
+      if (pages[0]) action = { ...action, id: pages[0].id };
+    }
     this.assertEnabled(action);
     if (action.type === 'window.move' && this.config.windowMode === 'history') {
       throw new Error('the user has history mode on: windows stay in time order (newest first), so they can\'t be moved.');

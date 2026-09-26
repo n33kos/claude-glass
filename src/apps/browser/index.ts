@@ -63,7 +63,7 @@ export const browser: AppDef<BrowserState> = {
   type: 'browser',
   title: 'Browser',
   icon: '◎',
-  singleton: true,
+  singleton: false, // one "browser" window normally; history mode gives each search/page its own
   viewCommands: ['web.go', 'web.home'],
   description: 'The browser you use, live. Web searches and fetched pages show up automatically. `attach` screencasts any Chromium with a DevTools port (Playwright, Puppeteer, Chrome --remote-debugging-port=9222) and follows its most recently active tab; run it headless. For other browsers, push screenshots with `frame --file`.',
   commands: {

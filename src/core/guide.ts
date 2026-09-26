@@ -71,8 +71,8 @@ talking about at index 0; older things naturally recede.`;
 
 const HISTORY_MODE = `
 
-The user has history mode on: each turn's changes, plans and images open in a new window, newest
-first, so the glass reads as a timeline. Windows stay in time order; \`window move\` is refused.`;
+The user has history mode on: every edit, plan, image, search and page opens in its own new window,
+newest first, so the glass reads as a timeline. Windows stay in time order; \`window move\` is refused.`;
 
 export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView' | 'windowMode'>>): string {
   const apps = Object.values(APPS).filter((a) => a.guide && !config.disabledApps?.includes(a.type));

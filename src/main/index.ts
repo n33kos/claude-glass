@@ -7,6 +7,7 @@ import { appInfo } from '../apps/types';
 import { filesDir } from '../core/paths';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
+import { computeDesktops, desktopsFor } from '../core/layout';
 import { attachBuiltinViews } from '../core/mods';
 import { GlassCore } from '../core/server';
 import { WebFeed, type WebInput } from './webFeed';
@@ -119,10 +120,10 @@ async function boot() {
     try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
   // The browser tile's shape, so the offscreen page renders to fill it (a view hint, not state).
-  ipcMain.on('glass:webAspect', (_e, aspect: number) => { webAspect = Number(aspect) || 0; webFeed?.fit(webAspect); });
+  ipcMain.on('glass:webAspect', (_e, aspect: number) => { webAspect = Number(aspect) || 0; for (const f of webFeeds.values()) f.fit(webAspect); });
   // Scroll/click in the glass's own copy of a fetched page (never Claude's browser).
-  ipcMain.on('glass:webInput', (_e, input: WebInput) => {
-    if (input && (input.type === 'wheel' || input.type === 'click')) webFeed?.input(input);
+  ipcMain.on('glass:webInput', (_e, input: WebInput & { id?: string }) => {
+    if (input && (input.type === 'wheel' || input.type === 'click')) webFeeds.get(String(input.id))?.input(input);
   });
   ipcMain.handle('glass:lastFrame', (_e, id: string) => lastFrames.get(id) ?? null);
   ipcMain.handle('glass:config', (_e, key: string, value: unknown) => {
@@ -162,8 +163,11 @@ async function boot() {
 const streams = new Map<string, BrowserStream>();
 type Source = 'cdp' | 'web';
 const lastFrames = new Map<string, Partial<Record<Source, string>>>();
-let webFeed: WebFeed | null = null;
-let lastHomeSeq = 0;
+// Fetched pages render in hidden offscreen windows, one per browser window on the desktop being
+// viewed (history mode can have several), capped; others keep showing their last frame.
+const webFeeds = new Map<string, WebFeed>();
+const lastHomeSeq = new Map<string, number>();
+const MAX_LIVE_PAGES = 4;
 let webAspect = 0; // browser tile width / height, reported by the renderer
 
 function sendFrame(id: string, source: Source, data: string) {
@@ -193,27 +197,36 @@ function syncBrowserStreams() {
     stream.start();
   }
 
-  // Web research: render the fetched page while the browser window is open and showing it.
-  const b = s.appState.browser as BrowserState | undefined;
-  const w = b?.view === 'web' ? currentWeb(b) : undefined;
-  const page = w?.kind === 'page' && s.order.includes('browser') ? w : null;
-  if (page) {
-    if (!webFeed) {
-      const browserCmd = (command: string, args: Record<string, unknown>) =>
-        setImmediate(() => core.dispatch({ type: 'app.command', id: 'browser', command, args }));
-      webFeed = new WebFeed({
-        frame: (data) => sendFrame('browser', 'web', data),
-        title: (url, title) => browserCmd('web.title', { url, title }),
-        away: (url) => browserCmd('web.away', { url }),
-        found: (url, matches) => browserCmd('web.found', { url, matches }),
+  // Web research: render fetched pages for browser windows on the desktop being viewed.
+  const pages = computeDesktops(s.order, desktopsFor(s.desktops, core.config.nestedView), core.config.defaultLayout);
+  const onScreen = pages[Math.min(s.ui.viewingDesktop, pages.length - 1)]?.windows ?? [];
+  const live = new Map<string, { b: BrowserState; url: string; highlight: string | null }>();
+  for (const id of onScreen) {
+    if (live.size >= MAX_LIVE_PAGES || s.instances[id]?.type !== 'browser') continue;
+    const b = s.appState[id] as BrowserState;
+    const w = b?.view === 'web' ? currentWeb(b) : undefined;
+    if (w?.kind === 'page') live.set(id, { b, url: w.url, highlight: w.highlight ?? null });
+  }
+  for (const [id, feed] of webFeeds) if (!live.has(id)) { feed.hide(); webFeeds.delete(id); }
+  for (const [id, { b, url, highlight }] of live) {
+    let feed = webFeeds.get(id);
+    if (!feed) {
+      const cmd = (command: string, args: Record<string, unknown>) =>
+        setImmediate(() => { if (core.state.instances[id]) core.dispatch({ type: 'app.command', id, command, args }); });
+      feed = new WebFeed({
+        frame: (data) => sendFrame(id, 'web', data),
+        title: (u, title) => cmd('web.title', { url: u, title }),
+        away: (u) => cmd('web.away', { url: u }),
+        found: (u, matches) => cmd('web.found', { url: u, matches }),
       });
-      webFeed.fit(webAspect);
+      feed.fit(webAspect);
+      webFeeds.set(id, feed);
     }
     // "Home" (back to Claude's page) is an explicit request: a bumped homeSeq.
-    const home = (b!.homeSeq ?? 0) !== lastHomeSeq;
-    lastHomeSeq = b!.homeSeq ?? 0;
-    webFeed.show(page.url, page.highlight ?? null, home);
-  } else webFeed?.hide();
+    const home = (b.homeSeq ?? 0) !== (lastHomeSeq.get(id) ?? 0);
+    lastHomeSeq.set(id, b.homeSeq ?? 0);
+    feed.show(url, highlight, home);
+  }
 }
 
 function createWindow() {
@@ -255,7 +268,7 @@ async function shutdown() {
   if (quitting) return;
   quitting = true;
   for (const s of streams.values()) s.stop();
-  webFeed?.destroy();
+  for (const f of webFeeds.values()) f.destroy();
   try { await core?.close(); } catch {}
   if (win && !win.isDestroyed()) win.destroy();
   app.exit(0);

@@ -172,11 +172,11 @@ async function main(argv: string[]) {
       const sid = sessionId(flags);
       const [id, command] = rest;
       if (!id || !command) throw new Error('usage: claude-glass app <id> <command> [--flags]');
-      // Singletons (browser, terminal...) are addressed by type; the first use creates and opens one.
+      // An app's type works as a window id (browser, terminal...): the first use creates and opens it.
       const st = await call(sid, { op: 'state', id }).catch(async (e) => {
-        const catalog: { type: string; singleton: boolean }[] = await call(sid, { op: 'catalog' });
-        if (!catalog.some((a) => a.type === id && a.singleton)) throw e;
-        await dispatch(sid, { type: 'instance.create', appType: id });
+        const catalog: { type: string }[] = await call(sid, { op: 'catalog' });
+        if (!catalog.some((a) => a.type === id)) throw e;
+        await dispatch(sid, { type: 'instance.create', appType: id, id });
         return call(sid, { op: 'state', id });
       });
       const { json: _j, ...f } = flags;

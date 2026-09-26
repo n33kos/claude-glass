@@ -378,24 +378,26 @@ describe('nested layout (experiment)', () => {
 describe('history mode (experiment)', () => {
   const hctx: HookContext = { ...ctx, windowMode: 'history' };
   const edit = fixtures.find((p) => p.hook_event_name === 'PostToolUse' && p.tool_name === 'Edit');
-  const prompt = (s: GlassState, text: string) => applyHook(s, { hook_event_name: 'UserPromptSubmit', prompt: text }, hctx);
-  it('each turn gets its own Changes window, newest at slot 0', () => {
-    let s = prompt(fresh(), 'one');
-    s = applyHook(applyHook(s, edit, hctx), edit, hctx); // two edits, same turn → one window
-    s = prompt(s, 'two');
-    s = applyHook(s, edit, hctx);
-    expect(Object.keys(s.instances).filter((id) => id.startsWith('changes-'))).toEqual(['changes-1', 'changes-2']);
-    expect(s.order.slice(0, 2)).toEqual(['changes-2', 'changes-1']);
-    expect(s.instances['changes-2'].title).toBe('Changes · turn 2');
-    const d1 = s.appState['changes-1'] as DiffState;
-    expect(d1.revisions[d1.files[0]]).toHaveLength(2);
+  const editAs = (id: string) => ({ ...edit, tool_use_id: id });
+  it('every action gets its own window, newest at slot 0', () => {
+    let s = applyHook(applyHook(fresh(), editAs('toolu_A1'), hctx), editAs('toolu_B2'), hctx);
+    expect(s.order.slice(0, 2)).toEqual(['changes-tooluB2', 'changes-tooluA1']);
+    expect(s.instances['changes-tooluB2'].title).toBe('Changes');
+  });
+  it("a search's start and results share one browser window", () => {
+    const web = fixtures.filter((p) => p.tool_name === 'WebSearch');
+    let s = fresh();
+    for (const p of web) s = applyHook(s, p, hctx);
+    const browsers = Object.values(s.instances).filter((i) => i.type === 'browser');
+    expect(browsers).toHaveLength(1);
+    expect((s.appState[browsers[0].id] as BrowserState).history[0]).toMatchObject({ kind: 'search', results: expect.any(Array) });
   });
   it('keeps at most 24 per kind', () => {
     let s = fresh();
-    for (let i = 0; i < 30; i++) s = applyHook(prompt(s, `t${i}`), edit, hctx);
+    for (let i = 0; i < 30; i++) s = applyHook(s, editAs(`toolu_${i}`), hctx);
     const ids = Object.keys(s.instances).filter((id) => id.startsWith('changes-'));
     expect(ids).toHaveLength(24);
-    expect(ids).not.toContain('changes-1');
+    expect(ids).not.toContain('changes-toolu0');
     expect(s.order.every((id) => s.instances[id])).toBe(true);
   });
 });
