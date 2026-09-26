@@ -292,7 +292,8 @@ Queue, in order:
    with a clear "you're browsing, not what Claude read" state and a "back to Claude's page"
    button.
 9. **Experiment: history mode** (not started; careful, see below).
-10. **Experiment: nested layout** (not started; see 6c). Works with either window mode.
+10. **Experiment: nested layout**: built on branch `experiment/nested-layout`, awaiting the
+    user's trial (layout menu → "Nested (experiment)"; scroll over bars/gaps or ⌘↑/⌘↓). Keep or delete.
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, type DesktopPage } from '../core/layout';
+import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
 import { FrameView } from './FrameView';
@@ -10,21 +10,27 @@ const PAD = 12;
 const GAP = 12;
 
 interface Rect { x: number; y: number; w: number; h: number }
-interface Placed { id: string; page: number; index: number; rect: Rect }
+interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean }
 interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null }
 
-function place(pages: DesktopPage[], W: number, H: number): Placed[] {
+function place(pages: DesktopPage[], W: number, H: number, focus: number): Placed[] {
   const out: Placed[] = [];
   const iw = W - PAD * 2, ih = H - PAD * 2;
   for (const p of pages) {
-    const slots = LAYOUTS[effectiveLayout(p)].slots;
+    // Nested: windows before the focus are scrolled past (hidden, parked in the big pane);
+    // windows past the spiral's depth are parked in its smallest pane.
+    const nested = p.layout === 'nested';
+    const f = nested ? Math.min(focus, p.windows.length - 1) : 0;
+    const slots = nested ? nestedSlots(p.windows.length - f) : LAYOUTS[effectiveLayout(p)].slots;
     p.windows.forEach((id, i) => {
-      const s = slots[i];
+      const k = i - f;
+      const hidden = nested && (k < 0 || k >= slots.length);
+      const s = slots[Math.max(0, Math.min(k, slots.length - 1))];
       const x = p.index * W + PAD + s.x * iw + (s.x > 0 ? GAP / 2 : 0);
       const y = PAD + s.y * ih + (s.y > 0 ? GAP / 2 : 0);
       const w = s.w * iw - (s.x > 0 ? GAP / 2 : 0) - (s.x + s.w < 0.999 ? GAP / 2 : 0);
       const h = s.h * ih - (s.y > 0 ? GAP / 2 : 0) - (s.y + s.h < 0.999 ? GAP / 2 : 0);
-      out.push({ id, page: p.index, index: p.start + i, rect: { x, y, w, h } });
+      out.push({ id, page: p.index, index: p.start + i, rect: { x, y, w, h }, hidden });
     });
   }
   return out;
@@ -35,6 +41,16 @@ export function App() {
   const pages = useMemo(() => computeDesktops(state.order, state.desktops, config.defaultLayout), [state.order, state.desktops, config.defaultLayout]);
   const [view, setViewRaw] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const nestedPage = pages.find((p) => p.layout === 'nested');
+  const focus = nestedPage && focusId ? Math.max(0, nestedPage.windows.indexOf(focusId)) : 0;
+  const stepFocus = (d: number) => {
+    if (!nestedPage) return false;
+    const i = Math.max(0, Math.min(nestedPage.windows.length - 1, focus + d));
+    setFocusId(i === 0 ? null : nestedPage.windows[i]);
+    return true;
+  };
   const stageRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ W: 1200, H: 800 });
 
@@ -57,6 +73,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && pages[v]?.layout === 'nested') stepFocus(e.key === 'ArrowDown' ? 1 : -1);
       if (e.key === 'ArrowRight') setView(Math.min(v + 1, pages.length - 1));
       if (e.key === 'ArrowLeft') setView(v - 1);
     };
@@ -65,6 +82,14 @@ export function App() {
       const target = e.target as HTMLElement;
       // Horizontal swipe anywhere; vertical scroll (mouse wheels) only outside windows, if enabled.
       const horizontal = Math.abs(e.deltaX) >= Math.abs(e.deltaY) * 1.5;
+      // Nested desktop: vertical scroll outside the content (gaps, bars, title bars) walks the spiral.
+      if (!horizontal && pages[v]?.layout === 'nested' && !target.closest?.('.body, .layout-menu, .question-card, .lightbox')) {
+        const now = Date.now();
+        if (now < cool) return;
+        acc += e.deltaY;
+        if (Math.abs(acc) > 60) { stepFocus(Math.sign(acc)); acc = 0; cool = now + 350; }
+        return;
+      }
       const vertical = !horizontal && config.wheelDesktops && !target.closest?.('.window, .layout-menu, .question-card, .lightbox');
       if (!horizontal && !vertical) return;
       if (target.closest?.('.scroll-x')) return;
@@ -79,9 +104,9 @@ export function App() {
     window.addEventListener('keydown', onKey);
     window.addEventListener('wheel', onWheel, { passive: true });
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); };
-  }, [v, pages.length, setView, config.wheelDesktops]);
+  }, [v, pages, setView, config.wheelDesktops, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const placed = useMemo(() => place(pages, size.W, size.H), [pages, size]);
+  const placed = useMemo(() => place(pages, size.W, size.H, focus), [pages, size, focus]);
   const opacityFor = (m: InstanceMeta) => m.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
 
   // ---- drag to reorder -------------------------------------------------------------
@@ -169,7 +194,8 @@ export function App() {
             const dragging = drag?.id === p.id;
             const style: React.CSSProperties = dragging
               ? { width: p.rect.w, height: p.rect.h, transform: `translate(${drag.px - (stageRef.current?.getBoundingClientRect().left ?? 0) - drag.ox + v * size.W}px, ${drag.py - (stageRef.current?.getBoundingClientRect().top ?? 0) - drag.oy}px) scale(.97)` }
-              : { width: p.rect.w, height: p.rect.h, transform: `translate(${p.rect.x}px, ${p.rect.y}px)` };
+              : { width: p.rect.w, height: p.rect.h, transform: `translate(${p.rect.x}px, ${p.rect.y}px)`,
+                  ...(p.hidden ? { opacity: 0, pointerEvents: 'none' as const } : {}) };
             return (
               <WindowFrame
                 key={p.id}
@@ -186,6 +212,14 @@ export function App() {
               </WindowFrame>
             );
           })}
+          {nestedPage && (() => {
+            const newer = focus, older = Math.max(0, nestedPage.windows.length - focus - 6);
+            const left = nestedPage.index * size.W;
+            return (<>
+              {newer > 0 && <button className="nest-badge top" style={{ left: left + size.W / 2 }} onClick={() => setFocusId(null)}>↑ {newer} newer</button>}
+              {older > 0 && <span className="nest-badge bottom" style={{ left: left + size.W - 90 }}>{older} older ↓</span>}
+            </>);
+          })()}
           {pages.every((p) => p.windows.length === 0) && (
             <div className="empty" style={{ width: size.W }}>
               <p>Nothing on screen. Open an app from the dock, or ask Claude to show you something.</p>

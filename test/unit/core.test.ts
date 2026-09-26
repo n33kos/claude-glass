@@ -6,7 +6,7 @@ import { messageText, type ConversationState } from '../../src/apps/conversation
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
-import { computeDesktops, effectiveLayout } from '../../src/core/layout';
+import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor } from '../../src/core/guide';
 import { loadMods } from '../../src/core/mods';
 import { APPS } from '../../src/apps/registry';
@@ -354,5 +354,23 @@ describe('browser highlight and browsing', () => {
     s = cmd(s, 'web.home');
     expect(s.away).toBeNull();
     expect(s.homeSeq).toBe(seq + 1);
+  });
+});
+
+describe('nested layout (experiment)', () => {
+  it('spirals: each pane is half of what is left, capped at 6, filling the screen', () => {
+    const s = nestedSlots(8);
+    expect(s).toHaveLength(6);
+    expect(s[0]).toEqual({ x: 0, y: 0, w: 0.5, h: 1 });
+    expect(s[1]).toEqual({ x: 0.5, y: 0, w: 0.5, h: 0.5 });
+    const area = s.reduce((a, r) => a + r.w * r.h, 0);
+    expect(area).toBeCloseTo(1);
+    expect(nestedSlots(1)).toEqual([{ x: 0, y: 0, w: 1, h: 1 }]);
+  });
+  it('a nested desktop takes every window', () => {
+    const ids = Array.from({ length: 9 }, (_, i) => `w${i}`);
+    const pages = computeDesktops(ids, ['nested'], 'grid');
+    expect(pages).toHaveLength(1);
+    expect(pages[0].windows).toHaveLength(9);
   });
 });

@@ -1,6 +1,6 @@
 // Core data model. Pure types, shared by core, main, renderer, and CLI.
 
-export type LayoutName = 'full' | 'split' | 'main-left' | 'columns' | 'grid';
+export type LayoutName = 'full' | 'split' | 'main-left' | 'columns' | 'grid' | 'nested';
 
 export interface InstanceMeta {
   id: string;

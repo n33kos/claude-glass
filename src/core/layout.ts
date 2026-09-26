@@ -14,6 +14,12 @@ export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> =
     label: 'Three tall',
     slots: [{ x: 0, y: 0, w: 1 / 3, h: 1 }, { x: 1 / 3, y: 0, w: 1 / 3, h: 1 }, { x: 2 / 3, y: 0, w: 1 / 3, h: 1 }],
   },
+  // Experiment: every window on one desktop, each older one in half of what's left (a spiral).
+  // Slots are computed per window count by nestedSlots(); this list is only for the menu icon.
+  nested: {
+    label: 'Nested (experiment)',
+    slots: [{ x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }, { x: 0.75, y: 0.5, w: 0.25, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.25, h: 0.5 }],
+  },
   grid: {
     label: 'Grid',
     slots: [{ x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 }, { x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }],
@@ -21,6 +27,24 @@ export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> =
 };
 
 export const LAYOUT_NAMES = Object.keys(LAYOUTS) as LayoutName[];
+
+export const NESTED_DEPTH = 6; // panes past this are too small to read; they stay hidden
+
+/** The nested spiral: pane i takes half of what's left, turning left → top → right → bottom. */
+export function nestedSlots(n: number): SlotRect[] {
+  const out: SlotRect[] = [];
+  let r: SlotRect = { x: 0, y: 0, w: 1, h: 1 };
+  const count = Math.min(n, NESTED_DEPTH);
+  for (let i = 0; i < count; i++) {
+    if (i === count - 1) { out.push(r); break; }
+    const side = i % 4;
+    if (side === 0) { out.push({ ...r, w: r.w / 2 }); r = { ...r, x: r.x + r.w / 2, w: r.w / 2 }; }
+    else if (side === 1) { out.push({ ...r, h: r.h / 2 }); r = { ...r, y: r.y + r.h / 2, h: r.h / 2 }; }
+    else if (side === 2) { out.push({ ...r, x: r.x + r.w / 2, w: r.w / 2 }); r = { ...r, w: r.w / 2 }; }
+    else { out.push({ ...r, y: r.y + r.h / 2, h: r.h / 2 }); r = { ...r, h: r.h / 2 }; }
+  }
+  return out;
+}
 
 export function isLayout(v: unknown): v is LayoutName {
   return typeof v === 'string' && v in LAYOUTS;
@@ -50,7 +74,7 @@ export function computeDesktops(order: string[], desktops: LayoutName[], fallbac
   let i = 0;
   do {
     const layout = desktops[i] ?? (fallback === 'claude' ? fitLayout(order.length - start) : fallback);
-    const n = LAYOUTS[layout].slots.length;
+    const n = layout === 'nested' ? Math.max(1, order.length - start) : LAYOUTS[layout].slots.length; // nested takes every window
     pages.push({ index: i, layout, start, windows: order.slice(start, start + n) });
     start += n;
     i++;
@@ -66,6 +90,7 @@ export function computeDesktops(order: string[], desktops: LayoutName[], fallbac
  * of matching size so there are no holes.
  */
 export function effectiveLayout(page: DesktopPage): LayoutName {
+  if (page.layout === 'nested') return 'nested';
   const n = page.windows.length;
   const want = LAYOUTS[page.layout].slots.length;
   if (n >= want || n === 0) return page.layout;
