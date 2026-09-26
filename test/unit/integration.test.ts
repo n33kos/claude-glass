@@ -119,6 +119,13 @@ describe('hook forwarder', () => {
     expect(Date.now() - t).toBeLessThan(500);
   });
 
+  it('session-start hook injects the guide only when the canvas is live', async () => {
+    const live = await run(join(root, 'bin/claude-canvas'), ['session-start-hook'], JSON.stringify({ session_id: SID, source: 'compact', cwd: '/tmp/proj' }));
+    expect(JSON.parse(live.stdout).hookSpecificOutput.additionalContext).toContain('Claude Canvas is open');
+    const off = await run(join(root, 'bin/claude-canvas'), ['session-start-hook'], JSON.stringify({ session_id: 'other-session', source: 'startup', cwd: '/tmp/proj' }));
+    expect(off.stdout).toBe(''); // autoStart defaults to false: nothing injected, nothing launched
+  });
+
   it('persists state to disk', async () => {
     await wait(400);
     const saved = JSON.parse(readFileSync(join(home, 'sessions', SID, 'state.json'), 'utf8'));

@@ -62,6 +62,14 @@ export function summarizeOutput(tool: string, response: any): string {
       if (!hunks.length && response.type === 'create') return 'created';
       return `+${add} −${del}`;
     }
+    case 'Grep': case 'Glob': {
+      if (typeof response.content === 'string' && response.content) return clip(response.content, MAX_OUTPUT);
+      if (Array.isArray(response.filenames)) {
+        const n = response.numFiles ?? response.filenames.length;
+        return clip([`${n} file${n === 1 ? '' : 's'}`, ...response.filenames.slice(0, 20)].join('\n'), MAX_OUTPUT);
+      }
+      return '';
+    }
     default: {
       const text = typeof response.content === 'string' ? response.content
         : typeof response.output === 'string' ? response.output

@@ -205,9 +205,9 @@ dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/view
 - [x] M1 Repo scaffold, docs, build pipeline
 - [x] M2 Core: types, layout, reducer, apps (core side), hooks mapping + unit tests
 - [x] M3 Core server + CLI + hook-forward script + integration tests
-- [ ] M4 Electron main + preload + renderer shell (desktops, frames, dock) + screenshots
-- [ ] M5 App views (terminal, conversation, diff, markdown, image, html, settings) + screenshots
-- [ ] M6 Plugin packaging (hooks.json, skill, bin), headless plugin smoke test
+- [x] M4 Electron main + preload + renderer shell (desktops, frames, dock) + screenshots
+- [x] M5 App views (terminal, conversation, diff, markdown, image, html, settings) + screenshots
+- [x] M6 Plugin packaging (hooks.json, skill, bin), headless plugin smoke test
 - [ ] M7 Polish: drag reorder, edge-drag to next desktop, opacity, background config
 
 ## 7. Future ideas (not MVP)
