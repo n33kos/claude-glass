@@ -57,6 +57,9 @@ export class GlassCore {
 
   dispatch(action: Action): unknown {
     this.assertEnabled(action);
+    if (action.type === 'window.move' && this.config.windowMode === 'history') {
+      throw new Error('the user has history mode on: windows stay in time order (newest first), so they can\'t be moved.');
+    }
     if (action.type === 'desktop.layout' && this.config.nestedView) {
       throw new Error('the user has the nested view on (newest window big, older ones smaller); layouts don\'t apply. Use window move <id> 0 to put something in the big pane.');
     }

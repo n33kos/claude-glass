@@ -69,11 +69,17 @@ The user has the nested view on: one screen, index 0 is the big pane and each la
 half of the space left. There are no desktops or layouts (\`layout\` is refused). Put what you're
 talking about at index 0; older things naturally recede.`;
 
-export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView'>>): string {
+const HISTORY_MODE = `
+
+The user has history mode on: each turn's changes, plans and images open in a new window, newest
+first, so the glass reads as a timeline. Windows stay in time order; \`window move\` is refused.`;
+
+export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView' | 'windowMode'>>): string {
   const apps = Object.values(APPS).filter((a) => a.guide && !config.disabledApps?.includes(a.type));
   const appGuides = apps.length
     ? '\n\n# Installed apps\n' + apps.map((a) => `\n## ${a.title} (\`${a.type}\`)\n${a.guide}`).join('\n')
     : '';
   const layout = config.nestedView ? NESTED_VIEW : config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '';
-  return GUIDE + layout + appGuides;
+  const history = config.windowMode === 'history' ? HISTORY_MODE : '';
+  return GUIDE + layout + history + appGuides;
 }

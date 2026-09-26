@@ -434,6 +434,15 @@ try {
     check((await page.locator('.light.layout').count()) > 0, 'nested view off: layout buttons back');
   }
 
+  // History mode (experiment): no move-to-front button, no drag reorder.
+  {
+    await cli(env, 'settings', 'set', 'windowMode', 'history');
+    await sleep(500);
+    check((await page.locator('.light.front').count()) === 0, 'history mode hides move-to-front');
+    await cli(env, 'settings', 'set', 'windowMode', 'live');
+    await sleep(300);
+  }
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);

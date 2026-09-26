@@ -113,6 +113,7 @@ export function App() {
   // ---- drag to reorder -------------------------------------------------------------
   const edgeTimer = useRef<number | null>(null);
   const onDragStart = (id: string, e: React.PointerEvent) => {
+    if (config.windowMode === 'history') return; // history mode: windows stay in time order
     const p = placed.find((x) => x.id === id);
     if (!p) return;
     const stage = stageRef.current!.getBoundingClientRect();
@@ -288,6 +289,7 @@ function WindowFrame(props: {
   const { meta, page } = props;
   const [menu, setMenu] = useState(false);
   const app = apps[meta.type];
+  const history = useSnapshot().config.windowMode === 'history';
   return (
     <section
       className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}`}
@@ -297,7 +299,7 @@ function WindowFrame(props: {
       <div className="titlebar" onPointerDown={(e) => { if ((e.target as HTMLElement).closest('button')) return; e.preventDefault(); props.onDragStart(e); }}>
         <div className="lights">
           <button className="light close" title="Close window" aria-label="Close window" onClick={() => dispatch({ type: 'window.close', id: meta.id })} />
-          <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />
+          {!history && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
           {props.page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
         </div>
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em>{app?.icon}</em>{meta.title}</span>

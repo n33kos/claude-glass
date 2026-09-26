@@ -372,6 +372,9 @@ describe('nested layout (experiment)', () => {
     const pages = computeDesktops(ids, ['nested'], 'grid');
     expect(pages).toHaveLength(1);
     expect(pages[0].windows).toHaveLength(9);
+  });
+});
+
 describe('history mode (experiment)', () => {
   const hctx: HookContext = { ...ctx, windowMode: 'history' };
   const edit = fixtures.find((p) => p.hook_event_name === 'PostToolUse' && p.tool_name === 'Edit');

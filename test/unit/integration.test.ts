@@ -243,3 +243,13 @@ describe('nested view', () => {
     expect(bad.status).not.toBe(0);
   });
 });
+
+describe('history mode', () => {
+  it('refuses window moves so the timeline stays in order', async () => {
+    core.setConfig('windowMode', 'history');
+    const r = await run(join(root, 'bin/claude-glass'), ['window', 'move', 'terminal', '0']);
+    expect(r.stderr).toContain('history mode');
+    expect(JSON.parse(await cli('state', '--json')) && (await run(join(root, 'bin/claude-glass'), ['open'])).stdout).toContain('history mode on');
+    core.setConfig('windowMode', 'live');
+  });
+});
