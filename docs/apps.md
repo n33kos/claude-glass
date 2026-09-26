@@ -76,7 +76,7 @@ state small (it's saved as JSON); cap lists.
 
 ### `view.html`
 
-A normal web page, loaded in a sandboxed frame inside the window. Use any framework or none.
+A normal web page, loaded in a sandboxed frame inside the window (scripts and forms allowed). Use any framework or none.
 It can load its own files (relative paths) and scripts from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com. It has no network access, no storage, and no access to
 the shell.

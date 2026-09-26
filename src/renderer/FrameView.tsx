@@ -64,10 +64,10 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
 
   return (
     <>
-      {/* Sandboxed; an app that asked for storage gets its own origin (glass-app://<type>), and one
+      {/* Sandboxed (forms allowed: submit handlers are normal UI); an app that asked for storage gets its own origin (glass-app://<type>), and one
           that asked for the microphone gets it via Permissions Policy (main grants it per app). */}
       <iframe ref={ref} className="appframe" src={`glass-app://${app.type}/view.html`} title={meta.title}
-        sandbox={app.permissions.storage ? 'allow-scripts allow-same-origin' : 'allow-scripts'}
+        sandbox={app.permissions.storage ? 'allow-scripts allow-forms allow-same-origin' : 'allow-scripts allow-forms'}
         allow={app.permissions.microphone ? ["microphone 'src'", ...app.permissions.network.filter((o) => o.startsWith('http'))].join(' ') : undefined} />
       {lightbox && <Lightbox {...lightbox} onClose={() => setLightbox(null)} />}
     </>
