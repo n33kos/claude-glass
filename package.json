@@ -1,8 +1,8 @@
 {
-  "name": "claude-canvas",
+  "name": "claude-glass",
   "version": "0.1.0",
   "private": true,
-  "description": "Claude's monitor: a per-session visual canvas for Claude Code sessions",
+  "description": "Claude's monitor: a per-session visual window for Claude Code sessions",
   "main": "dist/main.js",
   "scripts": {
     "build": "node scripts/build.mjs",

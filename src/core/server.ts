@@ -1,4 +1,4 @@
-// CanvasCore: owns one session's state, persistence, and the Unix socket. Plain Node — Electron
+// GlassCore: owns one session's state, persistence, and the Unix socket. Plain Node — Electron
 // main wraps it, integration tests run it directly.
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import net from 'node:net';
@@ -9,12 +9,12 @@ import { applyHook } from './hooks';
 import { computeDesktops } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
-import type { Action, CanvasState, Envelope, GlobalConfig, Reply } from './types';
+import type { Action, GlassState, Envelope, GlobalConfig, Reply } from './types';
 
-export type Listener = (state: CanvasState, config: GlobalConfig) => void;
+export type Listener = (state: GlassState, config: GlobalConfig) => void;
 
-export class CanvasCore {
-  state: CanvasState;
+export class GlassCore {
+  state: GlassState;
   config: GlobalConfig;
   private listeners = new Set<Listener>();
   private saveTimer: NodeJS.Timeout | null = null;
@@ -26,7 +26,7 @@ export class CanvasCore {
     this.config = loadConfig();
     this.state = loadState(sessionId) ?? initialState({ id: sessionId, cwd });
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
-    // Reopened canvas: fresh start time is not interesting, but "ended" must be cleared.
+    // Reopened glass: fresh start time is not interesting, but "ended" must be cleared.
     this.state = reduce(this.state, { type: 'session.update', patch: { endedAt: undefined, activity: 'idle' } }).state;
   }
 
@@ -35,7 +35,7 @@ export class CanvasCore {
     return () => this.listeners.delete(fn);
   }
 
-  private commit(next: CanvasState) {
+  private commit(next: GlassState) {
     if (next === this.state) return;
     this.state = next;
     this.scheduleSave();
@@ -121,13 +121,13 @@ export class CanvasCore {
     }
   }
 
-  /** Listen on the session socket. Rejects if another live canvas already owns it. */
+  /** Listen on the session socket. Rejects if another live glass already owns it. */
   async listen(): Promise<string> {
     const path = socketPath(this.sessionId);
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     try { chmodSync(dirname(path), 0o700); } catch {}
     if (existsSync(path)) {
-      if (await isLive(path)) throw new Error(`canvas already running for session ${this.sessionId}`);
+      if (await isLive(path)) throw new Error(`Claude Glass already running for session ${this.sessionId}`);
       unlinkSync(path);
     }
     this.server = net.createServer((sock) => {
@@ -169,9 +169,9 @@ export class CanvasCore {
   }
 }
 
-export function loadState(sessionId: string): CanvasState | null {
+export function loadState(sessionId: string): GlassState | null {
   try {
-    const s = JSON.parse(readFileSync(statePath(sessionId), 'utf8')) as CanvasState;
+    const s = JSON.parse(readFileSync(statePath(sessionId), 'utf8')) as GlassState;
     if (s.version !== 1) return null;
     s.autoOpened ??= [];
     s.ui ??= { viewingDesktop: 0 };

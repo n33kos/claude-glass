@@ -1,12 +1,12 @@
-# CLAUDE.md — working in claude-canvas
+# CLAUDE.md — working in claude-glass
 
 Read `PLAN.md` first (design record + milestone status), then `README.md`.
 
 ## North star: a window into Claude's desktop
-Claude Canvas is a one-way window into what Claude is doing. Claude shows; the user watches.
+Claude Glass is a one-way window into what Claude is doing. Claude shows; the user watches.
 Tiling, dragging, desktops, and settings are conveniences for *viewing*, not ways to talk back.
 
-- Prefer one-way (Claude → canvas) for every feature. It keeps the architecture clean.
+- Prefer one-way (Claude → glass) for every feature. It keeps the architecture clean.
 - Some user interaction is fine when it only changes how things are viewed (layout, opacity,
   which revision is shown). It must never need to reach Claude.
 - Be very wary of two-way features (sending signals back into the Claude session). Every
@@ -21,7 +21,7 @@ Tiling, dragging, desktops, and settings are conveniences for *viewing*, not way
 - `npm test` — vitest unit + integration (no Electron needed)
 - `npm run typecheck` — `tsc --noEmit`
 - `npm run e2e` — builds, launches Electron via Playwright, writes PNGs to `test/screenshots/`
-- `npm run demo -- <session-id>` — opens a canvas and seeds it with demo content (manual look)
+- `npm run demo -- <session-id>` — opens a glass and seeds it with demo content (manual look)
 
 ## Rules of the road
 - Core (`src/core`, `src/apps/*/index.ts`) must stay pure Node/TS: no Electron, no React, no DOM.
@@ -32,14 +32,14 @@ Tiling, dragging, desktops, and settings are conveniences for *viewing*, not way
   `src/renderer/views.ts`. Update the app table in PLAN.md.
 - Hooks must never block Claude: forwarding hooks are `async: true`; `scripts/hook-forward.sh`
   exits immediately when no socket exists.
-- Tests: use `CLAUDE_CANVAS_HOME` and `CLAUDE_CANVAS_RUNTIME` pointed at temp dirs. Never touch
-  the real `~/.claude/claude-canvas` in tests.
+- Tests: use `CLAUDE_GLASS_HOME` and `CLAUDE_GLASS_RUNTIME` pointed at temp dirs. Never touch
+  the real `~/.claude/claude-glass` in tests.
 - After any UI change, run `npm run e2e` and actually Read the screenshots in `test/screenshots/`.
 - Don't install the plugin into the user's global Claude config; test with `--plugin-dir`.
 - Commit at each milestone (local git only, never push). Update PLAN.md "Status" when you do.
 
 ## Gotchas
-- macOS Unix socket paths max 104 bytes → sockets live in `/tmp/claude-canvas-<uid>/`.
+- macOS Unix socket paths max 104 bytes → sockets live in `/tmp/claude-glass-<uid>/`.
 - Real hook payload shapes are in `test/fixtures/hook-payloads.ndjson` — trust those over docs.
   `MessageDisplay` = `{message_id, turn_id, index, final, delta}`.
 - `CLAUDE_CODE_SESSION_ID` is set in the Bash tool environment; plugin env vars

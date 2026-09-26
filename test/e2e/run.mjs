@@ -13,7 +13,7 @@ mkdirSync(shots, { recursive: true });
 const home = mkdtempSync(join(tmpdir(), 'cc-e2e-home-'));
 const runtime = mkdtempSync('/tmp/cc-e2e-rt-');
 const SID = 'e2e-session';
-const env = { ...process.env, CLAUDE_CANVAS_HOME: home, CLAUDE_CANVAS_RUNTIME: runtime, CLAUDE_CODE_SESSION_ID: SID };
+const env = { ...process.env, CLAUDE_GLASS_HOME: home, CLAUDE_GLASS_RUNTIME: runtime, CLAUDE_CODE_SESSION_ID: SID };
 delete env.ELECTRON_RUN_AS_NODE;
 
 const errors = [];
@@ -82,7 +82,7 @@ try {
   check(after[2] === before[0], `drag moves ${before[0]} to slot 3 (got ${after.join(',')})`);
   void t0;
 
-  // Image viewer, served through the canvas-file protocol
+  // Image viewer, served through the glass-file protocol
   await cli(env, 'show', join(shots, '01-empty.png'), '--title', 'Screenshot');
   await sleep(800);
   await page.screenshot({ path: join(shots, '06b-image.png') });
@@ -121,7 +121,7 @@ try {
       </script></body>`);
     await cli(env, 'show', f, '--title', 'Chart via CDN');
     await sleep(2500);
-    const frame = page.frames().find((fr) => fr.url().startsWith('canvas-html://html-2'));
+    const frame = page.frames().find((fr) => fr.url().startsWith('glass-html://html-2'));
     const t = frame ? await frame.title().catch(() => '?') : 'no frame';
     console.log(`  (info) Chart.js in sandbox: ${t === 'function' ? 'loaded' : 'not loaded: ' + t}`);
     await page.screenshot({ path: join(shots, '06d-cdn-chart.png') });
@@ -200,7 +200,7 @@ try {
   await sleep(500);
   await page.screenshot({ path: join(shots, '08b-waiting-permission.png') });
   check((await page.locator('.presence-waiting').count()) === 1 && (await page.locator('.t-locked').count()) === 1, 'permission prompt shows waiting pill and locks the terminal row');
-  check((await page.locator('.canvas.waiting-glow').count()) === 1, 'waiting glow is on by default');
+  check((await page.locator('.glass.waiting-glow').count()) === 1, 'waiting glow is on by default');
   await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1', tool_response: { stdout: 'built' } });
   await hook(env, {
     hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'ask1',

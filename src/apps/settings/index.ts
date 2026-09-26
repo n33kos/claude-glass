@@ -7,7 +7,7 @@ export const settings: AppDef<Record<string, never>> = {
   title: 'Settings',
   icon: '⚙',
   singleton: true,
-  description: 'Global and per-session canvas settings (for the user).',
+  description: 'Global and per-session glass settings (for the user).',
   commands: {},
   init: () => ({}),
   command: (_s, cmd) => unknownCommand('settings', cmd),

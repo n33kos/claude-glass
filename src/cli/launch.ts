@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { logPath, sessionDir, socketPath } from '../core/paths';
 import { isLive } from '../core/server';
 
-export async function launchCanvas(sessionId: string, cwd: string, timeoutMs = 15000): Promise<'already' | 'started'> {
+export async function launchGlass(sessionId: string, cwd: string, timeoutMs = 15000): Promise<'already' | 'started'> {
   const sock = socketPath(sessionId);
   if (await isLive(sock)) return 'already';
   mkdirSync(sessionDir(sessionId), { recursive: true });
@@ -24,5 +24,5 @@ export async function launchCanvas(sessionId: string, cwd: string, timeoutMs = 1
     await new Promise((r) => setTimeout(r, 150));
     if (await isLive(sock)) return 'started';
   }
-  throw new Error(`canvas did not start within ${timeoutMs}ms; see ${logPath(sessionId)}`);
+  throw new Error(`Claude Glass did not start within ${timeoutMs}ms; see ${logPath(sessionId)}`);
 }

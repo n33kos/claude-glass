@@ -1,7 +1,7 @@
 // Deterministic hook → state mapping. Zero Claude tokens: everything here happens automatically.
 import { summarizeTool } from '../apps/terminal';
 import { autoCommand, reduce } from './reducer';
-import type { CanvasState, Waiting } from './types';
+import type { GlassState, Waiting } from './types';
 
 export interface HookContext {
   /** Copy a file into the session files dir; returns the stored absolute path (or null). */
@@ -14,10 +14,10 @@ const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
 const PLAN_RE = /(^|\/)(plans?\/[^/]+\.md|PLAN\.md)$/i;
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write']);
 
-const cmd = (s: CanvasState, id: string, command: string, args: Record<string, unknown>) =>
+const cmd = (s: GlassState, id: string, command: string, args: Record<string, unknown>) =>
   reduce(s, { type: 'app.command', id, command, args }).state;
 
-const setWaiting = (s: CanvasState, waiting: Waiting | undefined) =>
+const setWaiting = (s: GlassState, waiting: Waiting | undefined) =>
   s.session.waiting === waiting ? s : reduce(s, { type: 'session.update', patch: { waiting } }).state;
 
 function questionWait(p: any): Waiting {
@@ -38,7 +38,7 @@ function questionWait(p: any): Waiting {
 /** A PostToolUse ends the wait it belongs to (or any wait we couldn't tie to a tool call). */
 const endsWait = (w: Waiting | undefined, p: any) => !!w && (!w.toolUseId || !p.tool_use_id || w.toolUseId === p.tool_use_id);
 
-export function applyHook(s: CanvasState, p: any, ctx: HookContext): CanvasState {
+export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   const event: string = p?.hook_event_name ?? '';
   const auto = s.settings.autoOpen;
   switch (event) {
@@ -97,8 +97,8 @@ export function applyHook(s: CanvasState, p: any, ctx: HookContext): CanvasState
 }
 
 function applyToolSideEffects(
-  s: CanvasState, tool: string, input: any, response: any, ctx: HookContext, auto: CanvasState['settings']['autoOpen'],
-): CanvasState {
+  s: GlassState, tool: string, input: any, response: any, ctx: HookContext, auto: GlassState['settings']['autoOpen'],
+): GlassState {
   const path: string | undefined = input.file_path;
 
   if (EDIT_TOOLS.has(tool) && path) {

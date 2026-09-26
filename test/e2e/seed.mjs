@@ -1,4 +1,4 @@
-// Seeds a running canvas with realistic content through the real CLI and hook forwarder.
+// Seeds a running glass with realistic content through the real CLI and hook forwarder.
 // Shared by the e2e screenshot run and `npm run demo`.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -19,7 +19,7 @@ export function run(cmd, args, env, input = '') {
   });
 }
 
-export const cli = (env, ...args) => run(join(root, 'bin/claude-canvas'), args, env);
+export const cli = (env, ...args) => run(join(root, 'bin/claude-glass'), args, env);
 export const hook = (env, payload) => run(join(root, 'scripts/hook-forward.sh'), [], env, JSON.stringify({ session_id: env.CLAUDE_CODE_SESSION_ID, cwd: root, ...payload }));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,14 +38,14 @@ async function say(env, text, id = `msg_${++n}`) {
 
 export async function seed(env) {
   const f = (p) => join(root, p);
-  await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'The session list flickers when a canvas reconnects. Can you find out why and fix it?' });
+  await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'The session list flickers when a glass reconnects. Can you find out why and fix it?' });
   await say(env, "I'll trace how the session list re-renders on reconnect. Starting with the socket client and the store.");
   await tool(env, 'Grep', { pattern: 'reconnect', path: f('src') }, { mode: 'files_with_matches', filenames: ['src/cli/client.ts', 'src/core/server.ts'], numFiles: 2 });
   await tool(env, 'Read', { file_path: f('src/core/server.ts') }, { type: 'text', file: { filePath: f('src/core/server.ts'), numLines: 188 } });
   await tool(env, 'Bash', { command: 'npm test -- --reporter=dot', description: 'Run tests' }, { stdout: ' RUN  v5.0.2\n\n ·························\n\n Test Files  2 passed (2)\n      Tests  27 passed (27)\n   Duration  1.36s', stderr: '' }, 2140);
   await tool(env, 'Edit', { file_path: f('src/core/server.ts'), old_string: 'a', new_string: 'b' }, {
     structuredPatch: [{ oldStart: 38, oldLines: 6, newStart: 38, newLines: 8, lines: [
-      '   private commit(next: CanvasState) {',
+      '   private commit(next: GlassState) {',
       '-    if (next === this.state) return;',
       '+    // Skip no-op commits so reconnects don\'t re-render the whole list.',
       '+    if (next === this.state || shallowEqual(next, this.state)) return;',
@@ -61,7 +61,7 @@ export async function seed(env) {
     structuredPatch: [{ oldStart: 9, oldLines: 3, newStart: 9, newLines: 3, lines: [
       "     const sock = net.connect(socket);",
       "-    const t = setTimeout(() => { sock.destroy(); reject(new Error('timeout')); }, timeoutMs);",
-      "+    const t = setTimeout(() => { sock.destroy(); reject(new Error('canvas did not respond (timeout)')); }, timeoutMs);",
+      "+    const t = setTimeout(() => { sock.destroy(); reject(new Error('glass did not respond (timeout)')); }, timeoutMs);",
       "     sock.setEncoding('utf8');",
     ] }],
   });
@@ -78,7 +78,7 @@ Reconnects send a \`ping\`, which commits an **identical** state. Listeners fire
 receives a full patch, and React remounts every row.
 
 ## Plan
-1. Skip no-op commits in \`CanvasCore.commit()\`
+1. Skip no-op commits in \`GlassCore.commit()\`
 2. Import \`shallowEqual\` from \`core/util\`
 3. Add a regression test: 50 pings → 0 renders
 4. Verify visually with the e2e screenshots

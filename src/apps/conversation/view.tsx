@@ -15,10 +15,10 @@ function Bubble({ m }: { m: Message }) {
   );
 }
 
-export function ConversationView({ state, canvas }: ViewProps<ConversationState>) {
+export function ConversationView({ state, glass }: ViewProps<ConversationState>) {
   const last = state.messages[state.messages.length - 1];
   const ref = useStickToBottom<HTMLDivElement>(last?.id, last ? messageText(last).length : 0);
-  const working = canvas.session.activity === 'working' && !canvas.session.endedAt;
+  const working = glass.session.activity === 'working' && !glass.session.endedAt;
   return (
     <div className="conversation" ref={ref}>
       {state.messages.length === 0 && <div className="c-empty">Your conversation with Claude appears here.</div>}

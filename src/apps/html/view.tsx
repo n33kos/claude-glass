@@ -7,7 +7,7 @@ export function HtmlView({ id, state }: ViewProps<HtmlState>) {
     <iframe
       className="htmlview"
       key={state.updatedAt}
-      src={`canvas-html://${encodeURIComponent(id)}/?v=${state.updatedAt}`}
+      src={`glass-html://${encodeURIComponent(id)}/?v=${state.updatedAt}`}
       sandbox="allow-scripts"
       title={`${id} canvas`}
     />

@@ -1,4 +1,4 @@
-// claude-canvas CLI. Thin client over the per-session Unix socket.
+// claude-glass CLI. Thin client over the per-session Unix socket.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
 import { loadConfig } from '../core/config';
@@ -7,7 +7,7 @@ import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
 import { request } from './client';
 import { GUIDE } from './guide';
-import { launchCanvas } from './launch';
+import { launchGlass } from './launch';
 
 interface Parsed { pos: string[]; flags: Record<string, string | true> }
 
@@ -28,7 +28,7 @@ function parse(argv: string[]): Parsed {
 }
 
 function sessionId(flags: Parsed['flags']): string {
-  const id = (typeof flags.session === 'string' && flags.session) || process.env.CLAUDE_CANVAS_SESSION || process.env.CLAUDE_CODE_SESSION_ID;
+  const id = (typeof flags.session === 'string' && flags.session) || process.env.CLAUDE_GLASS_SESSION || process.env.CLAUDE_CODE_SESSION_ID;
   if (!id) throw new Error('no session: pass --session ID (or run inside Claude Code, which sets CLAUDE_CODE_SESSION_ID)');
   return assertSessionId(id);
 }
@@ -79,7 +79,7 @@ function ingest(sid: string, path: string): string {
 }
 
 function formatView(v: any): string {
-  const lines = [`Canvas "${v.session.title}" · ${v.session.activity}${v.session.ended ? ' · session ended' : ''} · user is viewing desktop ${v.userViewingDesktop + 1}`];
+  const lines = [`Claude Glass "${v.session.title}" · ${v.session.activity}${v.session.ended ? ' · session ended' : ''} · user is viewing desktop ${v.userViewingDesktop + 1}`];
   for (const d of v.desktops) {
     lines.push(`Desktop ${d.desktop + 1} [${d.layout}]`);
     if (!d.windows.length) lines.push('  (empty)');
@@ -91,7 +91,7 @@ function formatView(v: any): string {
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
 
-const HELP = `claude-canvas — Claude's monitor for this Claude Code session
+const HELP = `claude-glass — Claude's monitor for this Claude Code session
 
 ${GUIDE.split('\n').slice(8).join('\n')}
 
@@ -110,15 +110,15 @@ async function main(argv: string[]) {
     case 'open': {
       const sid = sessionId(flags);
       const cwd = typeof flags.cwd === 'string' ? flags.cwd : process.cwd();
-      const r = await launchCanvas(sid, cwd);
-      console.log(r === 'already' ? 'Canvas already open.\n' : 'Canvas opened.\n');
+      const r = await launchGlass(sid, cwd);
+      console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
       console.log(GUIDE);
       return;
     }
     case 'close': {
       const sid = sessionId(flags);
       await call(sid, { op: 'quit' });
-      console.log('Canvas closed.');
+      console.log('Claude Glass closed.');
       return;
     }
     case 'status': {
@@ -130,7 +130,7 @@ async function main(argv: string[]) {
       }));
       rows.sort((a, b) => Number(b.running) - Number(a.running) || b.updated - a.updated);
       const shown = flags.all ? rows : rows.slice(0, 15);
-      out(shown, shown.length ? shown.map((r) => `${r.running ? '● open  ' : '○ closed'}  ${r.id}  ${r.title}  ${new Date(r.updated).toLocaleString()}  ${r.cwd}`).join('\n') : 'No canvases yet.');
+      out(shown, shown.length ? shown.map((r) => `${r.running ? '● open  ' : '○ closed'}  ${r.id}  ${r.title}  ${new Date(r.updated).toLocaleString()}  ${r.cwd}`).join('\n') : 'No glass windows yet.');
       return;
     }
     case 'view': {
@@ -151,7 +151,7 @@ async function main(argv: string[]) {
     case 'new': {
       const sid = sessionId(flags);
       const appType = rest[0];
-      if (!appType) throw new Error('usage: claude-canvas new <type> [--id ID] [--title T] [--no-open]');
+      if (!appType) throw new Error('usage: claude-glass new <type> [--id ID] [--title T] [--no-open]');
       const id = await dispatch(sid, {
         type: 'instance.create', appType,
         id: typeof flags.id === 'string' ? flags.id : undefined,
@@ -164,7 +164,7 @@ async function main(argv: string[]) {
     case 'app': {
       const sid = sessionId(flags);
       const [id, command] = rest;
-      if (!id || !command) throw new Error('usage: claude-canvas app <id> <command> [--flags]');
+      if (!id || !command) throw new Error('usage: claude-glass app <id> <command> [--flags]');
       const st = await call(sid, { op: 'state', id });
       const { json: _j, ...f } = flags;
       await dispatch(sid, { type: 'app.command', id, command, args: commandArgs(st.instance.type, command, f, sid) });
@@ -174,7 +174,7 @@ async function main(argv: string[]) {
     case 'show': {
       const sid = sessionId(flags);
       const file = rest[0];
-      if (!file) throw new Error('usage: claude-canvas show <file> [--title T] [--id ID]');
+      if (!file) throw new Error('usage: claude-glass show <file> [--title T] [--id ID]');
       const path = resolve(file);
       if (!existsSync(path)) throw new Error(`file not found: ${path}`);
       const ext = extname(path).toLowerCase();
@@ -194,7 +194,7 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-canvas window open|close|move|pin|unpin|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
@@ -209,7 +209,7 @@ async function main(argv: string[]) {
     case 'layout': {
       const sid = sessionId(flags);
       const [desk, layout] = rest;
-      if (!desk || !layout) throw new Error('usage: claude-canvas layout <desktop#> <full|split|main-left|columns|grid>');
+      if (!desk || !layout) throw new Error('usage: claude-glass layout <desktop#> <full|split|main-left|columns|grid>');
       await dispatch(sid, { type: 'desktop.layout', desktop: Number(desk) - 1, layout: layout as any });
       out({ ok: true }, 'ok');
       return;
@@ -217,7 +217,7 @@ async function main(argv: string[]) {
     case 'settings': {
       const [sub, key, value] = rest;
       if (sub === 'set') {
-        if (!key) throw new Error('usage: claude-canvas settings set <key> <value>');
+        if (!key) throw new Error('usage: claude-glass settings set <key> <value>');
         const sid = sessionId(flags);
         const parsed = value === 'true' ? true : value === 'false' ? false : value;
         const r = key.startsWith('session.')
@@ -248,7 +248,7 @@ async function main(argv: string[]) {
       const live = await isLive(socketPath(sid), 300);
       let open = live;
       if (!live && loadConfig().autoStart && (p.source === 'startup' || p.source === 'resume' || !p.source)) {
-        try { await launchCanvas(sid, p.cwd ?? process.cwd()); open = true; } catch { open = false; }
+        try { await launchGlass(sid, p.cwd ?? process.cwd()); open = true; } catch { open = false; }
       }
       if (open) {
         if (live) await request(socketPath(sid), { op: 'hook', payload: p }, 1000).catch(() => {});
@@ -257,11 +257,11 @@ async function main(argv: string[]) {
       return;
     }
     default:
-      throw new Error(`unknown command "${cmd}". Run: claude-canvas help`);
+      throw new Error(`unknown command "${cmd}". Run: claude-glass help`);
   }
 }
 
 main(process.argv.slice(2)).catch((e) => {
-  console.error(`claude-canvas: ${e.message}`);
+  console.error(`claude-glass: ${e.message}`);
   process.exit(1);
 });

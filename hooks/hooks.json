@@ -1,12 +1,12 @@
 {
-  "description": "Forward session activity to this session's Claude Canvas (no-op when no canvas is open)",
+  "description": "Forward session activity to this session's Claude Glass (no-op when it is not open)",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/claude-canvas session-start-hook",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/claude-glass session-start-hook",
             "timeout": 20
           }
         ]

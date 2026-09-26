@@ -45,7 +45,7 @@ export interface GlobalConfig {
   animateBackground: boolean; // preset wallpapers drift slowly // faint amber edge glow while Claude waits on the user
 }
 
-export interface CanvasState {
+export interface GlassState {
   version: 1;
   session: SessionInfo;
   order: string[];

@@ -50,7 +50,7 @@ export const BACKGROUNDS: Record<string, string> = Object.fromEntries(
 
 export function wallpaper(bg: string): { style: CSSProperties; blobs: { style: CSSProperties }[] } {
   if (bg && bg.startsWith('/')) {
-    return { style: { backgroundImage: `url("canvas-file://f${encodeURI(bg)}")`, backgroundSize: 'cover', backgroundPosition: 'center' }, blobs: [] };
+    return { style: { backgroundImage: `url("glass-file://f${encodeURI(bg)}")`, backgroundSize: 'cover', backgroundPosition: 'center' }, blobs: [] };
   }
   const p = PRESETS[bg] ?? PRESETS.aurora;
   return {

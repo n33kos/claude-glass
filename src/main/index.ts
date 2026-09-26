@@ -1,10 +1,10 @@
-// Electron main: one process per Claude session. Wraps CanvasCore and hosts one BrowserWindow.
+// Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
 import { app, BrowserWindow, ipcMain, Menu, protocol } from 'electron';
 import { readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { filesDir } from '../core/paths';
-import { CanvasCore } from '../core/server';
-import type { Action, CanvasState, GlobalConfig } from '../core/types';
+import { GlassCore } from '../core/server';
+import type { Action, GlassState, GlobalConfig } from '../core/types';
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -14,14 +14,14 @@ function arg(name: string): string | undefined {
 const sessionId = arg('session');
 const cwd = arg('cwd') ?? process.cwd();
 if (!sessionId) {
-  console.error('claude-canvas main: --session is required');
+  console.error('claude-glass main: --session is required');
   process.exit(2);
 }
 
-app.setName('Claude Canvas');
+app.setName('Claude Glass');
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'canvas-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
-  { scheme: 'canvas-html', privileges: { standard: true, secure: true } },
+  { scheme: 'glass-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'glass-html', privileges: { standard: true, secure: true } },
 ]);
 
 const MIME: Record<string, string> = {
@@ -40,12 +40,12 @@ const HTML_CSP = [
   "connect-src 'none'",
 ].join('; ');
 
-let core: CanvasCore;
+let core: GlassCore;
 let win: BrowserWindow | null = null;
 let quitting = false;
 
 async function boot() {
-  core = new CanvasCore(sessionId!, cwd);
+  core = new GlassCore(sessionId!, cwd);
   try {
     await core.listen();
   } catch (e: any) {
@@ -55,8 +55,8 @@ async function boot() {
   }
   core.onQuit = () => shutdown();
 
-  // canvas-file://f/<abs path> — only files inside this session's files dir, or the configured background.
-  protocol.handle('canvas-file', (req) => {
+  // glass-file://f/<abs path> — only files inside this session's files dir, or the configured background.
+  protocol.handle('glass-file', (req) => {
     const url = new URL(req.url);
     const path = resolve(decodeURIComponent(url.pathname));
     const allowed = path.startsWith(filesDir(sessionId!) + '/') || path === core.config.background;
@@ -68,24 +68,24 @@ async function boot() {
     }
   });
 
-  // canvas-html://<instanceId>/ — the html app's current document.
-  protocol.handle('canvas-html', (req) => {
+  // glass-html://<instanceId>/ — the html app's current document.
+  protocol.handle('glass-html', (req) => {
     const id = new URL(req.url).hostname;
     const st = core.state.appState[id] as { html?: string } | undefined;
     const body = st?.html || '<!doctype html><body style="font:14px system-ui;color:#999;display:grid;place-items:center;height:90vh;margin:0">Empty canvas</body>';
     return new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': HTML_CSP } });
   });
 
-  ipcMain.handle('canvas:init', () => ({ sessionId, state: core.state, config: core.config }));
-  ipcMain.handle('canvas:dispatch', (_e, action: Action) => {
+  ipcMain.handle('glass:init', () => ({ sessionId, state: core.state, config: core.config }));
+  ipcMain.handle('glass:dispatch', (_e, action: Action) => {
     try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
-  ipcMain.handle('canvas:config', (_e, key: string, value: unknown) => {
+  ipcMain.handle('glass:config', (_e, key: string, value: unknown) => {
     try { return { ok: true, result: core.setConfig(key, value) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
 
   // Push state patches: the reducer is immutable, so unchanged app slices keep identity.
-  let lastSent: CanvasState = core.state;
+  let lastSent: GlassState = core.state;
   let lastConfig: GlobalConfig = core.config;
   let timer: NodeJS.Timeout | null = null;
   core.subscribe(() => {
@@ -97,7 +97,7 @@ async function boot() {
       const changed: Record<string, unknown> = {};
       for (const id of Object.keys(s.appState)) if (s.appState[id] !== lastSent.appState[id]) changed[id] = s.appState[id];
       const { appState: _a, ...rest } = s;
-      win.webContents.send('canvas:patch', { ...rest, changed, config: core.config !== lastConfig ? core.config : undefined });
+      win.webContents.send('glass:patch', { ...rest, changed, config: core.config !== lastConfig ? core.config : undefined });
       lastSent = s;
       lastConfig = core.config;
     }, 30);
@@ -115,11 +115,11 @@ function createWindow() {
     height: 900,
     minWidth: 720,
     minHeight: 480,
-    title: `Claude Canvas — ${core.state.session.title}`,
+    title: `Claude Glass — ${core.state.session.title}`,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 12 },
     backgroundColor: '#0b0d14',
-    show: !process.env.CLAUDE_CANVAS_HIDDEN,
+    show: !process.env.CLAUDE_GLASS_HIDDEN,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -129,7 +129,7 @@ function createWindow() {
   });
   win.loadFile(join(__dirname, 'renderer', 'index.html'));
   // Launched from a CLI/hook in the background: come to the front so the user sees it.
-  if (!process.env.CLAUDE_CANVAS_HIDDEN) win.once('ready-to-show', () => app.focus({ steal: true }));
+  if (!process.env.CLAUDE_GLASS_HIDDEN) win.once('ready-to-show', () => app.focus({ steal: true }));
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.on('closed', () => { win = null; shutdown(); });
@@ -137,7 +137,7 @@ function createWindow() {
 
 function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'Claude Canvas', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { type: 'separator' }, { label: 'Close Canvas', accelerator: 'CmdOrCtrl+Q', click: () => shutdown() }] },
+    { label: 'Claude Glass', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'hide' }, { type: 'separator' }, { label: 'Close Claude Glass', accelerator: 'CmdOrCtrl+Q', click: () => shutdown() }] },
     { label: 'Edit', submenu: [{ role: 'copy' }, { role: 'selectAll' }] },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'togglefullscreen' }] },
     { label: 'Window', submenu: [{ role: 'minimize' }, { label: 'Close', accelerator: 'CmdOrCtrl+W', click: () => shutdown() }] },

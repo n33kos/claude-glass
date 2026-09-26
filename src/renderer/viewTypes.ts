@@ -1,4 +1,4 @@
-import type { CanvasState, GlobalConfig, InstanceMeta } from '../core/types';
+import type { GlassState, GlobalConfig, InstanceMeta } from '../core/types';
 
 export interface ViewProps<S = any> {
   id: string;
@@ -7,11 +7,11 @@ export interface ViewProps<S = any> {
   width: number;
   height: number;
   run: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
-  canvas: CanvasState;
+  glass: GlassState;
   config: GlobalConfig;
 }
 
-export const fileUrl = (abs: string) => `canvas-file://f${encodeURI(abs)}`;
+export const fileUrl = (abs: string) => `glass-file://f${encodeURI(abs)}`;
 
 export function timeAgo(t: number): string {
   const s = Math.round((Date.now() - t) / 1000);

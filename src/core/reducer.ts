@@ -1,10 +1,10 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
 import { isLayout } from './layout';
-import type { Action, CanvasState, InstanceMeta, SessionInfo } from './types';
+import type { Action, GlassState, InstanceMeta, SessionInfo } from './types';
 
-export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<SessionInfo>): CanvasState {
-  const base: CanvasState = {
+export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<SessionInfo>): GlassState {
+  const base: GlassState = {
     version: 1,
     session: {
       title: session.cwd ? session.cwd.split('/').filter(Boolean).pop() ?? 'Claude' : 'Claude',
@@ -27,19 +27,19 @@ export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<
 }
 
 export interface ReduceResult {
-  state: CanvasState;
+  state: GlassState;
   result?: unknown;
 }
 
 const clampIndex = (i: number, len: number) => Math.max(0, Math.min(len, Math.floor(i)));
 
-function requireInstance(s: CanvasState, id: string): InstanceMeta {
+function requireInstance(s: GlassState, id: string): InstanceMeta {
   const inst = s.instances[id];
   if (!inst) throw new Error(`no such window/app instance "${id}"`);
   return inst;
 }
 
-function nextId(s: CanvasState, type: string): string {
+function nextId(s: GlassState, type: string): string {
   for (let n = 1; ; n++) if (!s.instances[`${type}-${n}`]) return `${type}-${n}`;
 }
 
@@ -63,18 +63,18 @@ export function arrange(order: string[], pinned: Record<string, number> = {}): s
   return out;
 }
 
-function withOrder(s: CanvasState, order: string[], pinned = s.pinned ?? {}): CanvasState {
+function withOrder(s: GlassState, order: string[], pinned = s.pinned ?? {}): GlassState {
   const kept = Object.fromEntries(Object.entries(pinned).filter(([id]) => order.includes(id)));
   return { ...s, pinned: kept, order: arrange(order, kept) };
 }
 
-export function reduce(s: CanvasState, a: Action): ReduceResult {
+export function reduce(s: GlassState, a: Action): ReduceResult {
   const r = reduceRaw(s, a);
   if (r.state.order === s.order && r.state.pinned === s.pinned) return r;
   return { ...r, state: withOrder(r.state, r.state.order) };
 }
 
-function reduceRaw(s: CanvasState, a: Action): ReduceResult {
+function reduceRaw(s: GlassState, a: Action): ReduceResult {
   switch (a.type) {
     case 'window.open':
       requireInstance(s, a.id);
@@ -155,7 +155,7 @@ function reduceRaw(s: CanvasState, a: Action): ReduceResult {
         return { state, result: id };
       }
       const meta: InstanceMeta = { id, type: app.type, title: a.title ?? app.title, createdAt: Date.now() };
-      const state: CanvasState = {
+      const state: GlassState = {
         ...s,
         instances: { ...s.instances, [id]: meta },
         appState: { ...s.appState, [id]: app.init() },
@@ -198,9 +198,9 @@ function reduceRaw(s: CanvasState, a: Action): ReduceResult {
 
 /** Create-if-needed then run an app command; open the window the first time only (auto-open). */
 export function autoCommand(
-  s: CanvasState,
+  s: GlassState,
   opts: { id: string; appType: string; title: string; command: string; args: Record<string, unknown>; autoOpen: boolean },
-): CanvasState {
+): GlassState {
   let state = s;
   if (!state.instances[opts.id]) {
     state = reduce(state, { type: 'instance.create', appType: opts.appType, id: opts.id, title: opts.title, open: false }).state;

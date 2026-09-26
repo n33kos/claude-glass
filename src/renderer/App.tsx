@@ -135,7 +135,7 @@ export function App() {
   const rel = (t: string) => (s.cwd ? t.split(s.cwd + '/').join('') : t);
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
-    <div className={`canvas${config.dockAutoHide ? ' dock-autohide' : ''}${glow}`}>
+    <div className={`glass${config.dockAutoHide ? ' dock-autohide' : ''}${glow}`}>
       <Wallpaper bg={config.background} animate={config.animateBackground} />
       <header className="topbar">
         <div className="session">
@@ -236,7 +236,7 @@ function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number
   const appState = state.appState[id] ?? app?.init();
   const run = useCallback((command: string, args: Record<string, unknown> = {}) => dispatch({ type: 'app.command', id, command, args }), [id]);
   if (!View) return <div className="app-missing">No view for “{meta.type}”.</div>;
-  return <View id={id} meta={meta} state={appState} width={w} height={h - 36} run={run} canvas={state} config={config} />;
+  return <View id={id} meta={meta} state={appState} width={w} height={h - 36} run={run} glass={state} config={config} />;
 }
 
 function WindowFrame(props: {

@@ -5,15 +5,15 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CanvasCore } from '../../src/core/server';
+import { GlassCore } from '../../src/core/server';
 
 const root = join(__dirname, '../..');
 const home = mkdtempSync(join(tmpdir(), 'cc-home-'));
 const runtime = mkdtempSync('/tmp/cc-rt-');
-process.env.CLAUDE_CANVAS_HOME = home;
-process.env.CLAUDE_CANVAS_RUNTIME = runtime;
+process.env.CLAUDE_GLASS_HOME = home;
+process.env.CLAUDE_GLASS_RUNTIME = runtime;
 const SID = 'itest-session';
-const env = { ...process.env, CLAUDE_CANVAS_HOME: home, CLAUDE_CANVAS_RUNTIME: runtime, CLAUDE_CODE_SESSION_ID: SID };
+const env = { ...process.env, CLAUDE_GLASS_HOME: home, CLAUDE_GLASS_RUNTIME: runtime, CLAUDE_CODE_SESSION_ID: SID };
 
 // Async on purpose: the server lives in this process, a sync exec would deadlock it.
 function run(cmd: string, args: string[], input?: string): Promise<{ status: number; stdout: string; stderr: string }> {
@@ -27,7 +27,7 @@ function run(cmd: string, args: string[], input?: string): Promise<{ status: num
   });
 }
 async function cli(...args: string[]): Promise<string> {
-  const r = await run(join(root, 'bin/claude-canvas'), args);
+  const r = await run(join(root, 'bin/claude-glass'), args);
   if (r.status !== 0) throw new Error(r.stderr);
   return r.stdout;
 }
@@ -37,10 +37,10 @@ async function hook(payload: object) {
 }
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-let core: CanvasCore;
+let core: GlassCore;
 beforeAll(async () => {
   if (!existsSync(join(root, 'dist/cli.js'))) throw new Error('run npm run build first');
-  core = new CanvasCore(SID, '/tmp/proj');
+  core = new GlassCore(SID, '/tmp/proj');
   await core.listen();
 });
 afterAll(async () => { await core.close(); });
@@ -77,7 +77,7 @@ describe('CLI ↔ core over the socket', () => {
   });
 
   it('reports errors clearly with non-zero exit', async () => {
-    const r = await run(join(root, 'bin/claude-canvas'), ['window', 'open', 'nope']);
+    const r = await run(join(root, 'bin/claude-glass'), ['window', 'open', 'nope']);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('no such window');
   });
@@ -91,7 +91,7 @@ describe('CLI ↔ core over the socket', () => {
     expect(existsSync(st.images[0].file)).toBe(true);
   });
 
-  it('status lists this canvas as open', async () => {
+  it('status lists this glass as open', async () => {
     expect(await cli('status')).toMatch(/● open\s+itest-session/);
   });
 
@@ -103,7 +103,7 @@ describe('CLI ↔ core over the socket', () => {
 });
 
 describe('hook forwarder', () => {
-  it('forwards real payloads into the canvas', async () => {
+  it('forwards real payloads into the glass', async () => {
     const payloads = readFileSync(join(root, 'test/fixtures/hook-payloads.ndjson'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
     for (const p of payloads) await hook({ ...p, session_id: SID });
     await wait(100);
@@ -113,16 +113,16 @@ describe('hook forwarder', () => {
     expect(core.state.appState.changes).toBeTruthy();
   });
 
-  it('is a fast no-op when no canvas exists for the session', async () => {
+  it('is a fast no-op when no glass exists for the session', async () => {
     const t = Date.now();
     await hook({ hook_event_name: 'PreToolUse', session_id: 'no-such-session', tool_name: 'Bash' });
     expect(Date.now() - t).toBeLessThan(500);
   });
 
-  it('session-start hook injects the guide only when the canvas is live', async () => {
-    const live = await run(join(root, 'bin/claude-canvas'), ['session-start-hook'], JSON.stringify({ session_id: SID, source: 'compact', cwd: '/tmp/proj' }));
-    expect(JSON.parse(live.stdout).hookSpecificOutput.additionalContext).toContain('Claude Canvas is open');
-    const off = await run(join(root, 'bin/claude-canvas'), ['session-start-hook'], JSON.stringify({ session_id: 'other-session', source: 'startup', cwd: '/tmp/proj' }));
+  it('session-start hook injects the guide only when the glass is live', async () => {
+    const live = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: SID, source: 'compact', cwd: '/tmp/proj' }));
+    expect(JSON.parse(live.stdout).hookSpecificOutput.additionalContext).toContain('Claude Glass is open');
+    const off = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: 'other-session', source: 'startup', cwd: '/tmp/proj' }));
     expect(off.stdout).toBe(''); // autoStart defaults to false: nothing injected, nothing launched
   });
 

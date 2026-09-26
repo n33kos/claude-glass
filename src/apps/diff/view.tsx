@@ -38,7 +38,7 @@ function Hunks({ rev }: { rev: Revision }) {
   );
 }
 
-export function DiffView({ state, run, width, canvas }: ViewProps<DiffState>) {
+export function DiffView({ state, run, width, glass }: ViewProps<DiffState>) {
   // Newest edit first: when a new revision lands, the file list scrolls back to its top entry.
   const filesRef = useRef<HTMLUListElement>(null);
   const newest = state.files[0] ? `${state.files[0]}:${state.revisions[state.files[0]]?.length}` : '';
@@ -50,7 +50,7 @@ export function DiffView({ state, run, width, canvas }: ViewProps<DiffState>) {
   const idx = cur < 0 || cur >= revs.length ? revs.length - 1 : cur;
   const rev = revs[idx];
   const wide = width > 640;
-  const cwd = canvas.session.cwd;
+  const cwd = glass.session.cwd;
   const count = (r: Revision) => {
     let a = 0, d = 0;
     for (const h of r.hunks) for (const l of h.lines) { if (l[0] === '+') a++; else if (l[0] === '-') d++; }

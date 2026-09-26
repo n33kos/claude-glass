@@ -13,9 +13,9 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
   );
 }
 
-export function SettingsView({ canvas, config }: ViewProps) {
+export function SettingsView({ glass, config }: ViewProps) {
   const [bgPath, setBgPath] = useState(config.background.startsWith('/') ? config.background : '');
-  const s = canvas.settings;
+  const s = glass.settings;
   const setSession = (key: string, value: unknown) => dispatch({ type: 'settings.set', key, value });
   return (
     <div className="settings">
@@ -32,8 +32,8 @@ export function SettingsView({ canvas, config }: ViewProps) {
         </span>
       </label>
 
-      <h3>All canvases</h3>
-      <Toggle label="Open a canvas when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
+      <h3>All sessions</h3>
+      <Toggle label="Open Claude Glass when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
       <Toggle label="Auto-hide the dock (shows at the bottom edge)" on={config.dockAutoHide} onChange={(v) => setConfig('dockAutoHide', v)} />
       <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
       <label className="s-row">
@@ -66,7 +66,7 @@ export function SettingsView({ canvas, config }: ViewProps) {
           <button type="submit" className="s-btn">Use image</button>
         </form>
       </div>
-      <p className="s-foot">Session {canvas.session.id}</p>
+      <p className="s-foot">Session {glass.session.id}</p>
     </div>
   );
 }

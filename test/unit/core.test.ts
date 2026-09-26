@@ -8,7 +8,7 @@ import { applyHook, type HookContext } from '../../src/core/hooks';
 import { computeDesktops, effectiveLayout } from '../../src/core/layout';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
-import type { CanvasState } from '../../src/core/types';
+import type { GlassState } from '../../src/core/types';
 
 const ctx: HookContext = { ingestFile: (p) => `/stored/${p.split('/').pop()}`, readText: () => '# plan from disk' };
 const fresh = () => initialState({ id: 'test', cwd: '/tmp/proj' });
@@ -134,7 +134,7 @@ describe('waiting on the user (synthetic payloads: not yet captured live)', () =
 });
 
 describe('hooks (real captured payloads)', () => {
-  const run = () => fixtures.reduce((s: CanvasState, p) => applyHook(s, p, ctx), fresh());
+  const run = () => fixtures.reduce((s: GlassState, p) => applyHook(s, p, ctx), fresh());
 
   it('builds conversation from prompt + streamed chunks', () => {
     const conv = run().appState.conversation as ConversationState;
