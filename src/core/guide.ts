@@ -41,6 +41,11 @@ windows, so directing attention is your job:
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.
 
+If the user asks to change how the glass presents things (nested view, history mode, layouts,
+opacity, background...), \`claude-glass settings\` lists every setting and its values;
+\`claude-glass settings set <key> <value>\` changes one (e.g. \`settings set nestedView true\`).
+Only change settings when the user asks.
+
 Browser: when you drive a browser, stream it here instead of opening a window. ALWAYS run it
 headless (the glass is the user's view of it; a second visible browser is just noise) with a
 DevTools port, then attach and bring it forward:

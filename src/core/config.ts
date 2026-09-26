@@ -63,3 +63,20 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     default: throw new Error(`unknown global setting "${key}"`);
   }
 }
+
+/** What each global setting does, for `claude-glass settings` (Claude reads this). */
+export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
+  nestedView: 'true|false: one screen, newest window big, older ones spiral smaller',
+  windowMode: 'live|history: update one window per kind, or a new window for every action',
+  defaultLayout: 'claude|full|split|main-left|columns|grid: layout for new desktops',
+  windowOpacity: '0.2..1: window glass opacity',
+  background: 'aurora|dune|tide|graphite or an absolute image path',
+  animateBackground: 'true|false: drift the wallpaper light',
+  waitingGlow: 'true|false: amber edge glow while Claude waits on the user',
+  dockAutoHide: 'true|false: hide the dock until the pointer reaches the bottom edge',
+  dockOrder: 'windows|fixed: dock follows window order, or a fixed order by app',
+  wheelDesktops: 'true|false: vertical scroll outside windows switches desktops',
+  disabledApps: 'comma-separated app types the user turned off (change only if asked)',
+  autoStart: 'true|false: open a glass when a Claude session starts',
+  scope: 'session|folder: one glass per session, or one per project folder',
+};

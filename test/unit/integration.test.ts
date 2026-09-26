@@ -253,3 +253,14 @@ describe('history mode', () => {
     core.setConfig('windowMode', 'live');
   });
 });
+
+describe('settings from the CLI', () => {
+  it('lists every setting with what it does, and Claude is told how to change them', async () => {
+    const out = await cli('settings');
+    expect(out).toContain('nestedView');
+    expect(out).toContain('windowMode');
+    await cli('settings', 'set', 'windowOpacity', '0.5');
+    expect(core.config.windowOpacity).toBe(0.5);
+    expect(await cli('open')).toContain('claude-glass settings set <key> <value>');
+  });
+});

@@ -2,7 +2,7 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import { bindSession, glassIdFor, isBound } from '../core/binding';
-import { loadConfig } from '../core/config';
+import { loadConfig, SETTINGS_HELP } from '../core/config';
 import { appsDir, filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
@@ -271,7 +271,10 @@ async function main(argv: string[]) {
           : await call(sid, { op: 'config', key, value: parsed });
         out(r ?? { ok: true });
       } else {
-        out({ global: loadConfig() });
+        const c = loadConfig() as unknown as Record<string, unknown>;
+        const rows = Object.entries(SETTINGS_HELP).map(([k, help]) => `  ${k.padEnd(18)} ${JSON.stringify(c[k]).padEnd(12)} ${help}`);
+        out({ global: c }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
+          '', 'This session: settings set session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
       }
       return;
     }
