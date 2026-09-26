@@ -226,6 +226,17 @@ canvas (hooks, bin on PATH, session binding, CLI all work).
 - Per-app storage files instead of one state.json; state size limits for huge sessions
 - Packaged .app (electron-builder) so the dock shows "Claude Canvas" instead of "Electron"
 - Placeholder ghost slot while dragging; keyboard reorder
+- **Image lightbox**: clicking an image in the image viewer opens it as a full-canvas overlay with
+  wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only
+  (view state, no reducer action), so it's small. Good for small screenshots and diagrams.
+- **Thoughts app** (explore first, skip if it's unreasonable): list Claude's thinking. No hook
+  carries thinking (the captured `MessageDisplay` payloads only have visible text), so the only
+  source is the session transcript JSONL, whose path (`transcript_path`) arrives in every hook
+  payload. Idea: on `Stop` (and maybe `PostToolUse`), have core read new transcript lines from
+  a saved byte offset and push `thinking` blocks into a singleton `thoughts` app. Open questions:
+  whether transcripts hold readable thinking or only redacted/signature blocks, and whether
+  reading the transcript counts as the "no transcript tailing" rule from §3. Check a real
+  transcript before building anything.
 
 ## 7. Future ideas (not MVP)
 
