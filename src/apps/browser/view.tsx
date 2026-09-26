@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fileUrl, timeAgo, type ViewProps } from '../../renderer/viewTypes';
 import { currentWeb, type BrowserState, type WebActivity } from './index';
 
@@ -7,6 +7,20 @@ type Frames = Partial<Record<'cdp' | 'web', string>>;
 export function BrowserView({ id, state, run }: ViewProps<BrowserState>) {
   const [frames, setFrames] = useState<Frames>({});
   const [listOpen, setListOpen] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+
+  // Tell main the stage's shape so fetched pages render to fill it.
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(() => { if (el.clientHeight > 0) window.glass.webAspect((el.clientWidth - 20) / (el.clientHeight - 20)); }, 150);
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); clearTimeout(t); };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +58,7 @@ export function BrowserView({ id, state, run }: ViewProps<BrowserState>) {
           </button>
         )}
       </div>
-      <div className="b-stage">
+      <div className="b-stage" ref={stageRef}>
         {stage(state, web, frames)}
         {listOpen && <HistoryList history={history} at={at} onPick={go} onClose={() => setListOpen(false)} />}
       </div>

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('glass', {
   init: () => ipcRenderer.invoke('glass:init'),
   dispatch: (action: unknown) => ipcRenderer.invoke('glass:dispatch', action),
   setConfig: (key: string, value: unknown) => ipcRenderer.invoke('glass:config', key, value),
+  webAspect: (aspect: number) => ipcRenderer.send('glass:webAspect', aspect),
   lastFrame: (id: string) => ipcRenderer.invoke('glass:lastFrame', id),
   onFrame: (fn: (f: { id: string; source: 'cdp' | 'web'; data: string }) => void) => {
     const h = (_e: unknown, f: { id: string; source: 'cdp' | 'web'; data: string }) => fn(f);

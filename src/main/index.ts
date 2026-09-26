@@ -83,6 +83,8 @@ async function boot() {
   ipcMain.handle('glass:dispatch', (_e, action: Action) => {
     try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
+  // The browser tile's shape, so the offscreen page renders to fill it (a view hint, not state).
+  ipcMain.on('glass:webAspect', (_e, aspect: number) => { webAspect = Number(aspect) || 0; webFeed?.fit(webAspect); });
   ipcMain.handle('glass:lastFrame', (_e, id: string) => lastFrames.get(id) ?? null);
   ipcMain.handle('glass:config', (_e, key: string, value: unknown) => {
     try { return { ok: true, result: core.setConfig(key, value) }; } catch (e: any) { return { ok: false, error: e.message }; }
@@ -122,6 +124,7 @@ const streams = new Map<string, BrowserStream>();
 type Source = 'cdp' | 'web';
 const lastFrames = new Map<string, Partial<Record<Source, string>>>();
 let webFeed: WebFeed | null = null;
+let webAspect = 0; // browser tile width / height, reported by the renderer
 
 function sendFrame(id: string, source: Source, data: string) {
   lastFrames.set(id, { ...lastFrames.get(id), [source]: data });
@@ -155,10 +158,13 @@ function syncBrowserStreams() {
   const w = b?.view === 'web' ? currentWeb(b) : undefined;
   const page = w?.kind === 'page' && s.order.includes('browser') ? w.url : null;
   if (page) {
-    webFeed ??= new WebFeed(
-      (data) => sendFrame('browser', 'web', data),
-      (url, title) => setImmediate(() => core.dispatch({ type: 'app.command', id: 'browser', command: 'web.title', args: { url, title } })),
-    );
+    if (!webFeed) {
+      webFeed = new WebFeed(
+        (data) => sendFrame('browser', 'web', data),
+        (url, title) => setImmediate(() => core.dispatch({ type: 'app.command', id: 'browser', command: 'web.title', args: { url, title } })),
+      );
+      webFeed.fit(webAspect);
+    }
     webFeed.show(page);
   } else webFeed?.hide();
 }

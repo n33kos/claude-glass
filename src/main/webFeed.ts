@@ -3,12 +3,14 @@
 // in-memory session, no popups/downloads/permissions, muted. The user sees pictures of the page.
 import { BrowserWindow, session } from 'electron';
 
-// Narrower than a desktop browser so text stays readable when the tile scales it down.
-const WIDTH = 1024, HEIGHT = 720, FPS = 8;
+// Narrower than a desktop browser so text stays readable when the tile scales it down. The
+// height follows the tile's shape so the page fills it.
+const WIDTH = 1024, FPS = 8;
 
 export class WebFeed {
   private win: BrowserWindow | null = null;
   private url: string | null = null;
+  private height = 720;
 
   constructor(private onFrame: (jpegBase64: string) => void, private onTitle: (url: string, title: string) => void) {}
 
@@ -18,7 +20,7 @@ export class WebFeed {
     ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
     ses.on('will-download', (e) => e.preventDefault());
     const win = new BrowserWindow({
-      show: false, width: WIDTH, height: HEIGHT,
+      show: false, width: WIDTH, height: this.height,
       webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, session: ses },
     });
     const wc = win.webContents;
@@ -29,6 +31,15 @@ export class WebFeed {
     wc.on('page-title-updated', (_e, title) => { if (this.url) this.onTitle(this.url, title); });
     this.win = win;
     return win;
+  }
+
+  /** Match the tile's aspect ratio (width / height of the area the frame is shown in). */
+  fit(aspect: number) {
+    if (!(aspect > 0)) return;
+    const height = Math.round(Math.min(2400, Math.max(360, WIDTH / aspect)));
+    if (Math.abs(height - this.height) < 8) return;
+    this.height = height;
+    if (this.win && !this.win.isDestroyed()) this.win.setSize(WIDTH, height);
   }
 
   show(url: string) {
