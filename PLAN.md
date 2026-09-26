@@ -208,7 +208,19 @@ dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/view
 - [x] M4 Electron main + preload + renderer shell (desktops, frames, dock) + screenshots
 - [x] M5 App views (terminal, conversation, diff, markdown, image, html, settings) + screenshots
 - [x] M6 Plugin packaging (hooks.json, skill, bin), headless plugin smoke test
-- [ ] M7 Polish: drag reorder, edge-drag to next desktop, opacity, background config
+- [x] M7 Polish: drag reorder, edge-drag to next desktop, opacity, background config, dock icon
+
+**MVP complete (2026-09-26).** Verified: 28 unit/integration tests, Playwright e2e (15 checks +
+screenshots), and a real headless `claude -p --plugin-dir . --session-id <uuid>` run with a live
+canvas (hooks, bin on PATH, session binding, CLI all work).
+
+### Next candidates (not started)
+- Browser stream app (Playwright screencast into a window)
+- User→Claude back-channel (e.g. "point at this window" → UserPromptSubmit context)
+- `/clear` rebinding: SessionStart with source=clear could hand the old canvas to the new id
+- Per-app storage files instead of one state.json; state size limits for huge sessions
+- Packaged .app (electron-builder) so the dock shows "Claude Canvas" instead of "Electron"
+- Placeholder ghost slot while dragging; keyboard reorder
 
 ## 7. Future ideas (not MVP)
 

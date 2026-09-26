@@ -103,6 +103,8 @@ async function boot() {
     }, 30);
   });
 
+  const icon = join(__dirname, '..', 'assets', 'icon.png');
+  if (process.platform === 'darwin') try { app.dock?.setIcon(icon); } catch {}
   buildMenu();
   createWindow();
 }
