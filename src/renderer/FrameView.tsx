@@ -35,7 +35,11 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
       const m = e.data;
       if (!m || m.glass !== 1) return;
       // A frame reloads whenever it moves in the DOM (window reorder): always answer 'ready'.
-      if (m.kind === 'ready') { setReady(true); post({ kind: 'props', props: latest.current }); }
+      if (m.kind === 'ready') {
+        setReady(true);
+        post({ kind: 'props', props: latest.current });
+        window.glass.lastFrame(id).then((f) => { if (f) for (const [source, data] of Object.entries(f)) if (data) post({ kind: 'frame', source, data }); });
+      }
       else if (m.kind === 'run' && typeof m.command === 'string') {
         if (app.viewCommands.includes(m.command)) void run(m.command, m.args && typeof m.args === 'object' ? m.args : {});
         else console.warn(`app ${app.type}: view may not run "${m.command}" (not a view command)`);
@@ -54,14 +58,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
   useEffect(() => { if (ready) post({ kind: 'props', props }); },
     [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live frames for this instance (browser stream).
-  useEffect(() => {
-    if (!ready) return;
-    let alive = true;
-    window.glass.lastFrame(id).then((f) => { if (alive && f) for (const [source, data] of Object.entries(f)) if (data) post({ kind: 'frame', source, data }); });
-    const off = window.glass.onFrame((f) => { if (f.id === id) post({ kind: 'frame', source: f.source, data: f.data }); });
-    return () => { alive = false; off(); };
-  }, [ready, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Live frames for this instance (browser stream); the latest ones are replayed on 'ready'.
+  useEffect(() => window.glass.onFrame((f) => { if (f.id === id) post({ kind: 'frame', source: f.source, data: f.data }); }), [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>

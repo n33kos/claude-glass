@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { fileUrl, timeAgo, type ViewProps } from '../../renderer/viewTypes';
+import { fileUrl, timeAgo } from '../../renderer/viewTypes';
+import glass from '../../sdk/glass-app';
+import type { AppViewProps } from '../../sdk/react';
 import { currentWeb, type BrowserState, type WebActivity } from './index';
 
 type Frames = Partial<Record<'cdp' | 'web', string>>;
 
-export function BrowserView({ id, state, run }: ViewProps<BrowserState>) {
+export default function BrowserView({ state, run, host }: AppViewProps<BrowserState>) {
   const [frames, setFrames] = useState<Frames>({});
   const [listOpen, setListOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -16,18 +18,13 @@ export function BrowserView({ id, state, run }: ViewProps<BrowserState>) {
     let t: ReturnType<typeof setTimeout> | undefined;
     const ro = new ResizeObserver(() => {
       clearTimeout(t);
-      t = setTimeout(() => { if (el.clientHeight > 0) window.glass.webAspect((el.clientWidth - 20) / (el.clientHeight - 20)); }, 150);
+      t = setTimeout(() => { if (el.clientHeight > 0) host('aspect', { value: (el.clientWidth - 20) / (el.clientHeight - 20) }); }, 150);
     });
     ro.observe(el);
     return () => { ro.disconnect(); clearTimeout(t); };
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    window.glass.lastFrame(id).then((f) => { if (alive && f) setFrames((p) => ({ ...f, ...p })); });
-    const off = window.glass.onFrame((f) => { if (f.id === id) setFrames((p) => ({ ...p, [f.source]: f.data })); });
-    return () => { alive = false; off(); };
-  }, [id]);
+  useEffect(() => glass.onFrame((f) => setFrames((p) => ({ ...p, [f.source]: f.data }))), []);
 
   // A new page starts blank instead of showing the previous page's last frame.
   const web = currentWeb(state);

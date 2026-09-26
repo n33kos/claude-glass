@@ -269,12 +269,12 @@ try {
         <div style="background:#fff;padding:40px 56px;border-radius:18px;box-shadow:0 20px 50px #0003"><h1 style="margin:0 0 12px">Checkout</h1>
         <p style="margin:0;color:#555">Claude is filling in this form in Playwright.</p></div></body>`);
       await cli(env, 'app', 'browser', 'attach', '--cdp', String(port));
-      await page.waitForSelector('.browserview .b-stage img', { timeout: 8000 }).catch(() => {});
+      await appFrame(page, 'browser').locator('.browserview .b-stage img').waitFor({ timeout: 8000 }).catch(() => {});
       await sleep(1200);
       await page.screenshot({ path: join(shots, '09-browser-live.png') });
       const st = JSON.parse(await cli(env, 'state', 'browser')).state;
       check(st.status === 'live' && st.title === 'Checkout', `browser streams a CDP page (status ${st.status}, title ${st.title})`);
-      const frameOk = await page.locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
+      const frameOk = await appFrame(page, 'browser').locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
       check(frameOk, 'browser view shows screencast frames');
     } finally {
       await browser.close();
@@ -285,7 +285,7 @@ try {
     await cli(env, 'app', 'browser', 'frame', '--file', join(shots, '02-seeded.png'), '--url', 'https://example.com/firefox');
     await sleep(500);
     await page.screenshot({ path: join(shots, '09b-browser-pushed.png') });
-    const pushed = await page.locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
+    const pushed = await appFrame(page, 'browser').locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
     check(pushed, 'browser view shows a pushed screenshot');
   }
 
@@ -300,7 +300,7 @@ try {
     try {
       await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebSearch', tool_use_id: 'ws1', tool_input: { query: 'CDP screencast parameters' } });
       await sleep(400);
-      check((await page.locator('.browserview .b-meta').innerText()).includes('searching'), 'web search shows while searching');
+      check((await appFrame(page, 'browser').locator('.browserview .b-meta').innerText()).includes('searching'), 'web search shows while searching');
       await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'WebSearch', tool_use_id: 'ws1', tool_input: { query: 'CDP screencast parameters' },
         tool_response: { query: 'CDP screencast parameters', results: [{ tool_use_id: 'x', content: [
           { title: 'Chrome DevTools Protocol - Page domain', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' },
@@ -308,25 +308,25 @@ try {
           { title: 'puppeteer screen recorder', url: 'https://github.com/axelboberg/puppeteer-screen-recorder' }] }, 'Summary text'] } });
       await sleep(500);
       await page.screenshot({ path: join(shots, '09c-web-search.png') });
-      check((await page.locator('.b-results li').count()) === 3, 'web search results are listed');
+      check((await appFrame(page, 'browser').locator('.b-results li').count()) === 3, 'web search results are listed');
       await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebFetch', tool_use_id: 'wf1', tool_input: { url, prompt: 'params?' } });
-      await page.waitForFunction(() => document.querySelector('.browserview .b-stage img')?.naturalWidth > 0, null, { timeout: 8000 }).catch(() => {});
+      await appFrame(page, 'browser').locator('.browserview .b-stage img').waitFor({ timeout: 8000 }).catch(() => {});
       await sleep(800);
       await page.screenshot({ path: join(shots, '09d-web-page.png') });
       const st = JSON.parse(await cli(env, 'state', 'browser')).state;
       const cur = st.history[st.history.length - 1];
       check(st.view === 'web' && cur.title === 'Screencast docs', `fetched page renders in the browser (title ${cur?.title})`);
       // History: back shows the search again, the list lets you jump anywhere.
-      await page.locator('.browserview .b-nav button[aria-label="Back"]').click();
+      await appFrame(page, 'browser').locator('.browserview .b-nav button[aria-label="Back"]').click();
       await sleep(300);
-      check((await page.locator('.b-results li').count()) === 3, 'back returns to the search results');
-      await page.locator('.browserview .b-hist-btn').click();
+      check((await appFrame(page, 'browser').locator('.b-results li').count()) === 3, 'back returns to the search results');
+      await appFrame(page, 'browser').locator('.browserview .b-hist-btn').click();
       await sleep(250);
       await page.screenshot({ path: join(shots, '09e-web-history.png') });
-      check((await page.locator('.b-hist li').count()) === 2, 'history list shows every search and page');
-      await page.locator('.b-hist li').first().click();
-      await page.waitForFunction(() => document.querySelector('.browserview .b-stage img')?.naturalWidth > 0, null, { timeout: 5000 }).catch(() => {});
-      check((await page.locator('.b-results').count()) === 0 && (await page.locator('.browserview .b-stage img').count()) === 1, 'picking the page from history shows it again');
+      check((await appFrame(page, 'browser').locator('.b-hist li').count()) === 2, 'history list shows every search and page');
+      await appFrame(page, 'browser').locator('.b-hist li').first().click();
+      await appFrame(page, 'browser').locator('.browserview .b-stage img').waitFor({ timeout: 5000 }).catch(() => {});
+      check((await appFrame(page, 'browser').locator('.b-results').count()) === 0 && (await appFrame(page, 'browser').locator('.browserview .b-stage img').count()) === 1, 'picking the page from history shows it again');
     } finally {
       srv.close();
     }

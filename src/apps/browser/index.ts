@@ -62,6 +62,7 @@ export const browser: AppDef<BrowserState> = {
   title: 'Browser',
   icon: '◎',
   singleton: true,
+  viewCommands: ['web.go'],
   description: 'The browser you use, live. Web searches and fetched pages show up automatically. `attach` screencasts any Chromium with a DevTools port (Playwright, Puppeteer, Chrome --remote-debugging-port=9222) and follows its most recently active tab; run it headless. For other browsers, push screenshots with `frame --file`.',
   commands: {
     attach: { usage: `attach [--cdp <port|url>]`, help: `Stream a Chromium DevTools endpoint (default ${DEFAULT_CDP})` },
@@ -135,3 +136,5 @@ export const browser: AppDef<BrowserState> = {
     }
   },
 };
+
+export default browser;

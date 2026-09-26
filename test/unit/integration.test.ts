@@ -188,7 +188,7 @@ describe('folder scope', () => {
 
 describe('built-in apps ship as mods', () => {
   it('each compiled dist/apps/<type> folder loads through the mod loader', () => {
-    for (const type of ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal']) {
+    for (const type of ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser']) {
       const app = readMod(join(root, 'dist/apps', type));
       expect(app.type).toBe(type);
       expect(typeof app.init()).toBe('object');

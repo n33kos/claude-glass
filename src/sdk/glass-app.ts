@@ -25,6 +25,7 @@ type FrameListener = (f: { source: string; data: string }) => void;
 const listeners = new Set<Listener>();
 const frameListeners = new Set<FrameListener>();
 let props: GlassProps | null = null;
+const lastFrames = new Map<string, string>(); // replayed to late subscribers
 
 const post = (msg: object) => window.parent.postMessage({ glass: 1, ...msg }, '*');
 
@@ -36,6 +37,7 @@ window.addEventListener('message', (e) => {
     props = m.props as GlassProps;
     for (const fn of listeners) fn(props);
   } else if (m.kind === 'frame') {
+    lastFrames.set(m.source, m.data);
     for (const fn of frameListeners) fn({ source: m.source, data: m.data });
   }
 });
@@ -56,6 +58,7 @@ const glass = {
   /** Live frames some apps receive from the host (e.g. the browser stream). */
   onFrame(fn: FrameListener): () => void {
     frameListeners.add(fn);
+    for (const [source, data] of lastFrames) fn({ source, data });
     return () => frameListeners.delete(fn);
   },
 };
