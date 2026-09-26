@@ -1,5 +1,8 @@
 // Tiling math: one ordered window array, cut into desktops by each desktop's layout.
-import type { LayoutName } from './types';
+import type { Edge, LayoutName } from './types';
+
+/** Edges a window can be tucked into (out of the tiling flow). */
+export const EDGES: Edge[] = ['left', 'right', 'top', 'bottom'];
 
 export interface SlotRect { x: number; y: number; w: number; h: number } // fractions 0..1
 

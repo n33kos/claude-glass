@@ -406,3 +406,24 @@ describe('app permissions', () => {
     expect(() => parsePermissions({ network: ['https://*.example.com'] })).toThrow();
   });
 });
+
+describe('edge tucking (experiment)', () => {
+  it('tucking takes a window out of the flow; untuck puts it back first', () => {
+    let s = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    s = reduce(s, { type: 'window.pin', id: 'notes', index: 0 }).state;
+    s = reduce(s, { type: 'window.tuck', id: 'notes', edge: 'left' }).state;
+    expect(s.order).not.toContain('notes');
+    expect(s.tucked?.left).toEqual(['notes']);
+    expect(s.pinned?.notes).toBeUndefined();
+    s = reduce(s, { type: 'window.open', id: 'notes' }).state; // already on screen: stays tucked
+    expect(s.order).not.toContain('notes');
+    s = reduce(s, { type: 'window.tuck', id: 'terminal', edge: 'left' }).state;
+    expect(s.tucked?.left).toEqual(['notes', 'terminal']);
+    s = reduce(s, { type: 'window.tuck', id: 'notes', edge: 'bottom' }).state; // moving edges
+    expect(s.tucked).toEqual({ left: ['terminal'], bottom: ['notes'] });
+    s = reduce(s, { type: 'window.untuck', id: 'notes' }).state;
+    expect(s.order[0]).toBe('notes');
+    s = reduce(s, { type: 'window.close', id: 'terminal' }).state;
+    expect(s.tucked).toEqual({});
+  });
+});

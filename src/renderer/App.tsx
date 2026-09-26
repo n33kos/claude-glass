@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { computeDesktops, desktopsFor, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
-import type { InstanceMeta, LayoutName, Waiting } from '../core/types';
+import { computeDesktops, desktopsFor, EDGES, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
+import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
 import { FrameView } from './FrameView';
 import { apps, dispatch, useSnapshot } from './store';
@@ -11,7 +11,10 @@ const GAP = 12;
 
 interface Rect { x: number; y: number; w: number; h: number }
 interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean }
-interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null }
+interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null; tuck?: Edge | null }
+
+const TUCK_ZONE = 16; // px strip at each stage edge: drop a window there to tuck it
+const SWITCH_ZONE = 48; // left/right, just inside the tuck strip: hold to switch desktops
 
 function place(pages: DesktopPage[], W: number, H: number, focus: number): Placed[] {
   const out: Placed[] = [];
@@ -43,6 +46,7 @@ export function App() {
     [state.order, state.desktops, config.defaultLayout, config.nestedView]);
   const [view, setViewRaw] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
+  const [peek, setPeek] = useState<Edge | null>(null); // edge panel slid out (hover or dock)
   // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
   const [focusId, setFocusId] = useState<string | null>(null);
   const nestedPage = pages.find((p) => p.layout === 'nested');
@@ -114,10 +118,12 @@ export function App() {
   // ---- drag to reorder -------------------------------------------------------------
   const edgeTimer = useRef<number | null>(null);
   const onDragStart = (id: string, e: React.PointerEvent) => {
-    if (config.windowMode === 'history') return; // history mode: windows stay in time order
     const p = placed.find((x) => x.id === id);
     if (!p) return;
     const stage = stageRef.current!.getBoundingClientRect();
+    // Keep the pointer while dragging: app views are frames, and a frame under the pointer would
+    // otherwise swallow the moves and the release.
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setDrag({ id, px: e.clientX, py: e.clientY, ox: e.clientX - stage.left - (p.rect.x - v * size.W), oy: e.clientY - stage.top - p.rect.y, target: null });
   };
 
@@ -134,9 +140,15 @@ export function App() {
       if (self && self.page === v && x >= self.rect.x && x <= self.rect.x + self.rect.w && y >= self.rect.y && y <= self.rect.y + self.rect.h) return self.index;
       return Math.min(page.start + page.windows.length, state.order.length);
     };
+    // Dropping in an edge strip tucks the window there.
+    const tuckAt = (cx: number, cy: number): Edge | null =>
+      cx - stage.left < TUCK_ZONE ? 'left' : stage.right - cx < TUCK_ZONE ? 'right'
+        : cy - stage.top < TUCK_ZONE ? 'top' : stage.bottom - cy < TUCK_ZONE ? 'bottom' : null;
     const move = (e: PointerEvent) => {
-      setDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, target: targetAt(e.clientX, e.clientY) });
-      const nearLeft = e.clientX - stage.left < 28, nearRight = stage.right - e.clientX < 28;
+      const tuck = tuckAt(e.clientX, e.clientY);
+      setDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, target: targetAt(e.clientX, e.clientY), tuck });
+      const dl = e.clientX - stage.left, dr = stage.right - e.clientX;
+      const nearLeft = !tuck && dl < SWITCH_ZONE, nearRight = !tuck && dr < SWITCH_ZONE;
       if ((nearLeft || nearRight) && edgeTimer.current == null) {
         edgeTimer.current = window.setTimeout(() => {
           edgeTimer.current = null;
@@ -148,16 +160,19 @@ export function App() {
     };
     const up = (e: PointerEvent) => {
       if (edgeTimer.current != null) { clearTimeout(edgeTimer.current); edgeTimer.current = null; }
+      const tuck = tuckAt(e.clientX, e.clientY);
       const target = targetAt(e.clientX, e.clientY);
       const cur = state.order.indexOf(drag.id);
-      // Final index = target (the reducer removes, then inserts, and clamps past-the-end).
-      if (target !== cur) dispatch({ type: 'window.move', id: drag.id, index: target });
+      if (tuck) dispatch({ type: 'window.tuck', id: drag.id, edge: tuck });
+      // Reorder (history mode keeps time order: dragging there only tucks). Final index = target;
+      // the reducer removes, then inserts, and clamps past-the-end.
+      else if (target !== cur && config.windowMode !== 'history') dispatch({ type: 'window.move', id: drag.id, index: target });
       setDrag(null);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [drag?.id, v, placed, pages, size.W, state.order]);
+  }, [drag?.id, v, placed, pages, size.W, state.order, config.windowMode]);
 
   useEffect(() => { if (!drag && view > pages.length - 1) setViewRaw(pages.length - 1); }, [drag, pages.length, view]);
 
@@ -187,7 +202,7 @@ export function App() {
 
       {waiting?.kind === 'question' && <QuestionCard waiting={waiting} />}
 
-      <main className="stage" ref={stageRef}>
+      <main className={`stage${drag ? ' dragging-any' : ''}`} ref={stageRef}>
         <div className="strip" style={{ transform: `translateX(${-v * size.W}px)` }}>
           {/* Stable DOM order (by id): windows are placed by transform, so a reorder never moves
               a node, and app frames never reload. */}
@@ -226,16 +241,20 @@ export function App() {
               {older > 0 && <span className="nest-badge bottom" style={{ left: left + size.W - 90 }}>{older} older ↓</span>}
             </>);
           })()}
-          {pages.every((p) => p.windows.length === 0) && (
+          {pages.every((p) => p.windows.length === 0) && !EDGES.some((e) => state.tucked?.[e]?.length) && (
             <div className="empty" style={{ width: size.W }}>
               <p>Nothing on screen. Open an app from the dock, or ask Claude to show you something.</p>
             </div>
           )}
         </div>
+        {drag && EDGES.map((e) => <div key={e} className={`tuck-zone ${e}${drag.tuck === e ? ' on' : ''}`}><span>Tuck</span></div>)}
+        <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} />
       </main>
 
       {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
       <Dock pages={pages} viewing={v} onReveal={(id) => {
+        const edge = EDGES.find((e) => state.tucked?.[e]?.includes(id));
+        if (edge) return setPeek(edge);
         const p = placed.find((x) => x.id === id);
         setView(p ? p.page : 0);
       }} />
@@ -288,9 +307,9 @@ function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number
 
 function WindowFrame(props: {
   meta: InstanceMeta; pinned: boolean; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
-  page: DesktopPage; onDragStart: (e: React.PointerEvent) => void; children: React.ReactNode;
+  page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Edge;
 }) {
-  const { meta, page } = props;
+  const { meta, page, tucked } = props;
   const [menu, setMenu] = useState(false);
   const app = apps[meta.type];
   const history = useSnapshot().config.windowMode === 'history';
@@ -300,19 +319,21 @@ function WindowFrame(props: {
       style={{ ...props.style, ['--glass' as any]: props.opacity }}
       data-window={meta.id}
     >
-      <div className="titlebar" onPointerDown={(e) => { if ((e.target as HTMLElement).closest('button')) return; e.preventDefault(); props.onDragStart(e); }}>
+      <div className="titlebar" onPointerDown={(e) => { if (!props.onDragStart || (e.target as HTMLElement).closest('button')) return; e.preventDefault(); props.onDragStart(e); }}>
         <div className="lights">
           <button className="light close" title="Close window" aria-label="Close window" onClick={() => dispatch({ type: 'window.close', id: meta.id })} />
-          {!history && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
-          {props.page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
+          {!history && !tucked && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
+          {page && page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
         </div>
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em>{app?.icon}</em>{meta.title}</span>
-        <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}
+        {tucked ? (
+          <button className="untuck" title="Put back in the layout" aria-label="Untuck window" onClick={() => dispatch({ type: 'window.untuck', id: meta.id })}>Untuck</button>
+        ) : <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}
           aria-label={props.pinned ? 'Unpin window' : 'Pin window'} aria-pressed={props.pinned}
           onClick={() => dispatch(props.pinned ? { type: 'window.unpin', id: meta.id } : { type: 'window.pin', id: meta.id })}>
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
-        </button>
-        {menu && (
+        </button>}
+        {menu && page && (
           <div className="layout-menu" onMouseLeave={() => setMenu(false)}>
             {LAYOUT_NAMES.map((l) => (
               <button key={l} className={l === page.layout ? 'on' : ''} onClick={() => { dispatch({ type: 'desktop.layout', desktop: page.index, layout: l }); setMenu(false); }}>
@@ -378,5 +399,52 @@ function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: num
         </button>
       </div>
     </footer>
+  );
+}
+
+/**
+ * Windows tucked into an edge: out of the tiling flow, the same on every desktop. Each edge is a
+ * panel that sits off-screen with a slim tab and slides out on hover; its windows split the panel
+ * evenly. They stay mounted while hidden (a voice app keeps listening).
+ */
+function EdgePanels({ W, H, peek, setPeek }: { W: number; H: number; peek: Edge | null; setPeek: (e: Edge | null) => void }) {
+  const { state, config } = useSnapshot();
+  const closeTimer = useRef<number | null>(null);
+  const hold = (e: Edge) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
+  const release = () => { closeTimer.current = window.setTimeout(() => setPeek(null), 350); };
+  const side = Math.round(Math.min(480, Math.max(320, W * 0.32)));
+  const band = Math.round(Math.min(380, Math.max(240, H * 0.38)));
+  return (
+    <>
+      {EDGES.map((edge) => {
+        const ids = (state.tucked?.[edge] ?? []).filter((id) => state.instances[id]);
+        if (!ids.length) return null;
+        const vertical = edge === 'left' || edge === 'right';
+        const pw = vertical ? side : W - PAD * 2, ph = vertical ? H - PAD * 2 : band;
+        const n = ids.length;
+        const each = ((vertical ? ph : pw) - GAP * (n - 1)) / n;
+        return (
+          <Fragment key={edge}>
+            <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
+              {ids.map((id) => <span key={id} title={state.instances[id].title}>{apps[state.instances[id].type]?.icon ?? '▢'}</span>)}
+            </div>
+            <div className={`edge-panel ${edge}${peek === edge ? ' open' : ''}`} style={{ width: pw, height: ph }}
+              onMouseEnter={() => hold(edge)} onMouseLeave={release}>
+              {ids.map((id, i) => {
+                const meta = state.instances[id];
+                const w = vertical ? pw : each, h = vertical ? each : ph;
+                const style: React.CSSProperties = { width: w, height: h, transform: `translate(${vertical ? 0 : i * (each + GAP)}px, ${vertical ? i * (each + GAP) : 0}px)` };
+                const opacity = meta.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
+                return (
+                  <WindowFrame key={id} meta={meta} pinned={false} style={style} dragging={false} dropTarget={false} opacity={opacity} tucked={edge}>
+                    <AppBody id={id} meta={meta} w={w} h={h} />
+                  </WindowFrame>
+                );
+              })}
+            </div>
+          </Fragment>
+        );
+      })}
+    </>
   );
 }

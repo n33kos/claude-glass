@@ -120,7 +120,8 @@ export class GlassCore {
       session: { id: s.session.id, title: s.session.title, cwd: s.session.cwd, activity: s.session.activity, ended: !!s.session.endedAt },
       userViewingDesktop: s.ui.viewingDesktop,
       desktops: pages.map((p) => ({ desktop: p.index, layout: p.layout, windows: p.windows.map((id, slot) => ({ index: p.start + slot, ...meta(id), ...(s.pinned?.[id] != null ? { pinned: true } : {}) })) })),
-      closed: Object.keys(s.instances).filter((id) => !s.order.includes(id)).map(meta),
+      ...(s.tucked && Object.keys(s.tucked).length ? { tucked: Object.fromEntries(Object.entries(s.tucked).map(([e, ids]) => [e, (ids ?? []).map(meta)])) } : {}),
+      closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
     };
   }
 

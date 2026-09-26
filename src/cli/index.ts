@@ -89,6 +89,7 @@ function formatView(v: any): string {
     if (!d.windows.length) lines.push('  (empty)');
     for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title}${w.pinned ? '  [pinned]' : ''}`);
   }
+  for (const [edge, ws] of Object.entries(v.tucked ?? {}) as [string, any[]][]) lines.push(`Tucked ${edge}: ${ws.map((w) => `${w.id} (${w.type})`).join(', ')}`);
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
   return lines.join('\n');
 }
@@ -207,7 +208,7 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|tuck|untuck|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
@@ -215,6 +216,8 @@ async function main(argv: string[]) {
       else if (sub === 'unpin') await dispatch(sid, { type: 'window.unpin', id });
       else if (sub === 'opacity') await dispatch(sid, { type: 'window.opacity', id, value: arg === undefined || arg === 'reset' ? null : Number(arg) });
       else if (sub === 'rename') await dispatch(sid, { type: 'instance.rename', id, title: String(arg ?? id) });
+      else if (sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
+      else if (sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
       else throw new Error(`unknown window command "${sub}"`);
       out({ ok: true }, 'ok');
       return;

@@ -1,5 +1,7 @@
 // Core data model. Pure types, shared by core, main, renderer, and CLI.
 
+export type Edge = 'left' | 'right' | 'top' | 'bottom';
+
 export type LayoutName = 'full' | 'split' | 'main-left' | 'columns' | 'grid' | 'nested';
 
 export interface InstanceMeta {
@@ -63,6 +65,8 @@ export interface GlassState {
   ui: { viewingDesktop: number };
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
+  // Windows tucked into an edge panel: out of the tiling flow, on every desktop, shown on hover.
+  tucked?: Partial<Record<Edge, string[]>>;
 }
 
 export type Action =
@@ -79,7 +83,9 @@ export type Action =
   | { type: 'settings.set'; key: string; value: unknown }
   | { type: 'session.update'; patch: Partial<SessionInfo> }
   | { type: 'ui.viewDesktop'; index: number }
-  | { type: 'app.hook'; payload: unknown };
+  | { type: 'app.hook'; payload: unknown }
+  | { type: 'window.tuck'; id: string; edge: Edge }
+  | { type: 'window.untuck'; id: string };
 
 export interface Envelope {
   op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'quit';

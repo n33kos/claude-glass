@@ -1,7 +1,7 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
-import { isLayout } from './layout';
-import type { Action, GlassState, InstanceMeta, SessionInfo } from './types';
+import { EDGES, isLayout } from './layout';
+import type { Action, Edge, GlassState, InstanceMeta, SessionInfo } from './types';
 
 export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<SessionInfo>): GlassState {
   const base: GlassState = {
@@ -68,8 +68,21 @@ function withOrder(s: GlassState, order: string[], pinned = s.pinned ?? {}): Gla
   return { ...s, pinned: kept, order: arrange(order, kept) };
 }
 
+/** Take a window out of whatever edge panel it's tucked in (no-op if it isn't). */
+function untuck(s: GlassState, id: string): GlassState {
+  if (!s.tucked || !EDGES.some((e) => s.tucked![e]?.includes(id))) return s;
+  const tucked = Object.fromEntries(EDGES.map((e) => [e, (s.tucked![e] ?? []).filter((x) => x !== id)]).filter(([, l]) => l.length));
+  return { ...s, tucked };
+}
+
+export const tuckedEdge = (s: GlassState, id: string): Edge | undefined => EDGES.find((e) => s.tucked?.[e]?.includes(id));
+
 export function reduce(s: GlassState, a: Action): ReduceResult {
   const r = reduceRaw(s, a);
+  // A tucked window lives in its edge panel, never in the tiling order.
+  if (r.state.tucked && r.state.order.some((id) => tuckedEdge(r.state, id))) {
+    r.state = { ...r.state, order: r.state.order.filter((id) => !tuckedEdge(r.state, id)) };
+  }
   if (r.state.order === s.order && r.state.pinned === s.pinned) return r;
   return { ...r, state: withOrder(r.state, r.state.order) };
 }
@@ -78,11 +91,27 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
   switch (a.type) {
     case 'window.open':
       requireInstance(s, a.id);
+      if (tuckedEdge(s, a.id)) return { state: s }; // already on screen, in its edge panel
       return { state: { ...s, order: openAtZero(s.order, a.id) } };
 
-    case 'window.close':
+    case 'window.close': {
       requireInstance(s, a.id);
-      return { state: { ...s, order: s.order.filter((x) => x !== a.id) } };
+      const t = untuck(s, a.id);
+      return { state: { ...t, order: t.order.filter((x) => x !== a.id) } };
+    }
+
+    case 'window.tuck': {
+      requireInstance(s, a.id);
+      if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
+      const t = untuck(s, a.id);
+      return { state: { ...t, order: t.order.filter((x) => x !== a.id), tucked: { ...t.tucked, [a.edge]: [...(t.tucked?.[a.edge] ?? []), a.id] } } };
+    }
+
+    case 'window.untuck': {
+      requireInstance(s, a.id);
+      const t = untuck(s, a.id);
+      return { state: { ...t, order: openAtZero(t.order, a.id) } };
+    }
 
     case 'window.move': {
       requireInstance(s, a.id);

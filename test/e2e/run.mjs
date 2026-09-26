@@ -506,6 +506,36 @@ try {
     for (let i = errors.length - 1; i >= 0; i--) if (errors[i].includes(permOrigin) || /Permissions policy violation: microphone/.test(errors[i])) errors.splice(i, 1);
   }
 
+  // Edge tucking (experiment): drag a window to an edge, it leaves the flow into a slide-out panel.
+  {
+    await sleep(800); // let window moves finish animating before measuring a title bar
+    const first = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    const tb = await page.locator(`[data-window="${first}"] .titlebar`).first().boundingBox();
+    const stage = await page.locator('.stage').boundingBox();
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(stage.x + stage.width - 6, stage.y + stage.height / 2, { steps: 10 });
+    await sleep(150);
+    check((await page.locator('.tuck-zone.right.on').count()) === 1, 'dragging to an edge highlights its tuck strip');
+    await page.mouse.up();
+    await sleep(500);
+    let v = JSON.parse(await cli(env, 'view', '--json'));
+    check(v.tucked?.right?.[0]?.id === first, `dropping on the strip tucks the window right (${JSON.stringify(v.tucked)})`);
+    await cli(env, 'window', 'tuck', 'terminal', 'right');
+    await sleep(400);
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 4 }); // approach from inside, like a person
+    await page.locator('.edge-tab.right').hover();
+    await sleep(600);
+    check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'hovering the tab slides the panel out, two windows split it');
+    await page.screenshot({ path: join(shots, '12-edge-tuck.png') });
+    await page.locator(`.edge-panel.right [data-window="${first}"] .untuck`).click();
+    await cli(env, 'window', 'untuck', 'terminal');
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+    await sleep(600);
+    v = JSON.parse(await cli(env, 'view', '--json'));
+    check(!v.tucked && v.desktops[0].windows.some((w) => w.id === first), 'untuck puts windows back in the layout');
+  }
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);
