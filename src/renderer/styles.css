@@ -15,17 +15,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 .glass { position: relative; isolation: isolate; height: 100%; display: flex; flex-direction: column; }
 
-/* Wallpaper: base gradient + bokeh layers. Drift is transform-only (compositor), long and slow,
-   each blob on its own period so the pattern never visibly repeats. */
+/* Wallpaper: base gradient + bokeh layers. Drift is transform/opacity only (compositor), each
+   blob on its own 19–29s period so the pattern never visibly repeats but motion is noticeable. */
 .wallpaper { position: absolute; inset: 0; z-index: -1; overflow: hidden; background-size: cover; }
 .bokeh { position: absolute; will-change: transform; }
-.drifting .bokeh-0 { animation: drift-a 47s ease-in-out infinite alternate; }
-.drifting .bokeh-1 { animation: drift-b 61s ease-in-out infinite alternate; }
-.drifting .bokeh-2 { animation: drift-c 53s ease-in-out infinite alternate; }
-.drifting .bokeh-3 { animation: drift-a 71s ease-in-out -20s infinite alternate-reverse; }
-@keyframes drift-a { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(6%, 5%) scale(1.08); } 100% { transform: translate(-4%, 8%) scale(.96); } }
-@keyframes drift-b { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-7%, 6%) scale(.94); } 100% { transform: translate(-3%, -5%) scale(1.06); } }
-@keyframes drift-c { 0% { transform: translate(0, 0) scale(1.04); } 50% { transform: translate(5%, -7%) scale(1); } 100% { transform: translate(8%, 3%) scale(.95); } }
+.drifting .bokeh-0 { animation: drift-a 19s ease-in-out infinite alternate; }
+.drifting .bokeh-1 { animation: drift-b 25s ease-in-out infinite alternate; }
+.drifting .bokeh-2 { animation: drift-c 22s ease-in-out infinite alternate; }
+.drifting .bokeh-3 { animation: drift-a 29s ease-in-out -9s infinite alternate-reverse; }
+@keyframes drift-a { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 50% { transform: translate(18%, 12%) scale(1.22); opacity: .7; } 100% { transform: translate(-12%, 20%) scale(.88); opacity: 1; } }
+@keyframes drift-b { 0% { transform: translate(0, 0) scale(1); opacity: .75; } 50% { transform: translate(-20%, 14%) scale(.85); opacity: 1; } 100% { transform: translate(-8%, -16%) scale(1.18); opacity: .8; } }
+@keyframes drift-c { 0% { transform: translate(0, 0) scale(1.1); opacity: 1; } 50% { transform: translate(14%, -18%) scale(.92); opacity: .72; } 100% { transform: translate(20%, 8%) scale(1.15); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .drifting .bokeh { animation: none; } }
 
 /* ---- top bar ------------------------------------------------------------------ */
@@ -192,7 +192,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 /* ---- settings ------------------------------------------------------------------ */
 .settings { height: 100%; overflow: auto; padding: 8px 20px 20px; max-width: 620px; }
-.settings h3 { font-size: 12px; font-weight: 600; color: var(--ink-dim); margin: 16px 0 6px; }
+.settings h4 { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 14px 2px 6px; }
+.settings h3 + h4 { margin-top: 4px; }
+.s-row select:disabled { opacity: .45; }
+.settings h3 { font-size: 13px; font-weight: 600; color: var(--ink-dim); margin: 22px 0 6px; }
 .s-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.05); margin-bottom: 6px; }
 .s-row.s-col { flex-direction: column; align-items: stretch; }
 .s-inline { display: flex; gap: 8px; align-items: center; }

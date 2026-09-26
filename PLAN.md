@@ -291,13 +291,16 @@ Queue, in order:
    over the frame → `sendInputEvent` on the offscreen page, via a host service); clicks second,
    with a clear "you're browsing, not what Claude read" state and a "back to Claude's page"
    button.
-9. **Experiment: history mode**: on branch `experiment/history-mode`, in trial. After the first
+9. [x] **History mode** (tried and kept 2026-09-26; Settings → Windows & layout). After the first
    try: every action (each edit, plan, image, search, page) gets its own window, keyed by its
    tool call; default titles; browser is no longer a singleton and each on-screen browser window
    renders its own page (max 4 live, others keep their last frame); move/drag disabled.
 10. [x] **Nested view** (tried and kept 2026-09-26): a global setting (`nestedView`), not a
     per-desktop layout. On: one spiral page, layout buttons hidden, `layout` refused with a hint,
     guide tells Claude index 0 is the big pane. Scroll over bars/gaps or ⌘↑/⌘↓ walks it.
+
+11. [x] **Polish (2026-09-26)**: wallpaper drift ~2.5x faster and wider with a soft brightness
+    pulse; Settings "All sessions" grouped under Sessions / Windows & layout / Look / Dock.
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
