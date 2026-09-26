@@ -329,6 +329,11 @@ Other candidates:
   whether transcripts hold readable thinking or only redacted/signature blocks, and whether
   reading the transcript counts as the "no transcript tailing" rule from §3. Check a real
   transcript before building anything.
+  **Checked 2026-09-26** (a real 23 MB session transcript): 220 of 250 thinking blocks are empty
+  (signature only); the other 30 are short one-line summaries (~150-230 chars), not the reasoning
+  itself. So a thoughts app would be sparse. If wanted, the cheapest honest version is faint
+  "thinking: …" lines in the conversation app, read from the transcript on Stop from a saved byte
+  offset (this does bend the "no transcript tailing" rule). On hold pending the user's call.
 
 ## 6b. Experiment: history mode (design, not started)
 
