@@ -93,6 +93,43 @@ function lockPermissions() {
     permission === 'media' && micOk((details as { requestingUrl?: string }).requestingUrl ?? origin));
 }
 
+/**
+ * Apps embed pages from their declared origins inside the glass, which makes those pages
+ * third-party: the browser drops their SameSite cookies (e.g. a login cookie on a WebSocket).
+ * For declared origins only, keep the cookies they set and send them back to the same origin,
+ * as if the page were first-party.
+ */
+function firstPartyCookiesForDeclaredOrigins() {
+  const origins = [...new Set(Object.values(APPS).flatMap((a) => a.permissions?.network ?? []))];
+  if (!origins.length) return;
+  const ses = session.defaultSession;
+  const urls = origins.map((o) => `${o}/*`);
+  const cookieUrl = (u: string) => u.replace(/^ws/, 'http');
+  ses.webRequest.onHeadersReceived({ urls }, (d, cb) => {
+    const set = Object.entries(d.responseHeaders ?? {}).find(([k]) => k.toLowerCase() === 'set-cookie')?.[1] ?? [];
+    for (const line of set) {
+      const [pair, ...attrs] = line.split(';').map((x) => x.trim());
+      const eq = pair.indexOf('=');
+      if (eq < 1) continue;
+      const maxAge = Number(attrs.find((a) => /^max-age=/i.test(a))?.split('=')[1]);
+      ses.cookies.set({
+        url: cookieUrl(d.url), name: pair.slice(0, eq), value: pair.slice(eq + 1), httpOnly: attrs.some((a) => /^httponly$/i.test(a)),
+        ...(maxAge > 0 ? { expirationDate: Date.now() / 1000 + maxAge } : {}),
+      }).catch(() => {});
+    }
+    cb({ responseHeaders: d.responseHeaders });
+  });
+  ses.webRequest.onBeforeSendHeaders({ urls }, (d, cb) => {
+    ses.cookies.get({ url: cookieUrl(d.url) }).then((cookies) => {
+      const headers = { ...d.requestHeaders };
+      if (cookies.length && !Object.keys(headers).some((k) => k.toLowerCase() === 'cookie')) {
+        headers.Cookie = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+      }
+      cb({ requestHeaders: headers });
+    }).catch(() => cb({ requestHeaders: d.requestHeaders }));
+  });
+}
+
 let core: GlassCore;
 let win: BrowserWindow | null = null;
 let quitting = false;
@@ -101,6 +138,7 @@ async function boot() {
   lockPermissions();
   attachBuiltinViews(join(__dirname, 'apps'));
   core = new GlassCore(sessionId!, cwd);
+  firstPartyCookiesForDeclaredOrigins(); // after mods load: needs their declared origins
   try {
     await core.listen();
   } catch (e: any) {

@@ -128,6 +128,11 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 | `microphone` | `getUserMedia({ audio: true })` (never the camera), for the view and for pages it embeds from its `network` origins (give the inner iframe `allow="microphone"`). macOS will also ask the user once. |
 | `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
 
+Pages an app embeds from its `network` origins are third-party inside the glass, so browsers
+would drop their `SameSite` cookies (a login cookie on a WebSocket, say). For declared origins
+only, the glass keeps the cookies those servers set and sends them back to the same origin, as if
+the page were first-party. Nothing changes for any other site.
+
 Everything else, for every app, stays denied. Apps with these permissions can talk back to other
 services (a voice app, say): that's allowed as the app's own choice, but it never reaches the
 glass core, which stays one-way.
