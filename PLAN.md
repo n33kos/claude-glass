@@ -273,8 +273,23 @@ Queue, in order:
    ⌘←/⌘→ too); every app can be turned off in Settings (global `disabledApps`: windows close,
    hooks leave it untouched via `withoutDisabled`, commands are refused with a clear error, it
    leaves the catalog and guide); `apps eject` renamed `apps copy`.
-7. **Experiment: history mode** (not started; careful, see below).
-8. **Experiment: nested layout** (not started; see 6c). Works with either window mode.
+7. **Browser highlight** (not started): Claude points at the passage it's relying on.
+   `claude-glass app browser highlight --text "..."` stores the text on the current page entry;
+   the glass's own page copy scrolls to it and highlights it (Electron `findInPage`, or Chromium
+   text fragments `#:~:text=`, the "scroll to the quote" behavior from search results). Claude
+   decides when (the guide suggests: after reading a page, highlight the part you used). Not
+   automatic from WebFetch: its result is a model's summary, not verbatim page text, so matching
+   it would be unreliable. Pure one-way (Claude → glass). Kept in history, so going back shows
+   the page with its highlight.
+8. **Browse the glass's copy of a page** (not started): scroll, then click, in pages Claude
+   fetched. North-star check: this drives only the glass's own offscreen copy, never Claude's
+   browser, and nothing reaches Claude, so it's a viewing aid. The live Playwright/CDP stream
+   stays watch-only (input there would interfere with Claude's browser). Scroll first (wheel
+   over the frame → `sendInputEvent` on the offscreen page, via a host service); clicks second,
+   with a clear "you're browsing, not what Claude read" state and a "back to Claude's page"
+   button.
+9. **Experiment: history mode** (not started; careful, see below).
+10. **Experiment: nested layout** (not started; see 6c). Works with either window mode.
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
