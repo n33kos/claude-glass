@@ -308,6 +308,9 @@ Queue, in order:
     everything is denied except declared mic). Shown in Settings and `claude-glass apps`.
 
 Other candidates:
+- **Custom app icons**: an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
+  or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
+  glyphs stay the fallback. Built-ins could get proper icons too.
 - [x] Web research in the browser app (2026-09-26): PreToolUse WebSearch shows the query,
   PostToolUse lists results natively; PreToolUse WebFetch renders the page in a hidden offscreen
   Electron window (`src/main/webFeed.ts`: sandboxed, in-memory session, no popups/downloads/
