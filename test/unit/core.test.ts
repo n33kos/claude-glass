@@ -334,3 +334,25 @@ describe('disabled apps', () => {
     expect((s.appState.conversation as ConversationState).messages.length).toBeGreaterThan(0);
   });
 });
+
+describe('browser highlight and browsing', () => {
+  const cmd = (s: BrowserState, command: string, args: Record<string, unknown> = {}) => browser.command(s, command, args);
+  it('highlights the last fetched page and jumps to it', () => {
+    let s = cmd(cmd(browser.init(), 'web.page', { url: 'https://a.test/' }), 'web.search', { query: 'q' });
+    s = cmd(s, 'highlight', { text: '  the   key  passage ' });
+    expect(s.cursor).toBe(0);
+    expect(currentWeb(s)).toMatchObject({ kind: 'page', highlight: 'the key passage' });
+    s = cmd(s, 'web.found', { url: 'https://a.test/', matches: 2 });
+    expect(currentWeb(s)).toMatchObject({ found: 2 });
+    expect(() => cmd(browser.init(), 'highlight', { text: 'x' })).toThrow(/no page/);
+  });
+  it('browsing away and back is view state; home bumps homeSeq', () => {
+    let s = cmd(browser.init(), 'web.page', { url: 'https://a.test/' });
+    s = cmd(s, 'web.away', { url: 'https://b.test/' });
+    expect(s.away).toBe('https://b.test/');
+    const seq = s.homeSeq ?? 0;
+    s = cmd(s, 'web.home');
+    expect(s.away).toBeNull();
+    expect(s.homeSeq).toBe(seq + 1);
+  });
+});

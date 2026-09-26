@@ -9,7 +9,7 @@ import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { attachBuiltinViews } from '../core/mods';
 import { GlassCore } from '../core/server';
-import { WebFeed } from './webFeed';
+import { WebFeed, type WebInput } from './webFeed';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
 
 function arg(name: string): string | undefined {
@@ -120,6 +120,10 @@ async function boot() {
   });
   // The browser tile's shape, so the offscreen page renders to fill it (a view hint, not state).
   ipcMain.on('glass:webAspect', (_e, aspect: number) => { webAspect = Number(aspect) || 0; webFeed?.fit(webAspect); });
+  // Scroll/click in the glass's own copy of a fetched page (never Claude's browser).
+  ipcMain.on('glass:webInput', (_e, input: WebInput) => {
+    if (input && (input.type === 'wheel' || input.type === 'click')) webFeed?.input(input);
+  });
   ipcMain.handle('glass:lastFrame', (_e, id: string) => lastFrames.get(id) ?? null);
   ipcMain.handle('glass:config', (_e, key: string, value: unknown) => {
     try { return { ok: true, result: core.setConfig(key, value) }; } catch (e: any) { return { ok: false, error: e.message }; }
@@ -159,6 +163,7 @@ const streams = new Map<string, BrowserStream>();
 type Source = 'cdp' | 'web';
 const lastFrames = new Map<string, Partial<Record<Source, string>>>();
 let webFeed: WebFeed | null = null;
+let lastHomeSeq = 0;
 let webAspect = 0; // browser tile width / height, reported by the renderer
 
 function sendFrame(id: string, source: Source, data: string) {
@@ -191,16 +196,23 @@ function syncBrowserStreams() {
   // Web research: render the fetched page while the browser window is open and showing it.
   const b = s.appState.browser as BrowserState | undefined;
   const w = b?.view === 'web' ? currentWeb(b) : undefined;
-  const page = w?.kind === 'page' && s.order.includes('browser') ? w.url : null;
+  const page = w?.kind === 'page' && s.order.includes('browser') ? w : null;
   if (page) {
     if (!webFeed) {
-      webFeed = new WebFeed(
-        (data) => sendFrame('browser', 'web', data),
-        (url, title) => setImmediate(() => core.dispatch({ type: 'app.command', id: 'browser', command: 'web.title', args: { url, title } })),
-      );
+      const browserCmd = (command: string, args: Record<string, unknown>) =>
+        setImmediate(() => core.dispatch({ type: 'app.command', id: 'browser', command, args }));
+      webFeed = new WebFeed({
+        frame: (data) => sendFrame('browser', 'web', data),
+        title: (url, title) => browserCmd('web.title', { url, title }),
+        away: (url) => browserCmd('web.away', { url }),
+        found: (url, matches) => browserCmd('web.found', { url, matches }),
+      });
       webFeed.fit(webAspect);
     }
-    webFeed.show(page);
+    // "Home" (back to Claude's page) is an explicit request: a bumped homeSeq.
+    const home = (b!.homeSeq ?? 0) !== lastHomeSeq;
+    lastHomeSeq = b!.homeSeq ?? 0;
+    webFeed.show(page.url, page.highlight ?? null, home);
   } else webFeed?.hide();
 }
 

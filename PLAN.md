@@ -273,15 +273,18 @@ Queue, in order:
    ⌘←/⌘→ too); every app can be turned off in Settings (global `disabledApps`: windows close,
    hooks leave it untouched via `withoutDisabled`, commands are refused with a clear error, it
    leaves the catalog and guide); `apps eject` renamed `apps copy`.
-7. **Browser highlight** (not started): Claude points at the passage it's relying on.
+7. [x] **Browser highlight** (done 2026-09-26): Claude points at the passage it's relying on.
    `claude-glass app browser highlight --text "..."` stores the text on the current page entry;
    the glass's own page copy scrolls to it and highlights it (Electron `findInPage`, or Chromium
-   text fragments `#:~:text=`, the "scroll to the quote" behavior from search results). Claude
+   text fragments `#:~:text=`, the "scroll to the quote" behavior from search results).
+   As built: a self-contained script in the page copy finds the phrase across text nodes, marks
+   it with the CSS Custom Highlight API (no DOM edits) and scrolls to it; match count shown. Claude
    decides when (the guide suggests: after reading a page, highlight the part you used). Not
    automatic from WebFetch: its result is a model's summary, not verbatim page text, so matching
    it would be unreliable. Pure one-way (Claude → glass). Kept in history, so going back shows
    the page with its highlight.
-8. **Browse the glass's copy of a page** (not started): scroll, then click, in pages Claude
+8. [x] **Browse the glass's copy of a page** (done 2026-09-26; host service `page-input`,
+   browser app only; `web.away`/`web.home`, `homeSeq`): scroll, then click, in pages Claude
    fetched. North-star check: this drives only the glass's own offscreen copy, never Claude's
    browser, and nothing reaches Claude, so it's a viewing aid. The live Playwright/CDP stream
    stays watch-only (input there would interfere with Claude's browser). Scroll first (wheel

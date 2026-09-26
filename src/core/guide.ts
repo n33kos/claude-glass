@@ -47,7 +47,10 @@ DevTools port, then attach and bring it forward:
   Playwright: chromium.launch({ headless: true, args: ['--remote-debugging-port=9222'] })
   Chrome/Chromium: --headless=new --remote-debugging-port=9222
   claude-glass app browser attach [--cdp 9222] && claude-glass window move browser 0
-It follows the most recently active tab. Browsers without CDP (Firefox, WebKit): save a
+Web searches and pages you fetch show up there on their own. After reading a page, point the
+user at the passage you relied on: \`claude-glass app browser highlight --text "<a few exact words
+from the page>"\` (ask WebFetch to quote verbatim so the words match).
+The CDP view follows the most recently active tab. Browsers without CDP (Firefox, WebKit): save a
 screenshot after each step and run \`claude-glass app browser frame --file shot.png [--url U]\`.`;
 
 

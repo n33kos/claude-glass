@@ -55,8 +55,18 @@ export default function BrowserView({ state, run, host }: AppViewProps<BrowserSt
           </button>
         )}
       </div>
+      {state.view === 'web' && web?.kind === 'page' && (state.away || web.highlight) && (
+        <div className={`b-note${state.away ? ' away' : ''}`}>
+          {state.away
+            ? <><span>You're browsing <b>{hostOf(state.away)}</b>. This isn't the page Claude read.</span>
+                <button onClick={() => run('web.home')}>Back to Claude's page</button></>
+            : <span>Highlighted: “{truncate(web.highlight!, 90)}”{web.found === 0 ? ' · not found on the page' : web.found ? ` · ${web.found} match${web.found === 1 ? '' : 'es'}` : ''}</span>}
+        </div>
+      )}
       <div className="b-stage" ref={stageRef}>
-        {stage(state, web, frames)}
+        {state.view === 'web' && web?.kind === 'page' && frames.web
+          ? <LivePage data={frames.web} alt={web.title ?? web.url} host={host} />
+          : stage(state, web, frames)}
         {listOpen && <HistoryList history={history} at={at} onPick={go} onClose={() => setListOpen(false)} />}
       </div>
     </div>
@@ -78,7 +88,7 @@ function HistoryList({ history, at, onPick, onClose }: { history: WebActivity[];
           <li key={i} className={i === at ? 'on' : ''} onClick={() => onPick(i)}>
             <span className="b-h-kind">{h.kind === 'search' ? '⌕' : '◳'}</span>
             <span className="b-h-text">
-              <span className="b-h-title">{h.kind === 'search' ? h.query : h.title || host(h.url)}</span>
+              <span className="b-h-title">{h.kind === 'search' ? h.query : h.title || hostOf(h.url)}</span>
               <span className="b-h-sub">{h.kind === 'search' ? (h.results ? `search · ${h.results.length} results` : 'search · …') : h.url}</span>
             </span>
             <span className="b-h-time">{timeAgo(h.at)}</span>
@@ -89,7 +99,7 @@ function HistoryList({ history, at, onPick, onClose }: { history: WebActivity[];
   );
 }
 
-function host(url: string): string {
+function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
@@ -158,3 +168,22 @@ function SearchResults({ web }: { web: Extract<WebActivity, { kind: 'search' }> 
 }
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+
+/** The glass's own copy of a fetched page: scroll and click go to it (never to Claude's browser). */
+function LivePage({ data, alt, host }: { data: string; alt: string; host: AppViewProps['host'] }) {
+  // Where on the page (0..1) a point on the image is. The image is contained, top-centered.
+  const at = (img: HTMLImageElement, cx: number, cy: number) => {
+    const r = img.getBoundingClientRect();
+    const k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const w = img.naturalWidth * k, h = img.naturalHeight * k;
+    return { x: (cx - (r.left + (r.width - w) / 2)) / w, y: (cy - r.top) / h };
+  };
+  return (
+    <img className="b-live" src={`data:image/jpeg;base64,${data}`} alt={alt} draggable={false}
+      onWheel={(e) => host('page-input', { type: 'wheel', ...at(e.currentTarget, e.clientX, e.clientY), deltaX: e.deltaX, deltaY: e.deltaY })}
+      onClick={(e) => {
+        const p = at(e.currentTarget, e.clientX, e.clientY);
+        if (p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1) host('page-input', { type: 'click', ...p });
+      }} />
+  );
+}

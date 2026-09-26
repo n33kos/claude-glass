@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 // Built-in apps that ship in the mod format (the rest still have native views; see PLAN §8).
 const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser'];
 // Kept in sync with INTERNAL_COMMANDS in src/apps/registry.ts (hidden from Claude's catalog).
-const INTERNAL = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go']);
+const INTERNAL = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go', 'web.found', 'web.away', 'web.home']);
 
 mkdirSync('dist', { recursive: true });
 await Promise.all([

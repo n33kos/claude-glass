@@ -12,6 +12,7 @@ declare global {
       setConfig(key: string, value: unknown): Promise<{ ok: boolean; error?: string }>;
       onPatch(fn: (p: any) => void): () => void;
       webAspect(aspect: number): void;
+      webInput(input: unknown): void;
       lastFrame(id: string): Promise<Partial<Record<'cdp' | 'web', string>> | null>;
       onFrame(fn: (f: { id: string; source: 'cdp' | 'web'; data: string }) => void): () => void;
     };

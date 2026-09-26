@@ -13,7 +13,7 @@ import { type AppDef, type Args, capTail, str, unknownCommand } from '../types';
 export interface WebResult { title: string; url: string }
 export type WebActivity =
   | { kind: 'search'; query: string; results: WebResult[] | null; at: number } // null = still searching
-  | { kind: 'page'; url: string; title?: string; at: number };
+  | { kind: 'page'; url: string; title?: string; highlight?: string; found?: number; at: number };
 
 export interface BrowserState {
   view: 'off' | 'cdp' | 'shot' | 'web';
@@ -24,6 +24,8 @@ export interface BrowserState {
   shot?: { file: string; url?: string; title?: string; at: number };
   history: WebActivity[]; // web research in order, oldest first
   cursor: number; // history index on screen; -1 = follow the latest
+  away?: string | null; // the user browsed the glass's copy to this url (view-only)
+  homeSeq?: number; // bumped to send the glass's copy back to Claude's page
   updatedAt: number;
 }
 
@@ -62,12 +64,13 @@ export const browser: AppDef<BrowserState> = {
   title: 'Browser',
   icon: '◎',
   singleton: true,
-  viewCommands: ['web.go'],
+  viewCommands: ['web.go', 'web.home'],
   description: 'The browser you use, live. Web searches and fetched pages show up automatically. `attach` screencasts any Chromium with a DevTools port (Playwright, Puppeteer, Chrome --remote-debugging-port=9222) and follows its most recently active tab; run it headless. For other browsers, push screenshots with `frame --file`.',
   commands: {
     attach: { usage: `attach [--cdp <port|url>]`, help: `Stream a Chromium DevTools endpoint (default ${DEFAULT_CDP})` },
     frame: { usage: 'frame --file <png|jpg> [--url U] [--title T]', help: 'Show a screenshot (for browsers without CDP)' },
     detach: { usage: 'detach', help: 'Stop streaming' },
+    highlight: { usage: 'highlight --text <exact phrase from the page>', help: 'Scroll to and highlight a passage on the page you last fetched' },
   },
   init: () => ({ view: 'off', endpoint: null, status: 'off', history: [], cursor: -1, updatedAt: 0 }),
   command(s, cmd, a: Args) {
@@ -75,7 +78,7 @@ export const browser: AppDef<BrowserState> = {
     const history = s.history ?? [];
     // New research lands at the end and the view jumps to it (like the diff viewer).
     const push = (entry: WebActivity, replaceLast = false): BrowserState => ({
-      ...s, view: 'web', cursor: -1, updatedAt: now,
+      ...s, view: 'web', cursor: -1, away: null, updatedAt: now,
       history: capTail([...(replaceLast ? history.slice(0, -1) : history), entry], MAX_HISTORY),
     });
     switch (cmd) {
@@ -129,8 +132,29 @@ export const browser: AppDef<BrowserState> = {
         // Internal (UI back/forward/history list): only changes which entry is on screen.
         if (!history.length) return s;
         const i = Math.max(0, Math.min(history.length - 1, Math.floor(Number(a.index))));
-        return { ...s, view: 'web', cursor: i === history.length - 1 ? -1 : i };
+        return { ...s, view: 'web', cursor: i === history.length - 1 ? -1 : i, away: null, homeSeq: (s.homeSeq ?? 0) + 1 };
       }
+      case 'highlight': {
+        // Claude points at a passage on the page it last fetched; the view jumps there.
+        const text = str(a, 'text').replace(/\s+/g, ' ').trim().slice(0, 300);
+        const i = history.findLastIndex((h) => h.kind === 'page');
+        if (i === -1) throw new Error('browser: no page to highlight yet (it works on pages you fetched with WebFetch)');
+        const h = history.slice();
+        h[i] = { ...(h[i] as Extract<WebActivity, { kind: 'page' }>), highlight: text || undefined, found: undefined };
+        return { ...s, history: h, view: 'web', cursor: i === h.length - 1 ? -1 : i, away: null, homeSeq: (s.homeSeq ?? 0) + 1, updatedAt: now };
+      }
+      case 'web.found': {
+        const i = history.findLastIndex((h) => h.kind === 'page' && h.url === a.url);
+        const e = history[i];
+        if (!e || e.kind !== 'page' || e.found === Number(a.matches)) return s;
+        const h = history.slice();
+        h[i] = { ...e, found: Number(a.matches) };
+        return { ...s, history: h };
+      }
+      case 'web.away':
+        return (s.away ?? null) === (a.url ? String(a.url) : null) ? s : { ...s, away: a.url ? String(a.url) : null };
+      case 'web.home':
+        return { ...s, away: null, homeSeq: (s.homeSeq ?? 0) + 1 };
       default:
         return unknownCommand('browser', cmd);
     }

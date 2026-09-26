@@ -20,7 +20,7 @@ export function registerApp(app: AppDef): void {
 for (const app of [terminal, conversation, diff, markdown, image, html, browser, settings]) registerApp({ ...app, source: 'builtin' });
 
 // Commands used only by hooks/UI; hidden from the catalog Claude sees.
-export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go']);
+export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go', 'web.found', 'web.away', 'web.home']);
 
 export const isInternal = (app: AppDef, cmd: string) => INTERNAL_COMMANDS.has(cmd) || !!app.internal?.includes(cmd);
 

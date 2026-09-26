@@ -315,7 +315,16 @@ try {
 
   // Web research: WebSearch shows the query then results; WebFetch renders the page offscreen.
   {
-    const srv = createServer((_q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(`<title>Screencast docs</title>
+    const LONG = `<title>y:0</title><body style="margin:0;font:18px system-ui;background:#fff;color:#222;padding:30px 40px">
+      <script>addEventListener('scroll', () => { document.title = 'y:' + Math.round(scrollY); });</script>
+      <h1>Long article</h1><p><a href="/elsewhere" style="font-size:28px">A link somewhere else</a></p>
+      ${Array.from({ length: 60 }, (_, i) => `<p>Filler paragraph ${i} about nothing in particular.</p>`).join('')}
+      <p>The screencast frame acknowledgement keeps frames flowing.</p>
+      ${Array.from({ length: 30 }, (_, i) => `<p>More filler ${i}.</p>`).join('')}</body>`;
+    const srv = createServer((q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8');
+      if (q.url === '/long') return r.end(LONG);
+      if (q.url === '/elsewhere') return r.end('<title>Elsewhere</title><h1 style="font:40px system-ui">Somewhere else</h1>');
+      r.end(`<title>Screencast docs</title>
       <body style="margin:0;font:18px system-ui;background:#fff;color:#222"><header style="background:#1a73e8;color:#fff;padding:22px 40px;font-size:26px">Page domain</header>
       <main style="padding:30px 40px;max-width:780px"><h2>Page.startScreencast</h2><p>Starts sending each frame using the <code>screencastFrame</code> event.</p>
       <h3>Parameters</h3><ul><li><b>format</b> — jpeg or png</li><li><b>quality</b> — 0..100</li><li><b>maxWidth</b>, <b>maxHeight</b></li><li><b>everyNthFrame</b></li></ul></main></body>`); });
@@ -351,6 +360,46 @@ try {
       await appFrame(page, 'browser').locator('.b-hist li').first().click();
       await appFrame(page, 'browser').locator('.browserview .b-stage img').waitFor({ timeout: 5000 }).catch(() => {});
       check((await appFrame(page, 'browser').locator('.b-results').count()) === 0 && (await appFrame(page, 'browser').locator('.browserview .b-stage img').count()) === 1, 'picking the page from history shows it again');
+
+      // Highlight: Claude points at a passage; the page scrolls to it.
+      const longUrl = `http://127.0.0.1:${srv.address().port}/long`;
+      await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebFetch', tool_use_id: 'wf2', tool_input: { url: longUrl, prompt: 'x' } });
+      await sleep(1500);
+      await cli(env, 'app', 'browser', 'highlight', '--text', 'frame acknowledgement keeps');
+      await sleep(1500);
+      await page.screenshot({ path: join(shots, '09f-web-highlight.png') });
+      let b = JSON.parse(await cli(env, 'state', 'browser')).state;
+      let entry = b.history[b.history.length - 1];
+      check(entry.found === 1 && /^y:[1-9]/.test(entry.title), `highlight finds and scrolls to the passage (found ${entry.found}, ${entry.title})`);
+      // Scroll the glass's copy with the wheel, then click a link and come back.
+      const live = appFrame(page, 'browser').locator('.b-live');
+      const box = await live.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      const yBefore = Number(entry.title.slice(2));
+      await page.mouse.wheel(0, -600);
+      await sleep(900);
+      b = JSON.parse(await cli(env, 'state', 'browser')).state;
+      entry = b.history[b.history.length - 1];
+      const yAfter = Number(entry.title.slice(2));
+      check(yAfter < yBefore, `wheel scrolls the page copy (y ${yBefore} → ${yAfter})`);
+      for (let i = 0; i < 12; i++) {
+        await page.mouse.wheel(0, -1500);
+        await sleep(250);
+        const st2 = JSON.parse(await cli(env, 'state', 'browser')).state;
+        if (st2.history[st2.history.length - 1].title === 'y:0') break;
+      }
+      await sleep(500);
+      const lb = await live.boundingBox();
+      // The link sits near the top of the page: ~ (60px, 110px) of a 1024px-wide page.
+      await page.mouse.click(lb.x + lb.width * (130 / 1024), lb.y + lb.width * (112 / 1024));
+      await sleep(1200);
+      b = JSON.parse(await cli(env, 'state', 'browser')).state;
+      check(b.away && b.away.endsWith('/elsewhere'), `clicking a link browses the glass's copy (away: ${b.away})`);
+      await page.screenshot({ path: join(shots, '09g-web-browsing.png') });
+      await appFrame(page, 'browser').locator('.b-note button').click();
+      await sleep(1200);
+      b = JSON.parse(await cli(env, 'state', 'browser')).state;
+      check(b.away === null, "'Back to Claude's page' returns");
     } finally {
       srv.close();
     }

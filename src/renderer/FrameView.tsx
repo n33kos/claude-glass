@@ -52,6 +52,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
   function hostService(service: string, args: Record<string, unknown>) {
     if (service === 'lightbox' && typeof args.src === 'string') setLightbox({ src: args.src, alt: String(args.alt ?? '') });
     else if (service === 'aspect' && typeof args.value === 'number') window.glass.webAspect(args.value);
+    else if (service === 'page-input' && app.type === 'browser') window.glass.webInput(args);
   }
 
   // Props on ready and on every change (state slices keep identity when unchanged).
