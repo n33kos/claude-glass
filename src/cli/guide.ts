@@ -13,7 +13,7 @@ that feed the canvas: change files with Edit/Write (never sed, python, or heredo
 those edits never reach "changes"), write plans to plan files, and Read images you want to discuss.
 
   claude-canvas view                          layout: desktops, windows (index 0 = first slot), closed apps
-  claude-canvas show <file> [--title T]       .md → markdown, image → image viewer, .html → html canvas
+  claude-canvas show <file> [--id ID] [--title T]   .md → markdown, image → image, .html → html. Opens at 0
   claude-canvas new <type> [--id ID] [--title T]    types: markdown, html, image, diff
   claude-canvas app <id> <command> [--text T | --file F] [--key value]
       markdown: set|append   html: render   image: add --file F [--caption C]
@@ -24,8 +24,16 @@ those edits never reach "changes"), write plans to plan files, and Read images y
   claude-canvas layout <desktop#> full|split|main-left|columns|grid
   claude-canvas catalog                       all apps and commands
 
-Rules: run \`claude-canvas view\` before rearranging (the user may have moved things). New windows
-open at index 0 (first unpinned slot). Updating a window never moves it; only move it if it truly
-needs attention. Leave windows the user pinned where they are.
+Treat the canvas as a live feed of your focus. Hook updates (and \`app\` commands) never move
+windows, so directing attention is your job:
+- When you show or update something the user should look at now, bring it to index 0. Reuse a
+  window with \`show <file> --id <id>\`, which updates it and moves it to 0, or run
+  \`window move <id> 0\` after an \`app\` command. Don't pile up near-duplicate windows.
+- As the work shifts, reorder to match: what you're discussing or changing goes first, and
+  supporting context goes next to it (the plan beside the diff it drives, the chart beside its
+  numbers). Move stale windows back or close them.
+- Before rearranging, run \`claude-canvas view\` (the user may have moved things). Never move or
+  unpin windows the user pinned; the rest flow around them. Don't reshuffle on every tool call;
+  move windows when the topic changes.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.`;

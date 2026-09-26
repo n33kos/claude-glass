@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { ViewProps } from '../../renderer/viewTypes';
 import { timeAgo } from '../../renderer/viewTypes';
 import type { DiffState, Revision } from './index';
@@ -38,6 +39,10 @@ function Hunks({ rev }: { rev: Revision }) {
 }
 
 export function DiffView({ state, run, width, canvas }: ViewProps<DiffState>) {
+  // Newest edit first: when a new revision lands, the file list scrolls back to its top entry.
+  const filesRef = useRef<HTMLUListElement>(null);
+  const newest = state.files[0] ? `${state.files[0]}:${state.revisions[state.files[0]]?.length}` : '';
+  useLayoutEffect(() => { filesRef.current?.scrollTo({ top: 0 }); }, [newest]);
   const file = state.selected && state.revisions[state.selected] ? state.selected : state.files[0];
   if (!file) return <div className="d-empty big">File changes will appear here as Claude edits.</div>;
   const revs = state.revisions[file];
@@ -55,7 +60,7 @@ export function DiffView({ state, run, width, canvas }: ViewProps<DiffState>) {
   return (
     <div className={`diff${wide ? ' wide' : ''}`}>
       {wide ? (
-        <ul className="d-files">
+        <ul className="d-files" ref={filesRef}>
           {state.files.map((f) => (
             <li key={f}>
               <button className={f === file ? 'on' : ''} onClick={() => run('select', { path: f })} title={f}>
@@ -83,7 +88,7 @@ export function DiffView({ state, run, width, canvas }: ViewProps<DiffState>) {
           <span className="d-when">{rev.source} · {timeAgo(rev.at)}</span>
         </div>
         {rev.note && <p className="d-note">{rev.note}</p>}
-        <Hunks rev={rev} />
+        <Hunks key={`${file}:${idx}:${rev.at}`} rev={rev} />
       </div>
     </div>
   );

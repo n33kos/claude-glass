@@ -38,7 +38,7 @@ export function TerminalView({ state, run, canvas }: ViewProps<TerminalState>) {
   const tools = useMemo(() => [...new Set(state.entries.filter((e) => e.tool).map((e) => e.tool!))].sort(), [state.entries]);
   const hidden = new Set(state.hidden);
   const visible = state.entries.filter((e) => !e.tool || !hidden.has(e.tool));
-  const ref = useStickToBottom<HTMLDivElement>(visible.length + (visible[visible.length - 1]?.status ?? ''));
+  const ref = useStickToBottom<HTMLDivElement>(visible[visible.length - 1]?.id, visible[visible.length - 1]?.status);
   // The call held up by a permission prompt: matched by id, else the latest running call (of that tool).
   const w = canvas.session.endedAt ? undefined : canvas.session.waiting;
   const lockedId = w?.kind !== 'permission' ? undefined

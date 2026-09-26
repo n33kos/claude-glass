@@ -230,6 +230,11 @@ canvas (hooks, bin on PATH, session binding, CLI all work).
       summary, read-only question card under the top bar, lock on the held terminal row, edge glow
       (global `waitingGlow`, default on). PermissionRequest/Notification payload shapes are from
       docs, not captured yet: capture real ones into the fixtures file.
+- [x] Live feed: guide tells Claude to bring what it's working on to index 0 and reorder by
+      relevance (prose for now; a deterministic `focusOnUpdate` config is the fallback if prose
+      isn't enough). Views always show the newest entry: terminal/conversation jump to bottom on a
+      new entry (and stay there on resize), markdown append scrolls down, diff list/hunks reset
+      to the newest revision.
 
 ### Next candidates (not started)
 - Browser stream app (Playwright screencast into a window)

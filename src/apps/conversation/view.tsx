@@ -17,7 +17,7 @@ function Bubble({ m }: { m: Message }) {
 
 export function ConversationView({ state, canvas }: ViewProps<ConversationState>) {
   const last = state.messages[state.messages.length - 1];
-  const ref = useStickToBottom<HTMLDivElement>(state.messages.length + (last ? messageText(last).length : 0));
+  const ref = useStickToBottom<HTMLDivElement>(last?.id, last ? messageText(last).length : 0);
   const working = canvas.session.activity === 'working' && !canvas.session.endedAt;
   return (
     <div className="conversation" ref={ref}>
