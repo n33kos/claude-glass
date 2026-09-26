@@ -30,7 +30,7 @@ export interface Waiting {
 }
 
 export interface SessionSettings {
-  autoOpen: { changes: boolean; plan: boolean; images: boolean };
+  autoOpen: { changes: boolean; plan: boolean; images: boolean; web?: boolean }; // web: absent = on
   windowOpacity?: number;
 }
 

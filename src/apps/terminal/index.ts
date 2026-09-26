@@ -1,3 +1,4 @@
+import { searchResults } from '../browser';
 import { type AppDef, type Args, capTail, clip, str, unknownCommand } from '../types';
 
 export interface TermEntry {
@@ -62,6 +63,14 @@ export function summarizeOutput(tool: string, response: any): string {
       }
       if (!hunks.length && response.type === 'create') return 'created';
       return `+${add} −${del}`;
+    }
+    case 'WebSearch': {
+      const results = searchResults(response);
+      return clip([`${results.length} result${results.length === 1 ? '' : 's'}`, ...results.map((r) => `${r.title}  ${r.url}`)].join('\n'), MAX_OUTPUT);
+    }
+    case 'WebFetch': {
+      const head = [response.code && `${response.code} ${response.codeText ?? ''}`.trim(), response.bytes != null && `${(response.bytes / 1024).toFixed(1)} KB`].filter(Boolean).join(' · ');
+      return clip([head, typeof response.result === 'string' ? response.result : ''].filter(Boolean).join('\n'), MAX_OUTPUT);
     }
     case 'Grep': case 'Glob': {
       if (typeof response.content === 'string' && response.content) return clip(response.content, MAX_OUTPUT);

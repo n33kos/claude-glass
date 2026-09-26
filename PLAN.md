@@ -190,7 +190,7 @@ dispatch})`). Registered in `src/apps/registry.ts` (core) and `src/renderer/view
 | markdown | no (`plan` auto) | `set --text/--file`, `append` | rendered markdown |
 | image | no (`images` auto) | `add --file [--caption]` | flip ◀ ▶ |
 | html | no | `render --text/--file` | sandboxed iframe (`allow-scripts`, no same-origin) |
-| browser | yes | `attach [--cdp port\|url]`, `frame --file [--url]`, `detach` | live CDP screencast of the most recently active tab (Electron main runs `core/cdp.ts`; frames go straight to the renderer, only status/url/title hit the reducer), or the latest pushed screenshot for non-CDP browsers. Local endpoints only; watch-only |
+| browser | yes | `attach [--cdp port\|url]`, `frame --file [--url]`, `detach` (+ hooks: WebSearch results, WebFetch pages) | live CDP screencast of the most recently active tab (Electron main runs `core/cdp.ts`; frames go straight to the renderer, only status/url/title hit the reducer), or the latest pushed screenshot for non-CDP browsers. Local endpoints only; watch-only |
 | settings | yes | — | global + session settings form |
 
 ## 5. Testing strategy
@@ -260,6 +260,13 @@ Queue, in order:
    glass never sends input to the page.
 
 Other candidates:
+- `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
+  (plugin `bin/` is only on PATH inside Claude's Bash tool). Low priority: Claude is the main user.
+- [x] Web research in the browser app (2026-09-26): PreToolUse WebSearch shows the query,
+  PostToolUse lists results natively; PreToolUse WebFetch renders the page in a hidden offscreen
+  Electron window (`src/main/webFeed.ts`: sandboxed, in-memory session, no popups/downloads/
+  permissions, muted) and streams its paints. Latest activity wins between cdp/shot/web; a cdp
+  navigation takes the screen back. Session setting `autoOpen.web`. Payloads captured in fixtures.
 - Per-app storage files instead of one state.json; state size limits for huge sessions
 - Packaged .app (electron-builder) so the dock shows "Claude Glass" instead of "Electron"
 - Placeholder ghost slot while dragging; keyboard reorder

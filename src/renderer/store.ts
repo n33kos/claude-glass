@@ -9,8 +9,8 @@ declare global {
       dispatch(action: Action): Promise<{ ok: boolean; result?: unknown; error?: string }>;
       setConfig(key: string, value: unknown): Promise<{ ok: boolean; error?: string }>;
       onPatch(fn: (p: any) => void): () => void;
-      lastFrame(id: string): Promise<string | null>;
-      onFrame(fn: (f: { id: string; data: string }) => void): () => void;
+      lastFrame(id: string): Promise<Partial<Record<'cdp' | 'web', string>> | null>;
+      onFrame(fn: (f: { id: string; source: 'cdp' | 'web'; data: string }) => void): () => void;
     };
   }
 }

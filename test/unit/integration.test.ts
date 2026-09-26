@@ -110,7 +110,7 @@ describe('hook forwarder', () => {
     for (const p of payloads) await hook({ ...p, session_id: SID });
     await wait(100);
     const term = core.state.appState.terminal as any;
-    expect(term.entries.map((e: any) => e.tool)).toEqual(['Read', 'Edit', 'Bash']);
+    expect(term.entries.map((e: any) => e.tool)).toEqual(['Read', 'Edit', 'Bash', 'WebSearch', 'WebFetch']);
     expect((core.state.appState.conversation as any).messages.length).toBe(3);
     expect(core.state.appState.changes).toBeTruthy();
   });

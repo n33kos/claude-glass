@@ -1,4 +1,5 @@
 // Deterministic hook → state mapping. Zero Claude tokens: everything here happens automatically.
+import { searchResults } from '../apps/browser';
 import { summarizeTool } from '../apps/terminal';
 import { autoCommand, reduce } from './reducer';
 import type { GlassState, Waiting } from './types';
@@ -68,6 +69,9 @@ export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
     case 'PreToolUse':
       s = reduce(s, { type: 'session.update', patch: { activity: 'working' } }).state;
       if (p.tool_name === 'AskUserQuestion') s = setWaiting(s, questionWait(p));
+      // Web research shows up in the browser as it starts: the query, or the page being fetched.
+      if (p.tool_name === 'WebSearch' && p.tool_input?.query) s = web(s, 'web.search', { query: String(p.tool_input.query) });
+      if (p.tool_name === 'WebFetch' && p.tool_input?.url) s = web(s, 'web.page', { url: String(p.tool_input.url) });
       return cmd(s, 'terminal', 'tool.start', { id: p.tool_use_id ?? `t-${Date.now()}`, tool: p.tool_name, input: p.tool_input });
     case 'PostToolUse':
     case 'PostToolUseFailure': {
@@ -100,6 +104,9 @@ export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   }
 }
 
+const web = (s: GlassState, command: string, args: Record<string, unknown>) =>
+  autoCommand(s, { id: 'browser', appType: 'browser', title: 'Browser', command, args, autoOpen: s.settings.autoOpen.web !== false });
+
 function applyToolSideEffects(
   s: GlassState, tool: string, input: any, response: any, ctx: HookContext, auto: GlassState['settings']['autoOpen'],
 ): GlassState {
@@ -121,6 +128,10 @@ function applyToolSideEffects(
 
   if (tool === 'ExitPlanMode' && typeof input.plan === 'string') {
     s = autoCommand(s, { id: 'plan', appType: 'markdown', title: 'Plan', command: 'set', args: { text: input.plan }, autoOpen: auto.plan });
+  }
+
+  if (tool === 'WebSearch' && input.query && response) {
+    s = web(s, 'web.search', { query: String(response.query ?? input.query), results: searchResults(response) });
   }
 
   if (tool === 'Read' && path && IMAGE_RE.test(path)) {

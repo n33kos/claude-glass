@@ -16,7 +16,7 @@ export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<
     desktops: ['main-left'],
     instances: {},
     appState: {},
-    settings: { autoOpen: { changes: true, plan: true, images: true } },
+    settings: { autoOpen: { changes: true, plan: true, images: true, web: true } },
     ui: { viewingDesktop: 0 },
     autoOpened: [],
   };

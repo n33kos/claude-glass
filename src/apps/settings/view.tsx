@@ -23,6 +23,7 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Open file changes automatically" on={s.autoOpen.changes} onChange={(v) => setSession('autoOpen.changes', v)} />
       <Toggle label="Open plans automatically" on={s.autoOpen.plan} onChange={(v) => setSession('autoOpen.plan', v)} />
       <Toggle label="Open images Claude reads" on={s.autoOpen.images} onChange={(v) => setSession('autoOpen.images', v)} />
+      <Toggle label="Open the browser for web searches and pages" on={s.autoOpen.web !== false} onChange={(v) => setSession('autoOpen.web', v)} />
       <label className="s-row">
         <span>Window opacity {s.windowOpacity != null ? `(${Math.round(s.windowOpacity * 100)}%)` : '(global)'}</span>
         <span className="s-inline">

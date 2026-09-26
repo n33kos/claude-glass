@@ -6,6 +6,7 @@ import { filesDir } from '../core/paths';
 import type { BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { GlassCore } from '../core/server';
+import { WebFeed } from './webFeed';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
 
 function arg(name: string): string | undefined {
@@ -118,7 +119,14 @@ async function boot() {
 // Browser app: one CDP screencast per open browser window with an endpoint. Frames bypass the
 // reducer (a video feed, not state); the stream reports status/url/title through it.
 const streams = new Map<string, BrowserStream>();
-const lastFrames = new Map<string, string>();
+type Source = 'cdp' | 'web';
+const lastFrames = new Map<string, Partial<Record<Source, string>>>();
+let webFeed: WebFeed | null = null;
+
+function sendFrame(id: string, source: Source, data: string) {
+  lastFrames.set(id, { ...lastFrames.get(id), [source]: data });
+  if (win && !win.isDestroyed()) win.webContents.send('glass:frame', { id, source, data });
+}
 
 function syncBrowserStreams() {
   const s = core.state;
@@ -133,10 +141,7 @@ function syncBrowserStreams() {
   for (const [id, endpoint] of want) {
     if (streams.has(id)) continue;
     const stream = new BrowserStream(endpoint, {
-      frame: (data) => {
-        lastFrames.set(id, data);
-        if (win && !win.isDestroyed()) win.webContents.send('glass:frame', { id, data });
-      },
+      frame: (data) => sendFrame(id, 'cdp', data),
       status: (st) => setImmediate(() => {
         if (streams.get(id) === stream) core.dispatch({ type: 'app.command', id, command: 'status', args: { ...st } });
       }),
@@ -144,6 +149,17 @@ function syncBrowserStreams() {
     streams.set(id, stream);
     stream.start();
   }
+
+  // Web research: render the fetched page while the browser window is open and showing it.
+  const b = s.appState.browser as BrowserState | undefined;
+  const page = b?.view === 'web' && b.web?.kind === 'page' && s.order.includes('browser') ? b.web.url : null;
+  if (page) {
+    webFeed ??= new WebFeed(
+      (data) => sendFrame('browser', 'web', data),
+      (url, title) => setImmediate(() => core.dispatch({ type: 'app.command', id: 'browser', command: 'web.title', args: { url, title } })),
+    );
+    webFeed.show(page);
+  } else webFeed?.hide();
 }
 
 function createWindow() {
@@ -185,6 +201,7 @@ async function shutdown() {
   if (quitting) return;
   quitting = true;
   for (const s of streams.values()) s.stop();
+  webFeed?.destroy();
   try { await core?.close(); } catch {}
   if (win && !win.isDestroyed()) win.destroy();
   app.exit(0);

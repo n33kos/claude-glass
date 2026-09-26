@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { browser, normalizeEndpoint } from '../../src/apps/browser';
+import { browser, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
@@ -149,7 +149,7 @@ describe('hooks (real captured payloads)', () => {
 
   it('records every tool call in the terminal', () => {
     const term = run().appState.terminal as TerminalState;
-    expect(term.entries.map((e) => e.tool)).toEqual(['Read', 'Edit', 'Bash']);
+    expect(term.entries.map((e) => e.tool)).toEqual(['Read', 'Edit', 'Bash', 'WebSearch', 'WebFetch']);
     expect(term.entries.every((e) => e.status === 'ok')).toBe(true);
     expect(term.entries[2].summary).toBe('$ echo done');
     expect(term.entries[2].output).toBe('done');
@@ -157,7 +157,7 @@ describe('hooks (real captured payloads)', () => {
 
   it('auto-opens the changes diff viewer once', () => {
     const s = run();
-    expect(s.order[0]).toBe('changes');
+    expect(s.order).toContain('changes');
     const d = s.appState.changes as DiffState;
     expect(d.files).toHaveLength(1);
     expect(d.revisions[d.files[0]][0].hunks[0].lines).toEqual(['-hello world', '+goodbye world']);
@@ -235,6 +235,23 @@ describe('browser app', () => {
   });
   it('frame shows a pushed screenshot and stops streaming', () => {
     const s = browser.command(browser.command(browser.init(), 'attach', {}), 'frame', { file: '/f/shot.png', url: 'https://b.test/' });
-    expect(s).toMatchObject({ endpoint: null, status: 'pushed', frame: '/f/shot.png', url: 'https://b.test/' });
+    expect(s).toMatchObject({ view: 'shot', shot: { file: '/f/shot.png', url: 'https://b.test/' } });
+  });
+  it('web research: the query first, then results; a fetched page takes over; cdp navigation takes it back', () => {
+    const web = fixtures.filter((p) => p.tool_name === 'WebSearch' || p.tool_name === 'WebFetch');
+    let s = fresh();
+    s = applyHook(s, web[0], ctx); // PreToolUse WebSearch
+    const b = () => s.appState.browser as BrowserState;
+    expect(s.order[0]).toBe('browser'); // auto-opened
+    expect(b().web).toMatchObject({ kind: 'search', query: 'Chrome DevTools Protocol Page.startScreencast', results: null });
+    s = applyHook(s, web[3], ctx); // PostToolUse WebSearch
+    expect((b().web as any).results[0]).toEqual({ title: expect.stringContaining('Background transparency'), url: 'https://github.com/ChromeDevTools/devtools-protocol/issues/162' });
+    s = applyHook(s, web[1], ctx); // PreToolUse WebFetch
+    expect(b()).toMatchObject({ view: 'web', web: { kind: 'page', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' } });
+    s = reduce(s, { type: 'app.command', id: 'browser', command: 'attach', args: {} }).state;
+    s = reduce(s, { type: 'app.command', id: 'browser', command: 'web.page', args: { url: 'https://x.test/' } }).state;
+    expect(b().view).toBe('web');
+    s = reduce(s, { type: 'app.command', id: 'browser', command: 'status', args: { status: 'live', url: 'https://app.test/', title: 'App' } }).state;
+    expect(b().view).toBe('cdp');
   });
 });

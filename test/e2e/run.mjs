@@ -1,6 +1,7 @@
 // Visual E2E: launch Electron against a temp home, seed content, capture screenshots.
 // Screenshots land in test/screenshots/ — LOOK at them after UI changes.
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -260,6 +261,37 @@ try {
     await page.screenshot({ path: join(shots, '09b-browser-pushed.png') });
     const pushed = await page.locator('.browserview .b-stage img').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
     check(pushed, 'browser view shows a pushed screenshot');
+  }
+
+  // Web research: WebSearch shows the query then results; WebFetch renders the page offscreen.
+  {
+    const srv = createServer((_q, r) => { r.setHeader('content-type', 'text/html; charset=utf-8'); r.end(`<title>Screencast docs</title>
+      <body style="margin:0;font:18px system-ui;background:#fff;color:#222"><header style="background:#1a73e8;color:#fff;padding:22px 40px;font-size:26px">Page domain</header>
+      <main style="padding:30px 40px;max-width:780px"><h2>Page.startScreencast</h2><p>Starts sending each frame using the <code>screencastFrame</code> event.</p>
+      <h3>Parameters</h3><ul><li><b>format</b> — jpeg or png</li><li><b>quality</b> — 0..100</li><li><b>maxWidth</b>, <b>maxHeight</b></li><li><b>everyNthFrame</b></li></ul></main></body>`); });
+    await new Promise((res) => srv.listen(0, '127.0.0.1', res));
+    const url = `http://127.0.0.1:${srv.address().port}/docs/page`;
+    try {
+      await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebSearch', tool_use_id: 'ws1', tool_input: { query: 'CDP screencast parameters' } });
+      await sleep(400);
+      check((await page.locator('.browserview .b-meta').innerText()).includes('searching'), 'web search shows while searching');
+      await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'WebSearch', tool_use_id: 'ws1', tool_input: { query: 'CDP screencast parameters' },
+        tool_response: { query: 'CDP screencast parameters', results: [{ tool_use_id: 'x', content: [
+          { title: 'Chrome DevTools Protocol - Page domain', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' },
+          { title: 'How to do video recording on headless chrome', url: 'https://medium.com/@anchen.li/how-to-do-video-recording' },
+          { title: 'puppeteer screen recorder', url: 'https://github.com/axelboberg/puppeteer-screen-recorder' }] }, 'Summary text'] } });
+      await sleep(500);
+      await page.screenshot({ path: join(shots, '09c-web-search.png') });
+      check((await page.locator('.b-results li').count()) === 3, 'web search results are listed');
+      await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebFetch', tool_use_id: 'wf1', tool_input: { url, prompt: 'params?' } });
+      await page.waitForFunction(() => document.querySelector('.browserview .b-stage img')?.naturalWidth > 0, null, { timeout: 8000 }).catch(() => {});
+      await sleep(800);
+      await page.screenshot({ path: join(shots, '09d-web-page.png') });
+      const st = JSON.parse(await cli(env, 'state', 'browser')).state;
+      check(st.view === 'web' && st.web.title === 'Screencast docs', `fetched page renders in the browser (title ${st.web?.title})`);
+    } finally {
+      srv.close();
+    }
   }
 
   // Session ended
