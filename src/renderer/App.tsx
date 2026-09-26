@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { APPS } from '../apps/registry';
 import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, type DesktopPage } from '../core/layout';
 import type { InstanceMeta, LayoutName, Waiting } from '../core/types';
-import { backgroundStyle } from './backgrounds';
+import { wallpaper } from './backgrounds';
 import { dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
 
@@ -135,7 +135,8 @@ export function App() {
   const rel = (t: string) => (s.cwd ? t.split(s.cwd + '/').join('') : t);
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
-    <div className={`canvas${config.dockAutoHide ? ' dock-autohide' : ''}${glow}`} style={backgroundStyle(config.background)}>
+    <div className={`canvas${config.dockAutoHide ? ' dock-autohide' : ''}${glow}`}>
+      <Wallpaper bg={config.background} animate={config.animateBackground} />
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>
@@ -192,6 +193,15 @@ export function App() {
         const p = placed.find((x) => x.id === id);
         setView(p ? p.page : 0);
       }} />
+    </div>
+  );
+}
+
+function Wallpaper({ bg, animate }: { bg: string; animate: boolean }) {
+  const w = useMemo(() => wallpaper(bg), [bg]);
+  return (
+    <div className={`wallpaper${animate ? ' drifting' : ''}`} style={w.style} aria-hidden>
+      {w.blobs.map((b, i) => <div key={i} className={`bokeh bokeh-${i % 4}`} style={b.style} />)}
     </div>
   );
 }

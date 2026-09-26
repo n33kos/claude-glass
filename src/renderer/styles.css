@@ -29,7 +29,20 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-.canvas { position: relative; height: 100%; display: flex; flex-direction: column; background-size: cover; }
+.canvas { position: relative; isolation: isolate; height: 100%; display: flex; flex-direction: column; }
+
+/* Wallpaper: base gradient + bokeh layers. Drift is transform-only (compositor), long and slow,
+   each blob on its own period so the pattern never visibly repeats. */
+.wallpaper { position: absolute; inset: 0; z-index: -1; overflow: hidden; background-size: cover; }
+.bokeh { position: absolute; will-change: transform; }
+.drifting .bokeh-0 { animation: drift-a 47s ease-in-out infinite alternate; }
+.drifting .bokeh-1 { animation: drift-b 61s ease-in-out infinite alternate; }
+.drifting .bokeh-2 { animation: drift-c 53s ease-in-out infinite alternate; }
+.drifting .bokeh-3 { animation: drift-a 71s ease-in-out -20s infinite alternate-reverse; }
+@keyframes drift-a { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(6%, 5%) scale(1.08); } 100% { transform: translate(-4%, 8%) scale(.96); } }
+@keyframes drift-b { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-7%, 6%) scale(.94); } 100% { transform: translate(-3%, -5%) scale(1.06); } }
+@keyframes drift-c { 0% { transform: translate(0, 0) scale(1.04); } 50% { transform: translate(5%, -7%) scale(1); } 100% { transform: translate(8%, 3%) scale(.95); } }
+@media (prefers-reduced-motion: reduce) { .drifting .bokeh { animation: none; } }
 
 /* ---- top bar ------------------------------------------------------------------ */
 .topbar {

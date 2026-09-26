@@ -41,7 +41,8 @@ export interface GlobalConfig {
   windowOpacity: number;
   dockAutoHide: boolean; // dock overlays and hides; windows get its space
   dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
-  waitingGlow: boolean; // faint amber edge glow while Claude waits on the user
+  waitingGlow: boolean;
+  animateBackground: boolean; // preset wallpapers drift slowly // faint amber edge glow while Claude waits on the user
 }
 
 export interface CanvasState {

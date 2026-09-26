@@ -235,6 +235,9 @@ canvas (hooks, bin on PATH, session binding, CLI all work).
       isn't enough). Views always show the newest entry: terminal/conversation jump to bottom on a
       new entry (and stay there on resize), markdown append scrolls down, diff list/hunks reset
       to the newest revision.
+- [x] Animated wallpapers: presets are a base gradient + bokeh layers drifting on long,
+      staggered transform-only loops (47–71s). Global `animateBackground` (default on); off
+      under prefers-reduced-motion. Image-path backgrounds stay static.
 
 ### Next candidates (not started)
 - Browser stream app (Playwright screencast into a window)

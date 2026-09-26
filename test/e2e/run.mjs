@@ -34,6 +34,13 @@ try {
   await seed(env);
   await sleep(1200);
   await page.screenshot({ path: join(shots, '02-seeded.png') });
+  {
+    const pos = () => page.locator('.bokeh').first().evaluate((e) => getComputedStyle(e).transform);
+    const a = await pos();
+    await sleep(1500);
+    const b = await pos();
+    check((await page.locator('.wallpaper.drifting .bokeh').count()) >= 2 && a !== b, 'background bokeh drifts');
+  }
   const view = await cli(env, 'view');
   console.log(view);
   check(view.includes('Desktop 2'), 'overflow spills onto desktop 2');

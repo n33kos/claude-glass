@@ -12,6 +12,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   dockAutoHide: false,
   dockOrder: 'windows',
   waitingGlow: true,
+  animateBackground: true,
 };
 
 export function loadConfig(): GlobalConfig {
@@ -40,7 +41,8 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
   switch (key) {
     case 'autoStart':
     case 'dockAutoHide':
-    case 'waitingGlow': return value === true || value === 'true';
+    case 'waitingGlow':
+    case 'animateBackground': return value === true || value === 'true';
     case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
     case 'defaultLayout': if (!isLayout(value)) throw new Error(`unknown layout ${value}`); return value;

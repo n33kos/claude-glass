@@ -53,6 +53,7 @@ export function SettingsView({ canvas, config }: ViewProps) {
           {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
         </select>
       </label>
+      <Toggle label="Slowly drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
       <div className="s-row s-col">
         <span>Background</span>
         <div className="swatches">
