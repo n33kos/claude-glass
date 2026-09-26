@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { APPS } from '../apps/registry';
 import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, type DesktopPage } from '../core/layout';
 import type { InstanceMeta, LayoutName } from '../core/types';
@@ -182,7 +182,7 @@ export function App() {
       </main>
 
       {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
-      <Dock pages={pages} onReveal={(id) => {
+      <Dock pages={pages} viewing={v} onReveal={(id) => {
         const p = placed.find((x) => x.id === id);
         setView(p ? p.page : 0);
       }} />
@@ -252,9 +252,13 @@ function LayoutGlyph({ name }: { name: LayoutName }) {
   );
 }
 
-function Dock({ pages, onReveal }: { pages: DesktopPage[]; onReveal: (id: string) => void }) {
+function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: number; onReveal: (id: string) => void }) {
   const { state, config } = useSnapshot();
   const open = new Set(pages.flatMap((p) => p.windows));
+  const pageOf = new Map(pages.flatMap((p) => p.windows.map((id) => [id, p.index] as const)));
+  // Apps on desktops you aren't looking at are dimmed, so the dock reads like a strip of screens.
+  const offScreen = (id: string) => pageOf.has(id) && pageOf.get(id) !== viewing;
+  const group = (id: string) => pageOf.get(id) ?? -1; // -1 = closed
   const tile = new Map(pages.flatMap((p) => p.windows).map((id, i) => [id, i]));
   const rank = (m: InstanceMeta) => (m.type === 'conversation' ? 0 : m.type === 'terminal' ? 1 : 2);
   const fixed = (a: InstanceMeta, b: InstanceMeta) => rank(a) - rank(b) || a.createdAt - b.createdAt;
@@ -267,16 +271,19 @@ function Dock({ pages, onReveal }: { pages: DesktopPage[]; onReveal: (id: string
   return (
     <footer className="dock-wrap">
       <div className="dock">
-        {items.map((m) => (
-          <button key={m.id} className="dock-item" title={m.title}
-            onClick={() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id)))}>
-            <span className={`tile tile-${m.type}`}>{APPS[m.type]?.icon}</span>
-            <span className="label">{m.title}</span>
-            {open.has(m.id) && <i className="running" />}
-          </button>
+        {items.map((m, i) => (
+          <Fragment key={m.id}>
+            {config.dockOrder !== 'fixed' && i > 0 && group(items[i - 1].id) !== group(m.id) && <span className="dock-sep screen" />}
+            <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}`} title={m.title}
+              onClick={() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id)))}>
+              <span className={`tile tile-${m.type}`}>{APPS[m.type]?.icon}</span>
+              <span className="label">{m.title}</span>
+              {open.has(m.id) && <i className="running" />}
+            </button>
+          </Fragment>
         ))}
         <span className="dock-sep" />
-        <button className="dock-item" title="Settings"
+        <button className={`dock-item${offScreen('settings') ? ' off-screen' : ''}`} title="Settings"
           onClick={() => (settingsOpen ? onReveal('settings') : dispatch({ type: 'instance.create', appType: 'settings' }).then(() => onReveal('settings')))}>
           <span className="tile tile-settings">{APPS.settings.icon}</span>
           <span className="label">Settings</span>

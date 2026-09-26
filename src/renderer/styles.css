@@ -124,7 +124,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .dock-item .tile {
   width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; font-size: 17px; font-weight: 600;
   background: linear-gradient(180deg, #3a4157, #252a3a); border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: transform .15s ease-out, filter .15s;
+  transition: transform .15s ease-out, filter .15s, opacity .25s;
 }
 .dock-item:hover .tile { transform: translateY(-2px); filter: brightness(1.15); }
 .dock-autohide .dock-wrap {
@@ -132,7 +132,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   transition: transform .22s cubic-bezier(.2, .8, .2, 1) .25s;
 }
 .dock-autohide .dock-hot:hover ~ .dock-wrap, .dock-autohide .dock-wrap:has(.dock:hover) { transform: none; transition-delay: 0s; }
-.dock-hot { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; z-index: 39; }
+.dock-hot { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; z-index: 39; }
+.dock-item.off-screen .tile { opacity: .55; filter: saturate(.7); }
+.dock-item.off-screen:hover .tile { opacity: 1; filter: none; }
 .tile-terminal { background: linear-gradient(180deg, #2b2f3a, #13151b) !important; color: #9ef0b5; font-family: var(--mono); }
 .tile-conversation { background: linear-gradient(180deg, #5aa9ff, #2f6fe0) !important; font-size: 17px; }
 .tile-diff { background: linear-gradient(180deg, #3fcf8e, #1f8f5f) !important; color: #fff; }
@@ -147,6 +149,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .dock-item:hover .label { opacity: 1; }
 .running { position: absolute; bottom: -6px; width: 14px; height: 3px; border-radius: 2px; background: var(--sky); }
 .dock-sep { width: 1px; align-self: stretch; margin: 4px 4px; background: rgba(255, 255, 255, 0.18); }
+.dock-sep.screen { margin: 7px 3px; background: rgba(127, 200, 255, 0.32); }
 
 /* ---- terminal ------------------------------------------------------------------ */
 .terminal { height: 100%; display: flex; flex-direction: column; font: 12px/1.5 var(--mono); }

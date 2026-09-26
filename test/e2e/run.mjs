@@ -157,6 +157,9 @@ try {
     const winTitles = await Promise.all(winIds.map((id) => page.locator(`[data-window="${id}"] .wtitle`).innerText()));
     check(dockTitles.slice(0, winTitles.length).join('|') === winTitles.map((t) => t.replace(/^\S+\s*/, '')).join('|') ||
       dockTitles.slice(0, winTitles.length).every((t, i) => winTitles[i].endsWith(t)), `dock order matches window order (${dockTitles.slice(0, 4).join(', ')})`);
+    const seps = await page.locator('.dock-sep.screen').count();
+    const dimmed = await page.locator('.dock-item.off-screen').count();
+    check(seps >= 1 && dimmed >= 1, `dock separates desktops (${seps} separators) and dims apps on other desktops (${dimmed})`);
     const stageH = () => page.locator('.stage').evaluate((e) => e.clientHeight);
     const before = await stageH();
     await cli(env, 'settings', 'set', 'dockAutoHide', 'true');
@@ -166,7 +169,7 @@ try {
     await page.screenshot({ path: join(shots, '07b-dock-hidden.png') });
     check(after > before && hiddenTop >= after + 40 - 2, `auto-hide gives the stage the dock's space (${before} → ${after}) and hides it`);
     const vp = page.viewportSize() ?? (await page.evaluate(() => ({ width: innerWidth, height: innerHeight })));
-    await page.mouse.move(vp.width / 2, vp.height - 2);
+    await page.mouse.move(vp.width / 2, vp.height - 12);
     await sleep(500);
     const shownBottom = await page.locator('.dock').evaluate((e) => e.getBoundingClientRect().bottom);
     await page.screenshot({ path: join(shots, '07c-dock-revealed.png') });
