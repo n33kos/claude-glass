@@ -39,6 +39,25 @@ try {
   await sleep(600);
   await page.screenshot({ path: join(shots, '01-empty.png') });
   check((await page.locator('.window').count()) === 2, 'starts with conversation + terminal');
+  check((await page.locator('.titlebar .wid').count()) === 0, 'title bars show the title once (no repeated id)');
+  // Mouse wheel outside windows switches desktops (setting on by default).
+  {
+    await cli(env, 'new', 'markdown', '--title', 'Wheel A');
+    await cli(env, 'new', 'markdown', '--title', 'Wheel B');
+    await cli(env, 'layout', '1', 'split');
+    await sleep(400);
+    const topbar = await page.locator('.topbar').boundingBox();
+    await page.mouse.move(topbar.x + topbar.width / 2, topbar.y + topbar.height / 2);
+    await page.mouse.wheel(0, 120);
+    await sleep(700);
+    const viewing = JSON.parse(await cli(env, 'view', '--json')).userViewingDesktop;
+    check(viewing === 1, `wheel over the top bar moves to the next desktop (viewing ${viewing + 1})`);
+    await page.keyboard.press('Meta+ArrowLeft');
+    await sleep(500);
+    for (const w of JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows)) if (w.title.startsWith('Wheel')) await cli(env, 'window', 'close', w.id);
+    await cli(env, 'layout', '1', 'grid');
+    await sleep(300);
+  }
 
   await seed(env);
   await sleep(1200);
@@ -111,6 +130,7 @@ try {
   for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -200); await sleep(40); }
   await sleep(200);
   const zoom = await page.locator('.lb-zoom').textContent();
+  check(JSON.parse(await cli(env, 'view', '--json')).userViewingDesktop === 0, 'zooming the lightbox does not switch desktops');
   check(parseInt(zoom) > 150, `wheel zooms the lightbox (got ${zoom})`);
   await page.screenshot({ path: join(shots, '06g-lightbox-zoomed.png') });
   await page.keyboard.press('Escape');
@@ -192,7 +212,7 @@ try {
   await page.locator('.settings').evaluate((el) => { el.scrollTop = el.scrollHeight; });
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07d-settings-apps.png') });
-  check((await page.locator('.s-app-bad').count()) === 1 && (await page.locator('.s-app').count()) === 2, 'settings lists custom apps and the one that failed');
+  check((await page.locator('.s-app-bad').count()) === 1 && (await page.locator('.s-app').count()) >= 9, 'settings lists every app, plus the custom one that failed');
   check((await page.locator('.settings').count()) === 1, 'settings opens from the dock');
 
   // Close a window via traffic light, reopen from dock

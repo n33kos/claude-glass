@@ -263,10 +263,17 @@ Queue, in order:
 
 4. [x] **Custom apps ("mods")** (done 2026-09-26): drop a folder into `~/.claude/claude-glass/apps/`
    and it works. Design in §8, author docs in `docs/apps.md`. Every built-in app except Settings
-   ships in the mod format; `claude-glass apps [new|eject]`.
+   ships in the mod format; `claude-glass apps [new|copy]`.
 5. [x] **"Claude decides" layout** (done 2026-09-26; `fitLayout`, `guideFor`): a `defaultLayout` option (`claude`) where new desktops start
    with a fit for their window count (1 full, 2 split, 3 main-left, 4 grid) and the guide tells
    Claude to pick each desktop's layout for what it's showing (`claude-glass layout`).
+
+6. [x] **Feedback round (2026-09-26)**: title bars show the title once (id in the tooltip);
+   vertical scroll outside windows switches desktops (global `wheelDesktops`, default on;
+   ⌘←/⌘→ too); every app can be turned off in Settings (global `disabledApps`: windows close,
+   hooks leave it untouched via `withoutDisabled`, commands are refused with a clear error, it
+   leaves the catalog and guide); `apps eject` renamed `apps copy`.
+7. **Experiment: history mode** (not started; careful, see below).
 
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
@@ -292,6 +299,32 @@ Other candidates:
   whether transcripts hold readable thinking or only redacted/signature blocks, and whether
   reading the transcript counts as the "no transcript tailing" rule from §3. Check a real
   transcript before building anything.
+
+## 6b. Experiment: history mode (design, not started)
+
+Idea: instead of updating one "changes"/"plan"/"images"/"browser" window in place and
+reordering, every new thing Claude produces opens a **new window**. Because new windows already
+insert at slot 0 and older ones spill onto later desktops, scrolling right becomes scrolling
+back in time: a running visual log of the session.
+
+Risk: this touches how hooks pick instances, window counts grow without bound, and it could
+feel noisy. The user wants to try it and back it out cleanly if it isn't good, without raising
+cyclomatic complexity. So:
+
+- **One seam, no new branches in the reducer or layout.** Hooks already call `autoCommand` with
+  a fixed instance id (`changes`, `plan`, `images`, `browser`). History mode replaces that id
+  choice with one function, `targetId(kind, state, mode)`: `live` mode → the fixed id (today);
+  `history` mode → a fresh id per event (e.g. `changes-17`), created open at slot 0. Everything
+  else (layout, desktops, dock, persistence, views) is unchanged.
+- **Granularity:** one window per event is too many for diffs (every Edit). Start with one per
+  *turn* per kind: all edits in a turn land in that turn's "Changes" window; the next turn opens
+  a new one. `turn_id` is in the hook payloads.
+- **Bound it:** keep at most N history windows (setting, e.g. 24); the oldest close (their state
+  is dropped) so state.json and the dock stay bounded.
+- **Singletons stay live:** conversation and terminal are already running logs.
+- **Setting:** global `windowMode: 'live' | 'history'` (default live). Off = exactly today.
+- **Try it on a branch** (`experiment/history-mode`), use it for real sessions, then decide:
+  merge, adjust, or delete the branch. No partial merges.
 
 ## 7. Future ideas (not MVP)
 

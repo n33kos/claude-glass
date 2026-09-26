@@ -100,7 +100,7 @@ const HELP = `claude-glass — Claude's monitor for this Claude Code session
 ${GUIDE.split('\n').slice(8).join('\n')}
 
 Other: open | close | status [--all] | state [id] | settings [set <key> <value>] | --session ID | --json
-Apps:  apps (list) | apps new <type> | apps eject <type>   (custom apps live in ~/.claude/claude-glass/apps)`;
+Apps:  apps (list) | apps new <type> | apps copy <type>   (custom apps live in ~/.claude/claude-glass/apps)`;
 
 async function main(argv: string[]) {
   const { pos, flags } = parse(argv);
@@ -230,7 +230,7 @@ async function main(argv: string[]) {
     case 'apps': {
       const [sub, type] = rest;
       const dir = appsDir();
-      if (sub === 'new' || sub === 'eject') {
+      if (sub === 'new' || sub === 'copy') {
         if (!type || !/^[a-z][a-z0-9-]{0,31}$/.test(type)) throw new Error(`usage: claude-glass apps ${sub} <type>   (lowercase letters, digits, dashes)`);
         const dest = join(dir, type);
         if (existsSync(dest)) throw new Error(`${dest} already exists`);

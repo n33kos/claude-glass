@@ -43,6 +43,8 @@ export interface GlobalConfig {
   dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
   waitingGlow: boolean; // faint amber edge glow while Claude waits on the user
   animateBackground: boolean; // preset wallpapers drift slowly
+  wheelDesktops: boolean; // vertical scroll outside any window switches desktops
+  disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
   scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
 }
 

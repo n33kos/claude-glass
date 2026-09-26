@@ -62,11 +62,15 @@ export function App() {
     };
     let acc = 0, cool = 0;
     const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) < Math.abs(e.deltaY) * 1.5) return;
-      if ((e.target as HTMLElement).closest?.('.scroll-x')) return;
+      const target = e.target as HTMLElement;
+      // Horizontal swipe anywhere; vertical scroll (mouse wheels) only outside windows, if enabled.
+      const horizontal = Math.abs(e.deltaX) >= Math.abs(e.deltaY) * 1.5;
+      const vertical = !horizontal && config.wheelDesktops && !target.closest?.('.window, .layout-menu, .question-card, .lightbox');
+      if (!horizontal && !vertical) return;
+      if (target.closest?.('.scroll-x')) return;
       const now = Date.now();
       if (now < cool) return;
-      acc += e.deltaX;
+      acc += horizontal ? e.deltaX : e.deltaY;
       if (Math.abs(acc) > 90) {
         setView(Math.max(0, Math.min(pages.length - 1, v + Math.sign(acc))));
         acc = 0; cool = now + 650;
@@ -75,7 +79,7 @@ export function App() {
     window.addEventListener('keydown', onKey);
     window.addEventListener('wheel', onWheel, { passive: true });
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); };
-  }, [v, pages.length, setView]);
+  }, [v, pages.length, setView, config.wheelDesktops]);
 
   const placed = useMemo(() => place(pages, size.W, size.H), [pages, size]);
   const opacityFor = (m: InstanceMeta) => m.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
@@ -261,8 +265,7 @@ function WindowFrame(props: {
           <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />
           <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />
         </div>
-        <span className="wtitle"><em>{app?.icon}</em>{meta.title}</span>
-        <span className="wid">{meta.id}</span>
+        <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em>{app?.icon}</em>{meta.title}</span>
         <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}
           aria-label={props.pinned ? 'Unpin window' : 'Pin window'} aria-pressed={props.pinned}
           onClick={() => dispatch(props.pinned ? { type: 'window.unpin', id: meta.id } : { type: 'window.pin', id: meta.id })}>
@@ -307,7 +310,8 @@ function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: num
   // "windows": open apps in tile order (left to right = first slot onward), closed apps after.
   const byWindows = (a: InstanceMeta, b: InstanceMeta) =>
     (tile.get(a.id) ?? Infinity) - (tile.get(b.id) ?? Infinity) || fixed(a, b);
-  const items = Object.values(state.instances).filter((m) => m.type !== 'settings')
+  const off = new Set(config.disabledApps ?? []);
+  const items = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type))
     .sort(config.dockOrder === 'fixed' ? fixed : byWindows);
   const settingsOpen = open.has('settings');
   return (

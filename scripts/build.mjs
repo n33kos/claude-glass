@@ -59,6 +59,6 @@ ${view ? `<link rel="stylesheet" href="view.css">\n` : ''}</head>
 </html>
 `);
   if (existsSync(`${src}/guide.md`)) cpSync(`${src}/guide.md`, `${out}/guide.md`);
-  // The TypeScript sources ride along for reference when someone ejects a built-in.
+  // The TypeScript sources ride along for reference when someone copies a built-in.
   cpSync(src, `${out}/src`, { recursive: true });
 }

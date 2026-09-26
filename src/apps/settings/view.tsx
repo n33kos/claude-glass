@@ -4,7 +4,7 @@ import { BACKGROUNDS } from '../../renderer/backgrounds';
 import { apps, dispatch, mods, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
 
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: React.ReactNode }) {
   return (
     <label className="s-row">
       <span>{label}</span>
@@ -62,6 +62,7 @@ export function SettingsView({ glass, config }: ViewProps) {
           {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
         </select>
       </label>
+      <Toggle label="Scroll outside windows to switch desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />
       <Toggle label="Slowly drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
       <div className="s-row s-col">
         <span>Background</span>
@@ -76,15 +77,24 @@ export function SettingsView({ glass, config }: ViewProps) {
         </form>
       </div>
 
-      <h3>Custom apps</h3>
-      {mods.length === 0 && <p className="s-note">None installed. Add one with <code>claude-glass apps new &lt;name&gt;</code>; they live in <code>~/.claude/claude-glass/apps</code>.</p>}
-      {mods.map((m) => (
-        <div key={m.dir} className={`s-row s-app${m.ok ? '' : ' s-app-bad'}`} title={m.dir}>
-          <span><b>{apps[m.type]?.icon ?? '▢'}</b> {apps[m.type]?.title ?? m.type} <code>{m.type}</code>{m.overrides ? ' · replaces the built-in' : ''}</span>
-          <span className="s-app-status">{m.ok ? 'loaded' : m.error}</span>
+      <h3>Apps</h3>
+      <p className="s-note">Turned-off apps are hidden and Claude can't use them. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>).</p>
+      {Object.values(apps).filter((a) => a.type !== 'settings').map((a) => {
+        const mod = mods.find((m) => m.ok && m.type === a.type);
+        const on = !config.disabledApps.includes(a.type);
+        return (
+          <Toggle key={a.type} on={on}
+            onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
+            label={<span className="s-app"><b>{a.icon}</b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}</span>} />
+        );
+      })}
+      {mods.filter((m) => !m.ok).map((m) => (
+        <div key={m.dir} className="s-row s-app s-app-bad" title={m.dir}>
+          <span>▢ <code>{m.type}</code></span>
+          <span className="s-app-status">{m.error}</span>
         </div>
       ))}
-      {mods.length > 0 && <p className="s-note">Changes load when the glass restarts.</p>}
+      <p className="s-note">New or changed custom apps load when the glass restarts.</p>
       <p className="s-foot">Session {glass.session.id}</p>
     </div>
   );

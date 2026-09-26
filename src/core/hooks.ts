@@ -9,6 +9,8 @@ export interface HookContext {
   ingestFile(path: string): string | null;
   /** Read a text file (for plan files after an Edit). Returns null if unreadable. */
   readText(path: string): string | null;
+  /** App types the user turned off: hooks leave them untouched. */
+  disabled?: ReadonlySet<string>;
 }
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
@@ -41,7 +43,23 @@ const endsWait = (w: Waiting | undefined, p: any) => !!w && (!w.toolUseId || !p.
 
 export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   // Built-in effects first, then any app that watches hooks itself (onHook).
-  return reduce(builtinHook(s, p, ctx), { type: 'app.hook', payload: p }).state;
+  const next = reduce(builtinHook(s, p, ctx), { type: 'app.hook', payload: p }).state;
+  return ctx.disabled?.size ? withoutDisabled(s, next, ctx.disabled) : next;
+}
+
+/** Undo whatever a hook did to apps the user turned off (built-in or custom alike). */
+export function withoutDisabled(prev: GlassState, next: GlassState, disabled: ReadonlySet<string>): GlassState {
+  const ids = Object.values(next.instances).filter((i) => disabled.has(i.type)).map((i) => i.id);
+  if (!ids.some((id) => next.appState[id] !== prev.appState[id] || !prev.instances[id])) return next;
+  const out: GlassState = { ...next, instances: { ...next.instances }, appState: { ...next.appState } };
+  for (const id of ids) {
+    if (prev.instances[id]) { out.appState[id] = prev.appState[id]; continue; }
+    delete out.instances[id];
+    delete out.appState[id];
+    out.order = out.order.filter((o) => o !== id);
+    out.autoOpened = out.autoOpened.filter((o) => o !== id);
+  }
+  return out;
 }
 
 function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {

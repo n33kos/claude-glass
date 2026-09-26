@@ -321,3 +321,16 @@ describe('custom apps (mods)', () => {
     expect(guideFor({ defaultLayout: 'grid' })).toContain('## Tool count (`tool-count`)');
   });
 });
+
+describe('disabled apps', () => {
+  it('hooks leave turned-off apps untouched (no auto-created windows, no state changes)', () => {
+    const ctxOff: HookContext = { ...ctx, disabled: new Set(['diff', 'terminal']) };
+    let s = fresh();
+    const term = s.appState.terminal;
+    for (const p of fixtures) s = applyHook(s, p, ctxOff);
+    expect(s.instances.changes).toBeUndefined();
+    expect(s.order).not.toContain('changes');
+    expect(s.appState.terminal).toBe(term);
+    expect((s.appState.conversation as ConversationState).messages.length).toBeGreaterThan(0);
+  });
+});

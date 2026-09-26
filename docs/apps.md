@@ -5,7 +5,7 @@ Drop a folder into `~/.claude/claude-glass/apps/`, restart the glass, and it's t
 
 ```
 claude-glass apps new my-app      # starter app in ~/.claude/claude-glass/apps/my-app
-claude-glass apps eject diff      # copy a built-in to modify it (yours overrides it)
+claude-glass apps copy diff       # copy a built-in to modify it (yours overrides it)
 claude-glass apps                 # what's installed, and why a broken app didn't load
 claude-glass close && claude-glass open   # restart the glass to pick up changes
 ```
@@ -101,13 +101,19 @@ the window's glass shows through.
 Images the glass stored (e.g. from `claude-glass show`) are at `glass-file://f<absolute path>`.
 
 The built-in apps are written in React with `src/sdk/react.tsx` (`mount(View)`), which wraps
-the same bridge. Their sources come along when you eject one (`src/`).
+the same bridge. Their sources come along when you copy one (`src/`).
 
 ### `guide.md`
 
 Appended to the instructions Claude gets when the glass opens (up to 1,500 characters). Say
 when to use your app and which commands to run. This is how you shape Claude's behavior with
 your app.
+
+## Turning apps off
+
+Settings lists every app with a switch. A turned-off app's windows close, hooks leave it alone,
+it disappears from Claude's catalog and instructions, and commands to it fail with a message
+telling Claude not to use it.
 
 ## Trust
 

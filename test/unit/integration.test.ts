@@ -205,8 +205,8 @@ describe('apps CLI', () => {
     expect(app.command(app.init(), 'set', { text: 'hi' })).toMatchObject({ text: 'hi' });
     expect(app.guide).toContain('claude-glass app demo-notes set');
   });
-  it('apps eject copies a built-in that loads as a user mod', async () => {
-    await cli('apps', 'eject', 'image');
+  it('apps copy copies a built-in that loads as a user mod', async () => {
+    await cli('apps', 'copy', 'image');
     const app = readMod(join(home, 'apps', 'image'));
     expect(app).toMatchObject({ type: 'image', source: 'user' });
     expect(existsSync(join(home, 'apps', 'image', 'src', 'view.tsx'))).toBe(true);
@@ -214,5 +214,17 @@ describe('apps CLI', () => {
   it('apps lists what the live glass loaded', async () => {
     const out = await cli('apps');
     expect(out).toContain('builtin  terminal');
+  });
+});
+
+describe('turning apps off', () => {
+  it('refuses commands to a disabled app and hides it from the catalog', async () => {
+    core.setConfig('disabledApps', ['html']);
+    const r = await run(join(root, 'bin/claude-glass'), ['new', 'html']);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('turned off by the user');
+    expect((JSON.parse(await cli('catalog', '--json')) as any[]).some((a) => a.type === 'html')).toBe(false);
+    core.setConfig('disabledApps', []);
+    expect(await cli('new', 'html')).toMatch(/^html-/);
   });
 });

@@ -46,7 +46,17 @@ export class GlassCore {
     for (const fn of this.listeners) fn(this.state, this.config);
   }
 
+  private assertEnabled(action: Action) {
+    const disabled = this.config.disabledApps ?? [];
+    if (!disabled.length) return;
+    const type = action.type === 'instance.create' ? action.appType
+      : action.type === 'app.command' || action.type === 'window.open' ? this.state.instances[action.id]?.type
+      : undefined;
+    if (type && disabled.includes(type)) throw new Error(`the "${type}" app is turned off by the user (in Settings). Don't use it.`);
+  }
+
   dispatch(action: Action): unknown {
+    this.assertEnabled(action);
     const { state, result } = reduce(this.state, action);
     this.commit(state);
     return result ?? null;
@@ -55,6 +65,7 @@ export class GlassCore {
   hook(payload: unknown): void {
     this.commit(applyHook(this.state, payload, {
       ingestFile: (p) => this.ingestFile(p),
+      disabled: new Set(this.config.disabledApps ?? []),
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
     }));
   }
@@ -76,6 +87,13 @@ export class GlassCore {
     const v = coerceConfigValue(key as keyof GlobalConfig, value);
     this.config = { ...this.config, [key]: v };
     saveConfig(this.config);
+    if (key === 'disabledApps') {
+      // Close the windows of apps that were just turned off.
+      const off = new Set(this.config.disabledApps);
+      let s = this.state;
+      for (const id of s.order) if (off.has(s.instances[id]?.type)) s = reduce(s, { type: 'window.close', id }).state;
+      this.commit(s);
+    }
     for (const fn of this.listeners) fn(this.state, this.config);
     return this.config;
   }
@@ -93,7 +111,7 @@ export class GlassCore {
   }
 
   catalog() {
-    return Object.values(APPS).map((a) => ({
+    return Object.values(APPS).filter((a) => !this.config.disabledApps?.includes(a.type)).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
       source: a.source,
       commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
@@ -128,7 +146,7 @@ export class GlassCore {
     }
   }
 
-  /** Listen on the session socket. Rejects if another live glass already owns it. */
+  /** Listen on the session socket. Rcopies if another live glass already owns it. */
   async listen(): Promise<string> {
     const path = socketPath(this.sessionId);
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });

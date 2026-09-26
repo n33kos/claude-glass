@@ -60,8 +60,8 @@ main-left; three peers → columns; four at a glance → grid. Change it when th
 on every update.`;
 
 /** The guide for this user's settings plus the instructions each installed app ships. */
-export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'>): string {
-  const apps = Object.values(APPS).filter((a) => a.guide);
+export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps'>>): string {
+  const apps = Object.values(APPS).filter((a) => a.guide && !config.disabledApps?.includes(a.type));
   const appGuides = apps.length
     ? '\n\n# Installed apps\n' + apps.map((a) => `\n## ${a.title} (\`${a.type}\`)\n${a.guide}`).join('\n')
     : '';

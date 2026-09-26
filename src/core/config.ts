@@ -14,6 +14,8 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   waitingGlow: true,
   animateBackground: true,
   scope: 'session',
+  wheelDesktops: true,
+  disabledApps: [],
 };
 
 export function loadConfig(): GlobalConfig {
@@ -43,7 +45,12 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'autoStart':
     case 'dockAutoHide':
     case 'waitingGlow':
-    case 'animateBackground': return value === true || value === 'true';
+    case 'animateBackground':
+    case 'wheelDesktops': return value === true || value === 'true';
+    case 'disabledApps': {
+      const list = Array.isArray(value) ? value : String(value ?? '').split(',');
+      return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];
+    }
     case 'scope': if (value !== 'session' && value !== 'folder') throw new Error(`scope must be session or folder`); return value;
     case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));

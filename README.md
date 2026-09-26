@@ -85,7 +85,7 @@ restarts and resumes all continue in the same window. A folder glass's id is
 Every window is an app, and anyone can write one: drop a folder into
 `~/.claude/claude-glass/apps/` (or run `claude-glass apps new <name>`) and restart the glass.
 Apps can fill themselves from Claude Code hooks, take commands from Claude, and ship their own
-instructions for Claude. The built-in apps use the same format; `claude-glass apps eject <type>`
+instructions for Claude. The built-in apps use the same format; `claude-glass apps copy <type>`
 copies one so you can change it. See [docs/apps.md](docs/apps.md).
 
 ## Files
