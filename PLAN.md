@@ -259,6 +259,9 @@ Queue, in order:
    Claude to always run the browser headless so the glass is the only view of it. One-way: the
    glass never sends input to the page.
 
+4. **Custom apps ("mods")**: drop a folder into `~/.claude/claude-glass/apps/` and it works.
+   Design in §8. Not started.
+
 Other candidates:
 - `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
   (plugin `bin/` is only on PATH inside Claude's Bash tool). Low priority: Claude is the main user.
@@ -291,3 +294,57 @@ state.json, Linux support.
 
 Ruled out (2026-09-26): user→Claude back-channel (breaks the one-way north star) and timeline
 scrubbing (not the direction for this project).
+
+## 8. Custom apps ("mods"): design (not started)
+
+Goal: Claude Glass is an extensible framework with a few built-in apps. Anyone can write an app,
+drop its folder in place, restart the glass, and it works, including instructions that tell
+Claude how to use it. Simple, abstract, no special cases for built-ins.
+
+**Feasible with this stack.** The app contract already exists (`AppDef` in core: pure
+`init/command`; a view in the renderer). What's missing is loading apps at runtime instead of
+compiling them in, and a view boundary that doesn't depend on our React build.
+
+### A mod on disk
+```
+~/.claude/claude-glass/apps/<type>/
+  glass-app.json   manifest: { type, title, icon, singleton, description, version,
+                               commands: { name: { usage, help, view?: true } }, apiVersion: 1 }
+  core.js          CommonJS, pure: exports { init(), command(state, cmd, args), onHook?(state, payload) }
+  view.html        the view: any framework or none, self-contained (inline or relative assets)
+  guide.md         optional: instructions for Claude, appended to the glass guide
+```
+
+### The two interfaces (the part that must be rock solid)
+1. **Core (`core.js`)**: exactly today's `AppDef` minus the view: a pure reducer over the
+   app's own state slice. Runs in Electron main (and plain Node for tests). Optional
+   `onHook(state, payload)` gets every hook payload, so a mod can fill itself automatically
+   (e.g. a test-results app watching `PostToolUse` Bash). It can't touch other apps' state.
+2. **View (`view.html`)**: runs in a sandboxed iframe (like the html app, own origin, strict
+   CSP, CDN scripts allowed) and talks over `postMessage` only:
+   - glass → view: `{ kind: 'state', state, meta, size, theme }` on every change
+   - view → glass: `{ kind: 'run', command, args }`, only for commands the manifest marks
+     `view: true` (selection, paging: how things are viewed)
+   Framework-agnostic, versioned (`apiVersion`), and a broken mod can't crash the glass. We ship
+   a tiny optional helper (`glass-app.js`: `onState(fn)`, `run(cmd, args)`) and a starter template.
+
+### One-way stays enforced by construction
+Mods get no channel to Claude: the view can only run its own view commands, core only reduces
+state. Claude drives a mod through the same CLI as any app: `claude-glass app <id> <cmd>`.
+
+### Instructions for Claude
+`claude-glass open` and SessionStart append each mod's `guide.md` (capped, e.g. 1.5 KB each)
+under "Installed apps", and `catalog` lists mod commands. Authors control how Claude uses their
+app without touching the core guide.
+
+### Loading, errors, trust
+- Loaded once at glass start (restart to pick up changes; hot reload later if wanted).
+- Validate the manifest; reject type collisions with built-ins; a mod that throws is disabled
+  and listed in Settings with its error. Other mods and the glass keep running.
+- Trust: `core.js` runs in the main process with Node access, like any plugin you install.
+  Say so in the docs. The view is sandboxed.
+- Later: project-level mods (`<project>/.claude/glass-apps/`), `claude-glass apps install <git url>`.
+
+### Dogfood
+Port one built-in (html or image) to the mod format to prove the interface and serve as the
+reference example. Built-ins may keep native React views, but register through the same loader.
