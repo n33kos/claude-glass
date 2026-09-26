@@ -35,6 +35,7 @@ export function SettingsView({ canvas, config }: ViewProps) {
       <h3>All canvases</h3>
       <Toggle label="Open a canvas when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
       <Toggle label="Auto-hide the dock (shows at the bottom edge)" on={config.dockAutoHide} onChange={(v) => setConfig('dockAutoHide', v)} />
+      <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
       <label className="s-row">
         <span>Dock order</span>
         <select value={config.dockOrder} onChange={(e) => setConfig('dockOrder', e.target.value)}>

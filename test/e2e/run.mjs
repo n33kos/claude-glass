@@ -187,6 +187,28 @@ try {
   await page.screenshot({ path: join(shots, '08-working.png') });
   check((await page.locator('.presence-working').count()) === 1, 'presence shows working');
 
+  // Waiting on the user: permission prompt (pill + terminal lock), then a question (read-only card).
+  await cli(env, 'window', 'move', 'terminal', '0');
+  await hook(env, { hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1' });
+  await sleep(500);
+  await page.screenshot({ path: join(shots, '08b-waiting-permission.png') });
+  check((await page.locator('.presence-waiting').count()) === 1 && (await page.locator('.t-locked').count()) === 1, 'permission prompt shows waiting pill and locks the terminal row');
+  check((await page.locator('.canvas.waiting-glow').count()) === 1, 'waiting glow is on by default');
+  await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1', tool_response: { stdout: 'built' } });
+  await hook(env, {
+    hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'ask1',
+    tool_input: { questions: [{ header: 'Deploy', question: 'Ship the build to staging now?', multiSelect: false, options: [
+      { label: 'Yes, ship it', description: 'Deploys the build you just made to staging' },
+      { label: 'Not yet', description: 'Keep working locally' }] }] },
+  });
+  await sleep(500);
+  await page.screenshot({ path: join(shots, '08c-waiting-question.png') });
+  const card = page.locator('.question-card');
+  check((await card.count()) === 1 && (await card.locator('button').count()) === 0 && (await card.innerText()).includes('Answer in Claude Code'), 'question card is shown, read-only');
+  await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'ask1', tool_input: {}, tool_response: {} });
+  await sleep(400);
+  check((await page.locator('.question-card').count()) === 0 && (await page.locator('.presence-waiting').count()) === 0, 'answering clears the waiting state');
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);

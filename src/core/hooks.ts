@@ -1,6 +1,7 @@
 // Deterministic hook → state mapping. Zero Claude tokens: everything here happens automatically.
+import { summarizeTool } from '../apps/terminal';
 import { autoCommand, reduce } from './reducer';
-import type { CanvasState } from './types';
+import type { CanvasState, Waiting } from './types';
 
 export interface HookContext {
   /** Copy a file into the session files dir; returns the stored absolute path (or null). */
@@ -16,11 +17,44 @@ const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write']);
 const cmd = (s: CanvasState, id: string, command: string, args: Record<string, unknown>) =>
   reduce(s, { type: 'app.command', id, command, args }).state;
 
+const setWaiting = (s: CanvasState, waiting: Waiting | undefined) =>
+  s.session.waiting === waiting ? s : reduce(s, { type: 'session.update', patch: { waiting } }).state;
+
+function questionWait(p: any): Waiting {
+  const qs = Array.isArray(p.tool_input?.questions) ? p.tool_input.questions : [];
+  const questions = qs.map((q: any) => ({
+    question: String(q?.question ?? ''),
+    header: q?.header ? String(q.header) : undefined,
+    options: (Array.isArray(q?.options) ? q.options : []).map((o: any) => ({
+      label: String(o?.label ?? o ?? ''), description: o?.description ? String(o.description) : undefined,
+    })),
+  }));
+  return {
+    kind: 'question', summary: questions[0]?.question || 'Claude has a question',
+    tool: p.tool_name, toolUseId: p.tool_use_id, questions, since: Date.now(),
+  };
+}
+
+/** A PostToolUse ends the wait it belongs to (or any wait we couldn't tie to a tool call). */
+const endsWait = (w: Waiting | undefined, p: any) => !!w && (!w.toolUseId || !p.tool_use_id || w.toolUseId === p.tool_use_id);
+
 export function applyHook(s: CanvasState, p: any, ctx: HookContext): CanvasState {
   const event: string = p?.hook_event_name ?? '';
   const auto = s.settings.autoOpen;
   switch (event) {
+    case 'PermissionRequest':
+      return setWaiting(s, {
+        kind: 'permission', summary: summarizeTool(p.tool_name ?? '?', p.tool_input),
+        tool: p.tool_name, toolUseId: p.tool_use_id, since: Date.now(),
+      });
+    case 'Notification': {
+      // Only permission prompts; idle reminders are already covered by the "Idle" presence.
+      const isPermission = p.notification_type === 'permission_prompt' || (!p.notification_type && /permission/i.test(p.message ?? ''));
+      if (!isPermission || s.session.waiting) return s;
+      return setWaiting(s, { kind: 'permission', summary: String(p.message ?? 'Claude needs your permission'), since: Date.now() });
+    }
     case 'UserPromptSubmit': {
+      s = setWaiting(s, undefined);
       s = reduce(s, { type: 'session.update', patch: { activity: 'working' } }).state;
       return cmd(s, 'conversation', 'user', { text: String(p.prompt ?? ''), id: p.prompt_id });
     }
@@ -32,12 +66,14 @@ export function applyHook(s: CanvasState, p: any, ctx: HookContext): CanvasState
     }
     case 'PreToolUse':
       s = reduce(s, { type: 'session.update', patch: { activity: 'working' } }).state;
+      if (p.tool_name === 'AskUserQuestion') s = setWaiting(s, questionWait(p));
       return cmd(s, 'terminal', 'tool.start', { id: p.tool_use_id ?? `t-${Date.now()}`, tool: p.tool_name, input: p.tool_input });
     case 'PostToolUse':
     case 'PostToolUseFailure': {
       const tool: string = p.tool_name ?? '?';
       const input = p.tool_input ?? {};
       const response = p.tool_response;
+      if (endsWait(s.session.waiting, p)) s = setWaiting(s, undefined);
       s = cmd(s, 'terminal', 'tool.end', {
         id: p.tool_use_id ?? `t-${Date.now()}`, tool, input, response,
         durationMs: p.duration_ms, error: event === 'PostToolUseFailure' || response?.is_error || undefined,
@@ -45,14 +81,14 @@ export function applyHook(s: CanvasState, p: any, ctx: HookContext): CanvasState
       return applyToolSideEffects(s, tool, input, response, ctx, auto);
     }
     case 'Stop':
-      s = reduce(s, { type: 'session.update', patch: { activity: 'idle' } }).state;
+      s = reduce(s, { type: 'session.update', patch: { activity: 'idle', waiting: undefined } }).state;
       return cmd(s, 'conversation', 'turnEnd', {});
     case 'SubagentStart':
       return cmd(s, 'terminal', 'agent', { text: `▸ subagent started${p.agent_type ? ` (${p.agent_type})` : ''}` });
     case 'SubagentStop':
       return cmd(s, 'terminal', 'agent', { text: `◂ subagent finished${p.agent_type ? ` (${p.agent_type})` : ''}` });
     case 'SessionEnd':
-      return reduce(s, { type: 'session.update', patch: { endedAt: Date.now(), activity: 'idle' } }).state;
+      return reduce(s, { type: 'session.update', patch: { endedAt: Date.now(), activity: 'idle', waiting: undefined } }).state;
     case 'SessionStart':
       return reduce(s, { type: 'session.update', patch: { endedAt: undefined, cwd: p.cwd ?? s.session.cwd } }).state;
     default:

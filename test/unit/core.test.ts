@@ -104,6 +104,35 @@ describe('reducer', () => {
   });
 });
 
+describe('waiting on the user (synthetic payloads: not yet captured live)', () => {
+  const sid = { session_id: 'test' };
+  const ask = {
+    ...sid, hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'q1',
+    tool_input: { questions: [{ question: 'Which dock order?', header: 'Dock', options: [{ label: 'Windows', description: 'Tile order' }, { label: 'Fixed' }] }] },
+  };
+  it('AskUserQuestion shows a question until its PostToolUse', () => {
+    let s = applyHook(fresh(), ask, ctx);
+    expect(s.session.waiting).toMatchObject({ kind: 'question', summary: 'Which dock order?', toolUseId: 'q1' });
+    expect(s.session.waiting!.questions![0].options.map((o) => o.label)).toEqual(['Windows', 'Fixed']);
+    s = applyHook(s, { ...sid, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'other', tool_input: {} }, ctx);
+    expect(s.session.waiting).toBeDefined(); // a parallel tool finishing doesn't clear it
+    s = applyHook(s, { ...sid, hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'q1', tool_input: {} }, ctx);
+    expect(s.session.waiting).toBeUndefined();
+  });
+  it('PermissionRequest and permission Notifications show a permission wait; Stop clears it', () => {
+    let s = applyHook(fresh(), { ...sid, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm run e2e' } }, ctx);
+    expect(s.session.waiting).toMatchObject({ kind: 'permission', summary: '$ npm run e2e', tool: 'Bash' });
+    s = applyHook(s, { ...sid, hook_event_name: 'Stop' }, ctx);
+    expect(s.session.waiting).toBeUndefined();
+    s = applyHook(s, { ...sid, hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'Claude is waiting for your input' }, ctx);
+    expect(s.session.waiting).toBeUndefined();
+    s = applyHook(s, { ...sid, hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, ctx);
+    expect(s.session.waiting?.kind).toBe('permission');
+    s = applyHook(s, { ...sid, hook_event_name: 'UserPromptSubmit', prompt: 'hi' }, ctx);
+    expect(s.session.waiting).toBeUndefined();
+  });
+});
+
 describe('hooks (real captured payloads)', () => {
   const run = () => fixtures.reduce((s: CanvasState, p) => applyHook(s, p, ctx), fresh());
 

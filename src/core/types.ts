@@ -17,6 +17,16 @@ export interface SessionInfo {
   startedAt: number;
   endedAt?: number;
   activity: 'idle' | 'working';
+  waiting?: Waiting; // Claude is blocked on the user (shown read-only; answered in Claude Code)
+}
+
+export interface Waiting {
+  kind: 'question' | 'permission';
+  summary: string;
+  tool?: string;
+  toolUseId?: string;
+  questions?: { question: string; header?: string; options: { label: string; description?: string }[] }[];
+  since: number;
 }
 
 export interface SessionSettings {
@@ -31,6 +41,7 @@ export interface GlobalConfig {
   windowOpacity: number;
   dockAutoHide: boolean; // dock overlays and hides; windows get its space
   dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
+  waitingGlow: boolean; // faint amber edge glow while Claude waits on the user
 }
 
 export interface CanvasState {

@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { APPS } from '../apps/registry';
 import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, type DesktopPage } from '../core/layout';
-import type { InstanceMeta, LayoutName } from '../core/types';
+import type { InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { backgroundStyle } from './backgrounds';
 import { dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
@@ -130,15 +130,19 @@ export function App() {
   useEffect(() => { if (!drag && view > pages.length - 1) setViewRaw(pages.length - 1); }, [drag, pages.length, view]);
 
   const s = state.session;
-  const presence = s.endedAt ? 'ended' : s.activity;
+  const waiting = s.endedAt ? undefined : s.waiting;
+  const presence = s.endedAt ? 'ended' : waiting ? 'waiting' : s.activity;
+  const rel = (t: string) => (s.cwd ? t.split(s.cwd + '/').join('') : t);
+  const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
-    <div className={`canvas${config.dockAutoHide ? ' dock-autohide' : ''}`} style={backgroundStyle(config.background)}>
+    <div className={`canvas${config.dockAutoHide ? ' dock-autohide' : ''}${glow}`} style={backgroundStyle(config.background)}>
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>
-          <span className={`presence presence-${presence}`}>
+          <span className={`presence presence-${presence}`} title={waiting ? `${rel(waiting.summary)} (answer in Claude Code)` : undefined}>
             <i />
-            {presence === 'working' ? 'Claude is working' : presence === 'ended' ? 'Session ended' : 'Idle'}
+            {waiting ? 'Waiting on you' : presence === 'working' ? 'Claude is working' : presence === 'ended' ? 'Session ended' : 'Idle'}
+            {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
           </span>
         </div>
         <nav className="pager" aria-label="Desktops">
@@ -147,6 +151,8 @@ export function App() {
           ))}
         </nav>
       </header>
+
+      {waiting?.kind === 'question' && <QuestionCard waiting={waiting} />}
 
       <main className="stage" ref={stageRef}>
         <div className="strip" style={{ transform: `translateX(${-v * size.W}px)` }}>
@@ -187,6 +193,29 @@ export function App() {
         setView(p ? p.page : 0);
       }} />
     </div>
+  );
+}
+
+/** Read-only on purpose: options are plain text, not buttons. Answering happens in Claude Code. */
+function QuestionCard({ waiting }: { waiting: Waiting }) {
+  const qs = waiting.questions?.length ? waiting.questions : [{ question: waiting.summary, options: [] }];
+  return (
+    <aside className="question-card" aria-live="polite">
+      {qs.map((q, i) => (
+        <div key={i} className="qc-q">
+          {q.header && <span className="qc-header">{q.header}</span>}
+          <p className="qc-text">{q.question}</p>
+          {q.options.length > 0 && (
+            <ul className="qc-options">
+              {q.options.map((o, j) => (
+                <li key={j}><span className="qc-label">{o.label}</span>{o.description && <span className="qc-desc">{o.description}</span>}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+      <p className="qc-foot">Answer in Claude Code</p>
+    </aside>
   );
 }
 

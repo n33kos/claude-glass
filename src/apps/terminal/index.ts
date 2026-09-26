@@ -36,6 +36,7 @@ export function summarizeTool(tool: string, input: any): string {
     case 'WebSearch': return `WebSearch "${short(input.query, 100)}"`;
     case 'Task': case 'Agent': return `${tool} ${short(input.description ?? input.prompt, 120)}`;
     case 'TodoWrite': return `TodoWrite (${Array.isArray(input.todos) ? input.todos.length : 0} items)`;
+    case 'AskUserQuestion': return `AskUserQuestion "${short(input.questions?.[0]?.question, 140)}"`;
     default: return `${tool} ${short(JSON.stringify(input), 140)}`;
   }
 }
