@@ -303,8 +303,6 @@ Queue, in order:
     pulse; Settings "All sessions" grouped under Sessions / Windows & layout / Look / Dock.
 
 Other candidates:
-- `claude-glass install-cli`: link the CLI into `~/.local/bin` so it works in the user's own shell
-  (plugin `bin/` is only on PATH inside Claude's Bash tool). Low priority: Claude is the main user.
 - [x] Web research in the browser app (2026-09-26): PreToolUse WebSearch shows the query,
   PostToolUse lists results natively; PreToolUse WebFetch renders the page in a hidden offscreen
   Electron window (`src/main/webFeed.ts`: sandboxed, in-memory session, no popups/downloads/
@@ -312,9 +310,12 @@ Other candidates:
   navigation takes the screen back. Session setting `autoOpen.web`. Payloads captured in fixtures.
   History: every search/page in order (`history` + `cursor`, cap 100); ‹ › and a history list
   in the browser bar walk it (view-only `web.go`); new activity jumps back to the latest.
-- Per-app storage files instead of one state.json; state size limits for huge sessions
+- [x] **Virtualize far windows** (2026-09-26): windows far from what's on screen (other desktops, deep
+  in the nested spiral) keep their frame but don't mount their app view; they mount when they come
+  near. Keeps history mode fast without storage limits (no caps on history for now; revisit if
+  state.json gets heavy).
 - Packaged .app (electron-builder) so the dock shows "Claude Glass" instead of "Electron"
-- Placeholder ghost slot while dragging; keyboard reorder
+- Placeholder ghost slot while dragging
 - [x] **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
   wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only
   (view state, no reducer action), so it's small. Good for small screenshots and diagrams.
@@ -346,8 +347,8 @@ cyclomatic complexity. So:
 - **Granularity:** one window per event is too many for diffs (every Edit). Start with one per
   *turn* per kind: all edits in a turn land in that turn's "Changes" window; the next turn opens
   a new one. `turn_id` is in the hook payloads.
-- **Bound it:** keep at most N history windows (setting, e.g. 24); the oldest close (their state
-  is dropped) so state.json and the dock stay bounded.
+- **Bound it:** (dropped 2026-09-26) no cap on history windows for now; far windows are
+  virtualized instead. Revisit if state.json gets heavy.
 - **Singletons stay live:** conversation and terminal are already running logs.
 - **Setting:** global `windowMode: 'live' | 'history'` (default live). Off = exactly today.
 - **Try it on a branch** (`experiment/history-mode`), use it for real sessions, then decide:

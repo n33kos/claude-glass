@@ -443,6 +443,24 @@ try {
     await sleep(300);
   }
 
+  // Virtualization: windows on far desktops don't mount their app views until you get near.
+  {
+    const made = [];
+    for (let i = 0; i < 12; i++) made.push((await cli(env, 'new', 'markdown', '--title', `Far ${i}`)).trim());
+    await sleep(800);
+    const total = await page.locator('.window').count();
+    const mounted = await page.locator('.window iframe.appframe').count();
+    const pagesN = await page.locator('.pager button').count();
+    check(pagesN >= 4 && mounted < total, `far windows are virtualized (${mounted} of ${total} views mounted, ${pagesN} desktops)`);
+    for (let i = 0; i < pagesN; i++) { await page.keyboard.press('Meta+ArrowRight'); await sleep(250); }
+    await sleep(600);
+    const last = JSON.parse(await cli(env, 'view', '--json')).desktops.at(-1).windows[0].id;
+    check((await page.locator(`[data-window="${last}"] iframe.appframe`).count()) === 1, 'a far window mounts when you scroll to it');
+    for (let i = 0; i < pagesN; i++) await page.keyboard.press('Meta+ArrowLeft');
+    for (const id of made) await cli(env, 'window', 'close', id);
+    await sleep(400);
+  }
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);

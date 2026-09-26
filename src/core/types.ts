@@ -79,8 +79,7 @@ export type Action =
   | { type: 'settings.set'; key: string; value: unknown }
   | { type: 'session.update'; patch: Partial<SessionInfo> }
   | { type: 'ui.viewDesktop'; index: number }
-  | { type: 'app.hook'; payload: unknown }
-  | { type: 'instance.remove'; id: string };
+  | { type: 'app.hook'; payload: unknown };
 
 export interface Envelope {
   op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'quit';

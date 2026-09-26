@@ -392,12 +392,5 @@ describe('history mode (experiment)', () => {
     expect(browsers).toHaveLength(1);
     expect((s.appState[browsers[0].id] as BrowserState).history[0]).toMatchObject({ kind: 'search', results: expect.any(Array) });
   });
-  it('keeps at most 24 per kind', () => {
-    let s = fresh();
-    for (let i = 0; i < 30; i++) s = applyHook(s, editAs(`toolu_${i}`), hctx);
-    const ids = Object.keys(s.instances).filter((id) => id.startsWith('changes-'));
-    expect(ids).toHaveLength(24);
-    expect(ids).not.toContain('changes-toolu0');
-    expect(s.order.every((id) => s.instances[id])).toBe(true);
-  });
+
 });

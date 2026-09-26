@@ -80,15 +80,6 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       requireInstance(s, a.id);
       return { state: { ...s, order: openAtZero(s.order, a.id) } };
 
-    case 'instance.remove': {
-      // Drop a window and its state entirely (history mode prunes old windows this way).
-      requireInstance(s, a.id);
-      const { [a.id]: _i, ...instances } = s.instances;
-      const { [a.id]: _a, ...appState } = s.appState;
-      const pinned = s.pinned && a.id in s.pinned ? Object.fromEntries(Object.entries(s.pinned).filter(([k]) => k !== a.id)) : s.pinned;
-      return { state: { ...s, instances, appState, pinned, order: s.order.filter((x) => x !== a.id), autoOpened: s.autoOpened.filter((x) => x !== a.id) } };
-    }
-
     case 'window.close':
       requireInstance(s, a.id);
       return { state: { ...s, order: s.order.filter((x) => x !== a.id) } };

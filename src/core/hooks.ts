@@ -131,8 +131,6 @@ function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   }
 }
 
-const HISTORY_KEEP = 24; // per kind; the oldest history windows are dropped beyond this
-
 /**
  * The one seam for window modes. live: updates go to the fixed window (`changes`, `plan`,
  * `images`, `browser`). history: every action gets its own window, keyed by its tool call (so a
@@ -142,11 +140,7 @@ const HISTORY_KEEP = 24; // per kind; the oldest history windows are dropped bey
 function autoWindow(s: GlassState, ctx: HookContext, opts: Parameters<typeof autoCommand>[1]): GlassState {
   if (ctx.windowMode !== 'history') return autoCommand(s, opts);
   const key = (ctx.toolUseId ?? String(Date.now())).replace(/[^A-Za-z0-9]/g, '').slice(-10);
-  s = autoCommand(s, { ...opts, id: `${opts.id}-${key}` });
-  const mine = new RegExp(`^${opts.id}-[A-Za-z0-9]+$`);
-  const old = Object.values(s.instances).filter((i) => mine.test(i.id)).sort((a, b) => a.createdAt - b.createdAt);
-  for (const i of old.slice(0, Math.max(0, old.length - HISTORY_KEEP))) s = reduce(s, { type: 'instance.remove', id: i.id }).state;
-  return s;
+  return autoCommand(s, { ...opts, id: `${opts.id}-${key}` });
 }
 
 const web = (s: GlassState, ctx: HookContext, command: string, args: Record<string, unknown>) =>

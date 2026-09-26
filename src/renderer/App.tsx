@@ -10,7 +10,7 @@ const PAD = 12;
 const GAP = 12;
 
 interface Rect { x: number; y: number; w: number; h: number }
-interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean }
+interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean }
 interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null }
 
 function place(pages: DesktopPage[], W: number, H: number, focus: number): Placed[] {
@@ -25,12 +25,13 @@ function place(pages: DesktopPage[], W: number, H: number, focus: number): Place
     p.windows.forEach((id, i) => {
       const k = i - f;
       const hidden = nested && (k < 0 || k >= slots.length);
+      const far = nested && (k < -2 || k >= slots.length + 2); // virtualized: frame only, no app view
       const s = slots[Math.max(0, Math.min(k, slots.length - 1))];
       const x = p.index * W + PAD + s.x * iw + (s.x > 0 ? GAP / 2 : 0);
       const y = PAD + s.y * ih + (s.y > 0 ? GAP / 2 : 0);
       const w = s.w * iw - (s.x > 0 ? GAP / 2 : 0) - (s.x + s.w < 0.999 ? GAP / 2 : 0);
       const h = s.h * ih - (s.y > 0 ? GAP / 2 : 0) - (s.y + s.h < 0.999 ? GAP / 2 : 0);
-      out.push({ id, page: p.index, index: p.start + i, rect: { x, y, w, h }, hidden });
+      out.push({ id, page: p.index, index: p.start + i, rect: { x, y, w, h }, hidden, far });
     });
   }
   return out;
@@ -210,7 +211,10 @@ export function App() {
                 page={pages[p.page]}
                 onDragStart={(e) => onDragStart(p.id, e)}
               >
-                <AppBody id={p.id} meta={meta} w={p.rect.w} h={p.rect.h} />
+                {/* Virtualization: only windows near what's on screen mount their app view. */}
+                {dragging || (!p.far && Math.abs(p.page - v) <= 1)
+                  ? <AppBody id={p.id} meta={meta} w={p.rect.w} h={p.rect.h} />
+                  : <div className="app-parked" />}
               </WindowFrame>
             );
           })}
