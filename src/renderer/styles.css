@@ -1,24 +1,8 @@
 /* Claude Glass — dark glass over a wallpaper. System type (SF Pro / SF Mono) on purpose:
    this is a macOS-native surface. One signature element: the presence pill in the top bar. */
 
-:root {
-  --ink: #e8ebf4;
-  --ink-dim: #9aa3b8;
-  --ink-faint: #6b7389;
-  --line: rgba(255, 255, 255, 0.10);
-  --line-strong: rgba(255, 255, 255, 0.18);
-  --glass-rgb: 20, 23, 34;
-  --sky: #7fc8ff;
-  --ok: #5fd08f;
-  --warn: #f2c46b;
-  --bad: #ff6f6f;
-  --add-bg: rgba(95, 208, 143, 0.13);
-  --del-bg: rgba(255, 111, 111, 0.13);
-  --radius-win: 12px;
-  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
-  --mono: 'SF Mono', ui-monospace, Menlo, monospace;
-  color-scheme: dark;
-}
+@import './tokens.css';
+
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -373,3 +357,6 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .swatches button.on { border-color: #fff; }
 .s-foot { color: var(--ink-faint); font: 11px var(--mono); margin-top: 16px; }
 .app-missing { padding: 20px; color: var(--ink-faint); }
+
+/* App views in sandboxed frames (built-in and mods). */
+.appframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }

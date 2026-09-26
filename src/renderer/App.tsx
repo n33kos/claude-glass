@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { APPS } from '../apps/registry';
 import { computeDesktops, effectiveLayout, LAYOUT_NAMES, LAYOUTS, type DesktopPage } from '../core/layout';
 import type { InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
-import { dispatch, useSnapshot } from './store';
+import { FrameView } from './FrameView';
+import { apps, dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
 
 const PAD = 12;
@@ -231,10 +231,11 @@ function QuestionCard({ waiting }: { waiting: Waiting }) {
 
 function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number; h: number }) {
   const { state, config } = useSnapshot();
-  const View = VIEWS[meta.type];
-  const app = APPS[meta.type];
-  const appState = state.appState[id] ?? app?.init();
+  const app = apps[meta.type];
+  const View = app?.frame ? null : VIEWS[meta.type];
+  const appState = state.appState[id] ?? null;
   const run = useCallback((command: string, args: Record<string, unknown> = {}) => dispatch({ type: 'app.command', id, command, args }), [id]);
+  if (app?.frame) return <FrameView app={app} id={id} meta={meta} state={appState} width={w} height={h - 36} glass={state} run={run} />;
   if (!View) return <div className="app-missing">No view for “{meta.type}”.</div>;
   return <View id={id} meta={meta} state={appState} width={w} height={h - 36} run={run} glass={state} config={config} />;
 }
@@ -245,7 +246,7 @@ function WindowFrame(props: {
 }) {
   const { meta, page } = props;
   const [menu, setMenu] = useState(false);
-  const app = APPS[meta.type];
+  const app = apps[meta.type];
   return (
     <section
       className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}`}
@@ -315,7 +316,7 @@ function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: num
             {config.dockOrder !== 'fixed' && i > 0 && group(items[i - 1].id) !== group(m.id) && <span className="dock-sep screen" />}
             <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}`} title={m.title}
               onClick={() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id)))}>
-              <span className={`tile tile-${m.type}`}>{APPS[m.type]?.icon}</span>
+              <span className={`tile tile-${m.type}`}>{apps[m.type]?.icon ?? '▢'}</span>
               <span className="label">{m.title}</span>
               {open.has(m.id) && <i className="running" />}
             </button>
@@ -324,7 +325,7 @@ function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: num
         <span className="dock-sep" />
         <button className={`dock-item${offScreen('settings') ? ' off-screen' : ''}`} title="Settings"
           onClick={() => (settingsOpen ? onReveal('settings') : dispatch({ type: 'instance.create', appType: 'settings' }).then(() => onReveal('settings')))}>
-          <span className="tile tile-settings">{APPS.settings.icon}</span>
+          <span className="tile tile-settings">{apps.settings?.icon}</span>
           <span className="label">Settings</span>
           {settingsOpen && <i className="running" />}
         </button>

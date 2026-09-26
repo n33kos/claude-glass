@@ -1,0 +1,13 @@
+/* Claude Glass app SDK base styles: the shell's tokens plus a transparent, glassy page. */
+@import '../renderer/tokens.css';
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: transparent; }
+body { font: 13px/1.45 var(--sans); color: var(--ink); overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: default; padding: 0; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+code, pre, kbd { font-family: var(--mono); }
+a { color: var(--sky); }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }

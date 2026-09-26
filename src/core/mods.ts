@@ -22,6 +22,7 @@ export interface ModManifest {
   description?: string;
   commands?: Record<string, CommandSpec>;
   internal?: string[];
+  viewCommands?: string[];
   autoOpen?: boolean;
 }
 
@@ -75,6 +76,7 @@ export function readMod(modDir: string): AppDef {
     description: String(m.description ?? ''),
     commands,
     internal: Array.isArray(m.internal) ? m.internal.map(String) : undefined,
+    viewCommands: Array.isArray(m.viewCommands) ? m.viewCommands.map(String) : undefined,
     autoOpen: m.autoOpen === true,
     init: core.init,
     command: core.command,

@@ -23,6 +23,7 @@ export interface AppDef<S = any> {
   onHook?(state: S, payload: any): S;
   autoOpen?: boolean; // open the window the first time onHook creates the instance
   internal?: string[]; // commands only hooks/the view use; hidden from Claude's catalog
+  viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
   guide?: string; // instructions for Claude, appended to the glass guide
   source?: 'builtin' | 'user';
   dir?: string; // mod folder: its view.html is served into a sandboxed frame
@@ -48,4 +49,20 @@ export function capTail<T>(arr: T[], max: number): T[] {
 
 export function clip(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + `\n… (${s.length - max} more chars)` : s;
+}
+
+/** What the renderer needs to know about an app. */
+export interface AppInfo {
+  type: string;
+  title: string;
+  icon: string;
+  singleton: boolean;
+  frame: boolean; // view is a mod-style frame (glass-app://<type>/view.html)
+  viewCommands: string[];
+}
+
+export function appInfo(app: AppDef): AppInfo {
+  const viewCommands = new Set(app.viewCommands ?? []);
+  for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
+  return { type: app.type, title: app.title, icon: app.icon, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands] };
 }

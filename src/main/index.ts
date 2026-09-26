@@ -1,7 +1,9 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
 import { app, BrowserWindow, ipcMain, Menu, protocol } from 'electron';
-import { readFileSync } from 'node:fs';
-import { extname, join, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, join, resolve, sep } from 'node:path';
+import { APPS } from '../apps/registry';
+import { appInfo } from '../apps/types';
 import { filesDir } from '../core/paths';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
@@ -25,9 +27,12 @@ app.setName('Claude Glass');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'glass-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   { scheme: 'glass-html', privileges: { standard: true, secure: true } },
+  { scheme: 'glass-app', privileges: { standard: true, secure: true } },
 ]);
 
 const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
   '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp',
 };
@@ -40,6 +45,19 @@ const HTML_CSP = [
   "style-src 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
   'font-src data: https://fonts.gstatic.com',
   'img-src data: blob:',
+  "connect-src 'none'",
+].join('; ');
+
+// App views (built-in and mods) run in sandboxed frames served from glass-app://<type>/...,
+// the SDK from glass-app://sdk/. Scripts from the app itself or the usual CDNs; no network.
+const APP_CSP = [
+  "default-src 'none'",
+  "script-src glass-app: 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com",
+  "style-src glass-app: 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  'font-src glass-app: data: https://fonts.gstatic.com',
+  'img-src glass-app: glass-file: data: blob:',
+  'media-src glass-app: glass-file: data: blob:',
+  'frame-src glass-html:',
   "connect-src 'none'",
 ].join('; ');
 
@@ -71,6 +89,21 @@ async function boot() {
     }
   });
 
+  // glass-app://<type>/<path> — an app's own folder; glass-app://sdk/<file> — the SDK.
+  const sdkDir = join(__dirname, 'sdk');
+  protocol.handle('glass-app', (req) => {
+    const url = new URL(req.url);
+    const base = url.hostname === 'sdk' ? sdkDir : APPS[url.hostname]?.dir;
+    if (!base) return new Response('no such app', { status: 404 });
+    const path = resolve(base, '.' + decodeURIComponent(url.pathname));
+    if (path !== base && !path.startsWith(base + sep)) return new Response('forbidden', { status: 403 });
+    if (!existsSync(path)) return new Response('not found', { status: 404 });
+    const type = MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
+    const headers: Record<string, string> = { 'content-type': type };
+    if (type.startsWith('text/html')) headers['content-security-policy'] = APP_CSP;
+    return new Response(readFileSync(path), { headers });
+  });
+
   // glass-html://<instanceId>/ — the html app's current document.
   protocol.handle('glass-html', (req) => {
     const id = new URL(req.url).hostname;
@@ -79,7 +112,7 @@ async function boot() {
     return new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': HTML_CSP } });
   });
 
-  ipcMain.handle('glass:init', () => ({ sessionId, state: core.state, config: core.config }));
+  ipcMain.handle('glass:init', () => ({ sessionId, state: core.state, config: core.config, apps: Object.values(APPS).map(appInfo), mods: core.mods }));
   ipcMain.handle('glass:dispatch', (_e, action: Action) => {
     try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });

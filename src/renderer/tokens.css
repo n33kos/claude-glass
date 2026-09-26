@@ -1,0 +1,19 @@
+/* Design tokens shared by the shell and app views (the SDK stylesheet imports this too). */
+:root {
+  --ink: #e8ebf4;
+  --ink-dim: #9aa3b8;
+  --ink-faint: #6b7389;
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --glass-rgb: 20, 23, 34;
+  --sky: #7fc8ff;
+  --ok: #5fd08f;
+  --warn: #f2c46b;
+  --bad: #ff6f6f;
+  --add-bg: rgba(95, 208, 143, 0.13);
+  --del-bg: rgba(255, 111, 111, 0.13);
+  --radius-win: 12px;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --mono: 'SF Mono', ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}

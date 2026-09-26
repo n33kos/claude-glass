@@ -1,6 +1,6 @@
 // Visual E2E: launch Electron against a temp home, seed content, capture screenshots.
 // Screenshots land in test/screenshots/ — LOOK at them after UI changes.
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -13,6 +13,12 @@ const shots = join(root, 'test/screenshots');
 mkdirSync(shots, { recursive: true });
 const home = mkdtempSync(join(tmpdir(), 'cc-e2e-home-'));
 const runtime = mkdtempSync('/tmp/cc-e2e-rt-');
+// Example mods (auto-open off so they don't reshuffle the layout checks; opened near the end).
+cpSync(join(root, 'test/fixtures/mods'), join(home, 'apps'), { recursive: true });
+{
+  const mf = join(home, 'apps/tool-count/glass-app.json');
+  writeFileSync(mf, JSON.stringify({ ...JSON.parse(readFileSync(mf, 'utf8')), autoOpen: false }));
+}
 const SID = 'e2e-session';
 const env = { ...process.env, CLAUDE_GLASS_HOME: home, CLAUDE_GLASS_RUNTIME: runtime, CLAUDE_CODE_SESSION_ID: SID };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -304,6 +310,24 @@ try {
     } finally {
       srv.close();
     }
+  }
+
+  // Custom app (mod): sandboxed frame view, props over the bridge, view commands, CLI commands.
+  {
+    await cli(env, 'window', 'open', 'tool-count');
+    await cli(env, 'app', 'tool-count', 'note', '--text', 'Hello from a mod');
+    await sleep(700);
+    const frame = page.frameLocator('[data-window="tool-count"] iframe.appframe');
+    const note = await frame.locator('#note').textContent({ timeout: 4000 }).catch(() => '');
+    check(note === 'Hello from a mod', `mod view renders its state (note: ${note})`);
+    check((await frame.locator('.row').count()) >= 3, 'mod filled itself from hooks (onHook)');
+    await frame.locator('button[data-by="name"]').click();
+    await sleep(300);
+    const st = JSON.parse(await cli(env, 'state', 'tool-count')).state;
+    check(st.sort === 'name', 'mod view ran its view command');
+    await page.screenshot({ path: join(shots, '10-mod.png') });
+    const guide = JSON.parse(await cli(env, 'catalog', '--json')).find((a) => a.type === 'tool-count');
+    check(guide?.source === 'user', 'mod is in the catalog');
   }
 
   // Session ended
