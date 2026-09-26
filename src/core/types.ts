@@ -41,8 +41,9 @@ export interface GlobalConfig {
   windowOpacity: number;
   dockAutoHide: boolean; // dock overlays and hides; windows get its space
   dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
-  waitingGlow: boolean;
-  animateBackground: boolean; // preset wallpapers drift slowly // faint amber edge glow while Claude waits on the user
+  waitingGlow: boolean; // faint amber edge glow while Claude waits on the user
+  animateBackground: boolean; // preset wallpapers drift slowly
+  scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
 }
 
 export interface GlassState {

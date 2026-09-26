@@ -74,6 +74,12 @@ dock) or in `~/.claude/claude-glass/config.json`:
 
 `background` is a preset (`aurora`, `dune`, `tide`, `graphite`) or an absolute image path.
 
+`scope` picks what a glass belongs to. `session` (default) gives each Claude session its own
+glass; after `/clear` you start fresh, and `claude --resume` picks the old glass back up.
+`folder` gives each project folder one glass that every session in it feeds, so `/clear`,
+restarts and resumes all continue in the same window. A folder glass's id is
+`sha256(project dir)[:12]`, the same id Voice Multiplexer uses for the folder.
+
 ## Files
 
 ```
@@ -81,6 +87,7 @@ dock) or in `~/.claude/claude-glass/config.json`:
 ~/.claude/claude-glass/sessions/<id>/state.json    a glass's saved state
 ~/.claude/claude-glass/sessions/<id>/glass.log    Electron log
 /tmp/claude-glass-<uid>/<id>.sock                  live glass socket
+/tmp/claude-glass-<uid>/<session>.sock             folder scope: symlink to the folder glass's socket
 ```
 
 ## Develop

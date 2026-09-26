@@ -34,6 +34,13 @@ export function SettingsView({ glass, config }: ViewProps) {
 
       <h3>All sessions</h3>
       <Toggle label="Open Claude Glass when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
+      <label className="s-row">
+        <span>One glass per (applies to new sessions)</span>
+        <select value={config.scope} onChange={(e) => setConfig('scope', e.target.value)}>
+          <option value="session">Session</option>
+          <option value="folder">Project folder</option>
+        </select>
+      </label>
       <Toggle label="Auto-hide the dock (shows at the bottom edge)" on={config.dockAutoHide} onChange={(v) => setConfig('dockAutoHide', v)} />
       <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
       <label className="s-row">

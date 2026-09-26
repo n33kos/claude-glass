@@ -1,6 +1,7 @@
 // claude-glass CLI. Thin client over the per-session Unix socket.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import { bindSession, glassIdFor, isBound } from '../core/binding';
 import { loadConfig } from '../core/config';
 import { filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { isLive, loadState } from '../core/server';
@@ -27,11 +28,14 @@ function parse(argv: string[]): Parsed {
   return { pos, flags };
 }
 
-function sessionId(flags: Parsed['flags']): string {
+function claudeSessionId(flags: Parsed['flags']): string {
   const id = (typeof flags.session === 'string' && flags.session) || process.env.CLAUDE_GLASS_SESSION || process.env.CLAUDE_CODE_SESSION_ID;
   if (!id) throw new Error('no session: pass --session ID (or run inside Claude Code, which sets CLAUDE_CODE_SESSION_ID)');
   return assertSessionId(id);
 }
+
+/** The glass this session feeds (a folder glass when scope is folder). */
+const sessionId = (flags: Parsed['flags']): string => glassIdFor(claudeSessionId(flags));
 
 async function call(sid: string, env: Envelope): Promise<any> {
   const reply = await request(socketPath(sid), env);
@@ -108,8 +112,10 @@ async function main(argv: string[]) {
       console.log(HELP); return;
 
     case 'open': {
-      const sid = sessionId(flags);
+      const cid = claudeSessionId(flags);
       const cwd = typeof flags.cwd === 'string' ? flags.cwd : process.cwd();
+      // SessionStart normally binds (with the real project dir); this covers sessions it missed.
+      const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
       console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
       console.log(GUIDE);
@@ -243,12 +249,14 @@ async function main(argv: string[]) {
       const raw = readStdin();
       let p: any = {};
       try { p = JSON.parse(raw); } catch {}
-      const sid = p.session_id;
-      if (!sid) return;
+      if (!p.session_id) return;
+      const config = loadConfig();
+      const projectDir = process.env.CLAUDE_PROJECT_DIR || p.cwd || process.cwd();
+      const sid = bindSession(assertSessionId(p.session_id), projectDir, config.scope);
       const live = await isLive(socketPath(sid), 300);
       let open = live;
-      if (!live && loadConfig().autoStart && (p.source === 'startup' || p.source === 'resume' || !p.source)) {
-        try { await launchGlass(sid, p.cwd ?? process.cwd()); open = true; } catch { open = false; }
+      if (!live && config.autoStart && (p.source === 'startup' || p.source === 'resume' || !p.source)) {
+        try { await launchGlass(sid, projectDir); open = true; } catch { open = false; }
       }
       if (open) {
         if (live) await request(socketPath(sid), { op: 'hook', payload: p }, 1000).catch(() => {});

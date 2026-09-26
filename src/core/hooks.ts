@@ -55,7 +55,8 @@ export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
     }
     case 'UserPromptSubmit': {
       s = setWaiting(s, undefined);
-      s = reduce(s, { type: 'session.update', patch: { activity: 'working' } }).state;
+      // endedAt: in folder scope another session may have ended while this one keeps going.
+      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined } }).state;
       return cmd(s, 'conversation', 'user', { text: String(p.prompt ?? ''), id: p.prompt_id });
     }
     case 'MessageDisplay': {
@@ -90,7 +91,10 @@ export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
     case 'SessionEnd':
       return reduce(s, { type: 'session.update', patch: { endedAt: Date.now(), activity: 'idle', waiting: undefined } }).state;
     case 'SessionStart':
-      return reduce(s, { type: 'session.update', patch: { endedAt: undefined, cwd: p.cwd ?? s.session.cwd } }).state;
+      s = reduce(s, { type: 'session.update', patch: { endedAt: undefined, cwd: p.cwd ?? s.session.cwd } }).state;
+      // A session joining a glass with history (folder scope, /clear, resume) gets a divider.
+      if (p.source && p.source !== 'compact' && (s.appState.terminal as { entries?: unknown[] } | undefined)?.entries?.length) s = cmd(s, 'terminal', 'agent', { text: `── session ${p.source}${p.session_id ? ` · ${String(p.session_id).slice(0, 8)}` : ''} ──` });
+      return s;
     default:
       return s;
   }

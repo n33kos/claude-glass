@@ -13,6 +13,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   dockOrder: 'windows',
   waitingGlow: true,
   animateBackground: true,
+  scope: 'session',
 };
 
 export function loadConfig(): GlobalConfig {
@@ -43,6 +44,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'dockAutoHide':
     case 'waitingGlow':
     case 'animateBackground': return value === true || value === 'true';
+    case 'scope': if (value !== 'session' && value !== 'folder') throw new Error(`scope must be session or folder`); return value;
     case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
     case 'defaultLayout': if (!isLayout(value)) throw new Error(`unknown layout ${value}`); return value;

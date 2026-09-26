@@ -33,8 +33,10 @@ this repo.
 6. **Never block Claude.** All forwarding hooks run `async: true`; the socket client uses tight
    timeouts. A frozen glass must never freeze Claude.
 7. **Dead simple.** No over-engineering. Build the strong foundation, then grow by adding apps.
-8. **One-way for MVP**, but the architecture must allow user→Claude later (the socket is
-   bidirectional; UI actions already flow through the reducer; state is readable by the CLI).
+8. **One-way by design.** Claude shows; the user watches. User interaction only changes how
+   things are viewed (layout, opacity, which revision is shown) and never reaches Claude. No
+   user→Claude back-channel: every workflow (terminal, tmux, voice, IDE) takes input differently,
+   and one would make the plugin hard to adopt. See the north star in `CLAUDE.md`.
 
 ## 3. Decisions (from the 2026-09-26 design interview)
 
@@ -55,7 +57,7 @@ this repo.
 | View control | The view (which desktop you're looking at) is never moved by Claude or by updates. Updates never reorder. Claude may deliberately `window move <id> 0` |
 | Apps | React components in a registry with a shared interface (strategy pattern). Each declares defaults: singleton vs multi-instance, commands, init state |
 | MVP apps | terminal (singleton, all tool calls, filterable), conversation (singleton), diff viewer, markdown viewer, image viewer, freeform HTML (sandboxed iframe — the only iframe), settings |
-| Later | Live browser stream, user→Claude back-channel, subagents app, timeline scrubbing |
+| Later | Live browser stream, subagents app |
 | Look | macOS/iOS glassy. Background (configurable in config.json, no UI yet), per-window opacity, dock at bottom with running indicators (optional auto-hide; icons follow window order), settings is an app. Close to macOS but deliberately distinguishable from the real desktop. Title bar: close + layout picker. Drag to reorder; drag to screen edge → next desktop |
 | Settings | Global (config.json) and per-session (session state), separated |
 | Instructions to Claude | A plugin skill (only its description sits in context) + `claude-glass open` prints the usage guide when the glass turns on. SessionStart re-injects the guide only if the glass is live (autostart / resume / compact) |
@@ -85,7 +87,7 @@ Claude Code session ──hooks (async)──► scripts/hook-forward.sh ──n
 ~/.claude/claude-glass/                (override: CLAUDE_GLASS_HOME)
   config.json                           global settings
   sessions/<session-id>/
-    state.json                          full glass state (layout, instances, per-app state)
+    state.json                          full glass state (<id> = session id, or folder hash in folder scope) (layout, instances, per-app state)
     files/                              copies of images etc. put on the glass
     glass.log                          Electron stdout/stderr
 /tmp/claude-glass-<uid>/<session-id>.sock   (override: CLAUDE_GLASS_RUNTIME)
@@ -241,9 +243,20 @@ glass (hooks, bin on PATH, session binding, CLI all work).
       under prefers-reduced-motion. Image-path backgrounds stay static.
 
 ### Next candidates (not started)
-- Browser stream app (Playwright screencast into a window)
-- User→Claude back-channel (e.g. "point at this window" → UserPromptSubmit context)
-- `/clear` rebinding: SessionStart with source=clear could hand the old glass to the new id
+Queue, in order:
+1. [x] **Folder scope** (replaces `/clear` rebinding; `src/core/binding.ts`, done 2026-09-26). Global `scope`: `session` (default: one glass
+   per session id; after `/clear` you get a fresh glass, `claude --resume` picks the old one back
+   up) or `folder`: one glass per project folder, shared by every session in it, so `/clear`,
+   restarts and resumes all land in the same glass. Folder glass id = `sha256(project dir)[:12]`,
+   the same algorithm as Voice Multiplexer's relay session id, so the two ids match. Binding: the
+   SessionStart hook symlinks `<runtime>/<session_id>.sock` → `<folder id>.sock`, so the hook
+   forwarder and CLI keep addressing sockets by session id and need no lookup.
+2. **Image lightbox** (below).
+3. **Browser stream app**: show the browser Claude drives (Playwright or Chrome) live in a
+   window. One-way: frames flow in, nothing flows back. Needs a design pass first (CDP
+   screencast from a debugging port is the likely route).
+
+Other candidates:
 - Per-app storage files instead of one state.json; state size limits for huge sessions
 - Packaged .app (electron-builder) so the dock shows "Claude Glass" instead of "Electron"
 - Placeholder ghost slot while dragging; keyboard reorder
@@ -261,5 +274,8 @@ glass (hooks, bin on PATH, session binding, CLI all work).
 
 ## 7. Future ideas (not MVP)
 
-Browser stream app (Playwright screencast), user→Claude back-channel (point at a window),
-subagents app, per-app files instead of one state.json, timeline scrubbing, Linux support.
+Browser stream app (Playwright screencast), subagents app, per-app files instead of one
+state.json, Linux support.
+
+Ruled out (2026-09-26): user→Claude back-channel (breaks the one-way north star) and timeline
+scrubbing (not the direction for this project).

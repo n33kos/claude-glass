@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { folderGlassId } from '../../src/core/binding';
 import { GlassCore } from '../../src/core/server';
 
 const root = join(__dirname, '../..');
@@ -13,12 +14,13 @@ const runtime = mkdtempSync('/tmp/cc-rt-');
 process.env.CLAUDE_GLASS_HOME = home;
 process.env.CLAUDE_GLASS_RUNTIME = runtime;
 const SID = 'itest-session';
+delete process.env.CLAUDE_PROJECT_DIR;
 const env = { ...process.env, CLAUDE_GLASS_HOME: home, CLAUDE_GLASS_RUNTIME: runtime, CLAUDE_CODE_SESSION_ID: SID };
 
 // Async on purpose: the server lives in this process, a sync exec would deadlock it.
-function run(cmd: string, args: string[], input?: string): Promise<{ status: number; stdout: string; stderr: string }> {
+function run(cmd: string, args: string[], input?: string, extraEnv: Record<string, string> = {}): Promise<{ status: number; stdout: string; stderr: string }> {
   return new Promise((res) => {
-    const p = spawn(cmd, args, { env });
+    const p = spawn(cmd, args, { env: { ...env, ...extraEnv } });
     let stdout = '', stderr = '';
     p.stdout.on('data', (d) => (stdout += d));
     p.stderr.on('data', (d) => (stderr += d));
@@ -130,5 +132,53 @@ describe('hook forwarder', () => {
     await wait(400);
     const saved = JSON.parse(readFileSync(join(home, 'sessions', SID, 'state.json'), 'utf8'));
     expect(saved.instances['markdown-1'].title).toBe('Notes');
+  });
+});
+
+describe('folder scope', () => {
+  const dir = '/tmp/cg-folder-proj';
+  const gid = folderGlassId(dir);
+  let folder: GlassCore;
+  beforeAll(async () => {
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ scope: 'folder' }));
+    folder = new GlassCore(gid, dir);
+    await folder.listen();
+  });
+  afterAll(async () => {
+    await folder.close();
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ scope: 'session' }));
+  });
+
+  it('uses the same id as Voice Multiplexer: sha256(dir)[:12]', () => {
+    // `printf '%s' <dir> | shasum -a 256 | cut -c1-12`, the relay session id algorithm.
+    expect(folderGlassId('/Users/user/claude-glass')).toBe('20ca07fd5ec9');
+    expect(folderGlassId('/tmp/proj/')).toBe(folderGlassId('/tmp/proj'));
+  });
+
+  it('every session in the folder (e.g. after /clear) feeds one glass', async () => {
+    for (const sid of ['sess-before-clear', 'sess-after-clear']) {
+      const r = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ hook_event_name: 'SessionStart', session_id: sid, source: sid.endsWith('after-clear') ? 'clear' : 'startup', cwd: dir }));
+      expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Claude Glass is open');
+      await hook({ hook_event_name: 'UserPromptSubmit', session_id: sid, prompt: `hello from ${sid}` });
+      await hook({ hook_event_name: 'PreToolUse', session_id: sid, tool_name: 'Bash', tool_use_id: `t-${sid}`, tool_input: { command: 'ls' } });
+      await wait(50);
+    }
+    await wait(100);
+    const msgs = (folder.state.appState.conversation as any).messages.map((m: any) => m.parts.join(''));
+    expect(msgs).toEqual(['hello from sess-before-clear', 'hello from sess-after-clear']);
+    const term = (folder.state.appState.terminal as any).entries.map((e: any) => e.summary);
+    expect(term).toContainEqual(expect.stringContaining('session clear'));
+  });
+
+  it('the CLI resolves the session to its folder glass', async () => {
+    const r = await run(join(root, 'bin/claude-glass'), ['view', '--json'], '', { CLAUDE_CODE_SESSION_ID: 'sess-after-clear' });
+    expect(JSON.parse(r.stdout).session.id).toBe(gid);
+  });
+
+  it('switching back to session scope unbinds on the next SessionStart', async () => {
+    writeFileSync(join(home, 'config.json'), JSON.stringify({ scope: 'session' }));
+    const r = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: 'sess-after-clear', source: 'resume', cwd: dir }));
+    expect(r.stdout).toBe('');
+    expect(existsSync(join(runtime, 'sess-after-clear.sock'))).toBe(false);
   });
 });
