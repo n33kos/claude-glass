@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
 import { computeDesktops, effectiveLayout } from '../../src/core/layout';
-import { guideFor } from '../../src/cli/guide';
+import { guideFor } from '../../src/core/guide';
+import { loadMods } from '../../src/core/mods';
+import { APPS } from '../../src/apps/registry';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
 import type { GlassState } from '../../src/core/types';
@@ -294,5 +296,28 @@ describe('"Claude decides" layout', () => {
   it('tells Claude to pick layouts only in that mode', () => {
     expect(guideFor({ defaultLayout: 'claude' })).toContain('Layouts are yours to pick');
     expect(guideFor({ defaultLayout: 'grid' })).not.toContain('Layouts are yours to pick');
+  });
+});
+
+describe('custom apps (mods)', () => {
+  let reports: ReturnType<typeof loadMods> = [];
+  beforeAll(() => { reports = loadMods(join(__dirname, '../fixtures/mods')); });
+  afterAll(() => { for (const r of reports) if (r.ok) delete APPS[r.type]; });
+  it('loads good mods and reports broken ones without throwing', () => {
+    expect(reports.find((r) => r.type === 'tool-count')).toMatchObject({ ok: true });
+    expect(reports.find((r) => r.type === 'broken')).toMatchObject({ ok: false, error: expect.stringContaining('command()') });
+    expect(APPS['tool-count']).toMatchObject({ source: 'user', singleton: true, icon: '#' });
+  });
+  it('onHook creates, auto-opens and fills a singleton from hooks', () => {
+    let s = fresh();
+    for (const p of fixtures) s = applyHook(s, p, ctx);
+    expect(s.order).toContain('tool-count');
+    expect((s.appState['tool-count'] as any).counts).toMatchObject({ Read: 1, Edit: 1, Bash: 1 });
+  });
+  it('mod commands run through the reducer; guide lands in Claude’s instructions', () => {
+    let s = reduce(fresh(), { type: 'instance.create', appType: 'tool-count' }).state;
+    s = reduce(s, { type: 'app.command', id: 'tool-count', command: 'note', args: { text: 'hi' } }).state;
+    expect((s.appState['tool-count'] as any).note).toBe('hi');
+    expect(guideFor({ defaultLayout: 'grid' })).toContain('## Tool count (`tool-count`)');
   });
 });

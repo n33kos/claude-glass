@@ -176,6 +176,29 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...s, appState: { ...s.appState, [a.id]: next } } };
     }
 
+    case 'app.hook': {
+      // Apps with onHook see every hook payload. Existing instances update in place; a singleton
+      // is created (and auto-opened once, if it asks) the first time its onHook changes state.
+      let state = s;
+      for (const app of Object.values(APPS)) {
+        if (!app.onHook) continue;
+        const ids = Object.values(state.instances).filter((i) => i.type === app.type).map((i) => i.id);
+        if (!ids.length && app.singleton) ids.push(app.type);
+        for (const id of ids) {
+          const exists = !!state.instances[id];
+          const prev = exists ? state.appState[id] : app.init();
+          let next: unknown;
+          try { next = app.onHook(prev, a.payload); } catch { continue; } // a broken app never breaks hooks
+          if (next === prev || next === undefined) continue;
+          if (!exists) {
+            state = autoCommandCreate(state, app.type, !!app.autoOpen);
+          }
+          state = { ...state, appState: { ...state.appState, [id]: next } };
+        }
+      }
+      return { state };
+    }
+
     case 'settings.set': {
       const settings = structuredClone(s.settings) as any;
       const path = a.key.split('.');
@@ -194,6 +217,14 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     default:
       throw new Error(`unknown action ${(a as any)?.type}`);
   }
+}
+
+function autoCommandCreate(s: GlassState, type: string, autoOpen: boolean): GlassState {
+  let state = reduce(s, { type: 'instance.create', appType: type, open: false }).state;
+  if (autoOpen && !state.autoOpened.includes(type)) {
+    state = { ...reduce(state, { type: 'window.open', id: type }).state, autoOpened: [...state.autoOpened, type] };
+  }
+  return state;
 }
 
 /** Create-if-needed then run an app command; open the window the first time only (auto-open). */

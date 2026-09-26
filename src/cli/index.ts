@@ -1,14 +1,13 @@
 // claude-glass CLI. Thin client over the per-session Unix socket.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
-import { APPS } from '../apps/registry';
 import { bindSession, glassIdFor, isBound } from '../core/binding';
 import { loadConfig } from '../core/config';
 import { filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
 import { request } from './client';
-import { GUIDE, guideFor } from './guide';
+import { GUIDE, guideFor } from '../core/guide';
 import { launchGlass } from './launch';
 
 interface Parsed { pos: string[]; flags: Record<string, string | true> }
@@ -119,7 +118,7 @@ async function main(argv: string[]) {
       const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
       console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
-      console.log(guideFor(loadConfig()));
+      console.log(await call(sid, { op: 'guide' }).catch(() => guideFor(loadConfig())));
       return;
     }
     case 'close': {
@@ -174,7 +173,8 @@ async function main(argv: string[]) {
       if (!id || !command) throw new Error('usage: claude-glass app <id> <command> [--flags]');
       // Singletons (browser, terminal...) are addressed by type; the first use creates and opens one.
       const st = await call(sid, { op: 'state', id }).catch(async (e) => {
-        if (!APPS[id]?.singleton) throw e;
+        const catalog: { type: string; singleton: boolean }[] = await call(sid, { op: 'catalog' });
+        if (!catalog.some((a) => a.type === id && a.singleton)) throw e;
         await dispatch(sid, { type: 'instance.create', appType: id });
         return call(sid, { op: 'state', id });
       });
@@ -266,7 +266,8 @@ async function main(argv: string[]) {
       }
       if (open) {
         if (live) await request(socketPath(sid), { op: 'hook', payload: p }, 1000).catch(() => {});
-        console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: guideFor(config) } }));
+        const guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null);
+        console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: guide ?? guideFor(config) } }));
       }
       return;
     }

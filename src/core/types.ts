@@ -74,10 +74,11 @@ export type Action =
   | { type: 'app.command'; id: string; command: string; args?: Record<string, unknown> }
   | { type: 'settings.set'; key: string; value: unknown }
   | { type: 'session.update'; patch: Partial<SessionInfo> }
-  | { type: 'ui.viewDesktop'; index: number };
+  | { type: 'ui.viewDesktop'; index: number }
+  | { type: 'app.hook'; payload: unknown };
 
 export interface Envelope {
-  op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'config' | 'quit';
+  op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'quit';
   [k: string]: unknown;
 }
 

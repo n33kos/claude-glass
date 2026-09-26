@@ -1,0 +1,13 @@
+{
+  "apiVersion": 1,
+  "type": "tool-count",
+  "title": "Tool count",
+  "icon": "#",
+  "singleton": true,
+  "description": "Counts Claude's tool calls by tool (example mod).",
+  "autoOpen": true,
+  "commands": {
+    "note": { "usage": "note --text T", "help": "Show a note above the counts" },
+    "sort": { "usage": "sort --by name|count", "help": "Sort the list", "view": true }
+  }
+}

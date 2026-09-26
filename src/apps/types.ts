@@ -6,6 +6,7 @@ export type Args = Record<string, unknown>;
 export interface CommandSpec {
   usage: string; // e.g. "set --text <markdown> | --file <path>"
   help: string;
+  view?: boolean; // the app's own view may run it (view-only changes: selecting, paging)
 }
 
 export interface AppDef<S = any> {
@@ -18,6 +19,13 @@ export interface AppDef<S = any> {
   init(): S;
   /** Apply a command. Must be pure: return new state, throw Error on bad input. */
   command(state: S, command: string, args: Args): S;
+  /** Optional: see every Claude Code hook payload and update state (pure). Singletons are created on first change. */
+  onHook?(state: S, payload: any): S;
+  autoOpen?: boolean; // open the window the first time onHook creates the instance
+  internal?: string[]; // commands only hooks/the view use; hidden from Claude's catalog
+  guide?: string; // instructions for Claude, appended to the glass guide
+  source?: 'builtin' | 'user';
+  dir?: string; // mod folder: its view.html is served into a sandboxed frame
 }
 
 export function str(args: Args, key: string, required = true): string {

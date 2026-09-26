@@ -1,4 +1,6 @@
-// Core-side app registry. Add new apps here (and their view in src/renderer/views.ts).
+// The app registry. Built-in apps and user mods register the same way (`registerApp`); a user
+// mod with a built-in's type replaces it. Views: see src/renderer/views.ts (built-in, native)
+// and the mod frame (apps with `dir`).
 import type { AppDef } from './types';
 import { terminal } from './terminal';
 import { conversation } from './conversation';
@@ -9,12 +11,18 @@ import { html } from './html';
 import { settings } from './settings';
 import { browser } from './browser';
 
-export const APPS: Record<string, AppDef> = Object.fromEntries(
-  [terminal, conversation, diff, markdown, image, html, browser, settings].map((a) => [a.type, a]),
-);
+export const APPS: Record<string, AppDef> = {};
+
+export function registerApp(app: AppDef): void {
+  APPS[app.type] = app;
+}
+
+for (const app of [terminal, conversation, diff, markdown, image, html, browser, settings]) registerApp({ ...app, source: 'builtin' });
 
 // Commands used only by hooks/UI; hidden from the catalog Claude sees.
 export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go']);
+
+export const isInternal = (app: AppDef, cmd: string) => INTERNAL_COMMANDS.has(cmd) || !!app.internal?.includes(cmd);
 
 export function getApp(type: string): AppDef {
   const app = APPS[type];

@@ -1,6 +1,7 @@
 // Printed by `claude-glass open` and injected by SessionStart when the glass is live.
 // Keep it short: it lands in Claude's context.
-import type { GlobalConfig } from '../core/types';
+import { APPS } from '../apps/registry';
+import type { GlobalConfig } from './types';
 
 export const GUIDE = `# Claude Glass is open for this session
 
@@ -58,7 +59,11 @@ shows: one thing to read closely → full; two to compare → split; a focus plu
 main-left; three peers → columns; four at a glance → grid. Change it when the work changes, not
 on every update.`;
 
-/** The guide for this user's settings (and, later, installed apps). */
+/** The guide for this user's settings plus the instructions each installed app ships. */
 export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'>): string {
-  return GUIDE + (config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '');
+  const apps = Object.values(APPS).filter((a) => a.guide);
+  const appGuides = apps.length
+    ? '\n\n# Installed apps\n' + apps.map((a) => `\n## ${a.title} (\`${a.type}\`)\n${a.guide}`).join('\n')
+    : '';
+  return GUIDE + (config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '') + appGuides;
 }

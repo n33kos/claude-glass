@@ -3,9 +3,11 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
-import { APPS, INTERNAL_COMMANDS } from '../apps/registry';
+import { APPS, isInternal } from '../apps/registry';
 import { coerceConfigValue, loadConfig, saveConfig, writeJsonAtomic } from './config';
+import { guideFor } from './guide';
 import { applyHook } from './hooks';
+import { loadMods, type ModReport } from './mods';
 import { computeDesktops } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
@@ -20,10 +22,12 @@ export class GlassCore {
   private saveTimer: NodeJS.Timeout | null = null;
   private server: net.Server | null = null;
   onQuit: () => void = () => {};
+  mods: ModReport[] = [];
 
   constructor(readonly sessionId: string, cwd: string) {
     mkdirSync(sessionDir(sessionId), { recursive: true });
     this.config = loadConfig();
+    this.mods = loadMods();
     this.state = loadState(sessionId) ?? initialState({ id: sessionId, cwd });
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
     // Reopened glass: fresh start time is not interesting, but "ended" must be cleared.
@@ -91,7 +95,8 @@ export class GlassCore {
   catalog() {
     return Object.values(APPS).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
-      commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !INTERNAL_COMMANDS.has(k))),
+      source: a.source,
+      commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
     }));
   }
 
@@ -103,6 +108,8 @@ export class GlassCore {
         case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action) };
         case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
+        case 'guide': return { ok: true, result: guideFor(this.config) };
+        case 'mods': return { ok: true, result: this.mods };
         case 'state': {
           const id = env.id as string | undefined;
           if (!id) return { ok: true, result: this.state };

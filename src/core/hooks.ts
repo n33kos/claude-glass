@@ -40,6 +40,11 @@ function questionWait(p: any): Waiting {
 const endsWait = (w: Waiting | undefined, p: any) => !!w && (!w.toolUseId || !p.tool_use_id || w.toolUseId === p.tool_use_id);
 
 export function applyHook(s: GlassState, p: any, ctx: HookContext): GlassState {
+  // Built-in effects first, then any app that watches hooks itself (onHook).
+  return reduce(builtinHook(s, p, ctx), { type: 'app.hook', payload: p }).state;
+}
+
+function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
   const event: string = p?.hook_event_name ?? '';
   const auto = s.settings.autoOpen;
   switch (event) {

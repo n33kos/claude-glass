@@ -12,6 +12,7 @@ export function runtimeDir(): string {
 }
 
 export const configPath = () => join(glassHome(), 'config.json');
+export const appsDir = () => join(glassHome(), 'apps');
 export const sessionsDir = () => join(glassHome(), 'sessions');
 export const sessionDir = (id: string) => join(sessionsDir(), id);
 export const statePath = (id: string) => join(sessionDir(id), 'state.json');
