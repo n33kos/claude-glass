@@ -530,7 +530,7 @@ try {
     check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'clicking the edge opens the sidebar; two windows split it');
     await page.screenshot({ path: join(shots, '12-edge-tuck.png') });
     // Keep it open: it stays when the pointer leaves, and the layout makes room for it.
-    await page.locator('.edge-panel.right .edge-keep').click();
+    await page.locator('.edge-cap.right.open').click();
     await page.mouse.move(stage.x + stage.width / 3, stage.y + stage.height / 2, { steps: 4 });
     await sleep(700);
     const panelLeft = (await page.locator('.edge-panel.right').boundingBox()).x;
@@ -560,7 +560,7 @@ try {
     await sleep(500);
     v = JSON.parse(await cli(env, 'view', '--json'));
     check(v.tucked?.right?.some((w) => w.id === other), `dropping over a kept-open sidebar pins the window there (${JSON.stringify(v.tucked?.right?.map((w) => w.id))})`);
-    await page.locator('.edge-panel.right .edge-keep').click();
+    await page.locator('.edge-cap.right.open').click();
     for (const w of v.tucked.right) await cli(env, 'window', 'unpin', w.id);
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
     await sleep(600);
@@ -590,7 +590,7 @@ try {
       await page.mouse.move(e === 'left' ? stage.x + 4 : stage.x + stage.width * 0.15, e === 'left' ? stage.y + stage.height * 0.3 : stage.y + stage.height - 4, { steps: 3 });
       await page.mouse.down(); await page.mouse.up();
       await sleep(500);
-      await page.locator(`.edge-panel.${e} .edge-keep`).click();
+      await page.locator(`.edge-cap.${e}.open`).click();
       await sleep(400);
     }
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 3, { steps: 3 });
@@ -598,7 +598,7 @@ try {
     const L = await page.locator('.edge-panel.left').boundingBox(), B = await page.locator('.edge-panel.bottom').boundingBox();
     check(B.x >= L.x + L.width, `side sidebars win: the bottom one fits beside the left one (left ends ${Math.round(L.x + L.width)}, bottom starts ${Math.round(B.x)})`);
     await page.screenshot({ path: join(shots, '12c-sidebars.png') });
-    for (const e of ['left', 'bottom']) await page.locator(`.edge-panel.${e} .edge-keep`).click();
+    for (const e of ['left', 'bottom']) await page.locator(`.edge-cap.${e}.open`).click();
     await cli(env, 'window', 'unpin', w1);
     await cli(env, 'window', 'unpin', w2);
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
@@ -617,7 +617,7 @@ try {
     await page.mouse.down(); await page.mouse.up();
     await sleep(600);
     await page.screenshot({ path: join(shots, '12g-open.png') }); // open: the rail backs the drawer
-    await page.locator('.edge-panel.right .edge-keep').click();
+    await page.locator('.edge-cap.right.open').click();
     await sleep(500);
     const topWin = await page.locator(`.edge-panel.right [data-window="${lay[0]}"] .titlebar`).boundingBox();
     const botWin = await page.locator(`.edge-panel.right [data-window="${lay[1]}"]`).boundingBox();
@@ -643,7 +643,7 @@ try {
     await sleep(500);
     st2 = JSON.parse(await cli(env, 'state', '--json'));
     check(layoutGhost === 1 && !st2.tucked.right.includes(lay[0]) && st2.order[0] === lay[0], `dragging a window out of a sidebar unpins it into that slot, with a placeholder (order starts ${st2.order[0]})`);
-    await page.locator('.edge-panel.right .edge-keep').click();
+    await page.locator('.edge-cap.right.open').click();
     await cli(env, 'window', 'unpin', lay[1]);
     // With the dock on auto-hide, the bottom edge away from the dock still reveals the bottom sidebar.
     await cli(env, 'settings', 'set', 'dockAutoHide', 'true');

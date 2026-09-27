@@ -643,48 +643,61 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
         return (
           <Fragment key={edge}>
             {(() => {
-              // The drawer pull: a black rail running off the screen edge with a capsule of the
-              // pinned apps' icons. Hovering the edge or the capsule starts pulling it out (the rail
-              // grows, the capsule eases off the edge); clicking opens the sidebar, and the rail then
-              // backs the whole drawer, reaching in under its windows.
+              // The drawer pull. Closed: a black rail running off the screen edge with a capsule of
+              // the pinned apps' icons; hovering the edge or the capsule starts pulling it out, and
+              // clicking opens the sidebar. Open (or kept open): the rail becomes a translucent
+              // backing behind the whole sidebar, and the capsule rides out to the sidebar's inner
+              // edge, its icons swapped for the keep-open chevron.
               const state3 = open ? 'open' : near === edge ? 'near' : 'idle';
+              const capThick = PULL_ICON + PULL_T * 2;
               const capLen = ids.length * PULL_ICON + (ids.length - 1) * 6 + PULL_T * 2;
-              // Where the capsule sits along the edge: the sidebar's middle, except the bottom when
-              // the dock auto-hides there (the dock owns the middle), then left of it.
+              // Where the closed capsule sits along the edge: the sidebar's middle, except the bottom
+              // when the dock auto-hides there (the dock owns the middle), then left of it.
               const along = vertical ? r.y + r.h / 2 : edge === 'bottom' && config.dockAutoHide ? Math.max(r.x + capLen, W * 0.2) : r.x + r.w / 2;
-              const len = { idle: capLen + 80, near: Math.max(capLen + 80, (vertical ? r.h : r.w) * 0.45), open: vertical ? r.h : r.w }[state3];
-              const start = state3 === 'open' ? (vertical ? r.y : r.x) : along - len / 2;
-              const depth = { idle: PULL_T + 4, near: PULL_T + 8, open: PAD + 24 }[state3]; // from 4px off-screen inward
-              const railStyle: React.CSSProperties = vertical
-                ? { top: start, height: len, width: depth, [edge]: -4 }
-                : { left: start, width: len, height: depth, [edge]: -4 };
-              const capStyle: React.CSSProperties = vertical ? { top: along, [edge]: 0 } : { left: along, [edge]: 0 };
+              const B = 10; // how far the open backing extends past the sidebar
+              let railStyle: React.CSSProperties;
+              if (state3 === 'open') {
+                railStyle = {
+                  left: { left: -4, right: r.x - B, top: r.x - B, bottom: r.x - B }[edge],
+                  top: { left: r.y - B, right: r.y - B, top: -4, bottom: r.y - B }[edge],
+                  width: { left: r.x + r.w + B + 4, right: W - r.x + B + 4, top: r.w + B * 2, bottom: r.w + B * 2 }[edge],
+                  height: { left: r.h + B * 2, right: r.h + B * 2, top: r.y + r.h + B + 4, bottom: H - r.y + B + 4 }[edge],
+                };
+              } else {
+                const len = state3 === 'near' ? Math.max(capLen + 80, (vertical ? r.h : r.w) * 0.45) : capLen + 80;
+                const depth = state3 === 'near' ? PULL_T + 8 : PULL_T + 4; // from 4px off-screen inward
+                railStyle = vertical
+                  ? { top: along - len / 2, height: len, width: depth, left: edge === 'left' ? -4 : W - depth + 4 }
+                  : { left: along - len / 2, width: len, height: depth, top: edge === 'top' ? -4 : H - depth + 4 };
+              }
+              // The capsule's center: on the edge (eased in when near), or on the open backing's inner edge.
+              const inset = state3 === 'near' ? capThick / 2 + 8 : capThick / 2;
+              const [cx, cy] = state3 === 'open'
+                ? { left: [r.x + r.w + B, r.y + r.h / 2], right: [r.x - B, r.y + r.h / 2], top: [r.x + r.w / 2, r.y + r.h + B], bottom: [r.x + r.w / 2, r.y - B] }[edge]
+                : { left: [inset, along], right: [W - inset, along], top: [along, inset], bottom: [along, H - inset] }[edge];
               const openIt = () => hold(edge);
+              const toggleKeep = () => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); };
               return (
                 <>
                   {!kept && <div className={`edge-hot ${edge}`} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
                   <i className={`edge-rail ${edge} ${state3}`} style={railStyle} />
-                  {!kept && (
-                    <button className={`edge-cap ${edge} ${state3}`} style={capStyle} title={`Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
-                      onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt}>
-                      {ids.map((id) => <span key={id}><AppIcon type={state.instances[id].type} /></span>)}
-                    </button>
-                  )}
+                  <button className={`edge-cap ${edge} ${state3}${kept ? ' kept' : ''}`} style={{ left: cx, top: cy }} aria-pressed={state3 === 'open' ? kept : undefined}
+                    title={state3 === 'open' ? (kept ? 'Hide this sidebar (hover the edge to show it)' : 'Keep this sidebar open') : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
+                    onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={state3 === 'open' ? toggleKeep : openIt}>
+                    {state3 === 'open'
+                      // One chevron for every edge: points away from the edge to keep open, toward it to hide.
+                      ? <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden
+                          style={{ transform: `rotate(${({ left: 0, top: 90, right: 180, bottom: 270 }[edge]) + (kept ? 180 : 0)}deg)` }}>
+                          <path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      : ids.map((id) => <span key={id}><AppIcon type={state.instances[id].type} /></span>)}
+                  </button>
                 </>
               );
             })()}
             <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
               style={{ width: pw, height: ph, ...(vertical ? {} : { left: PAD + side.l }) }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
               {kept && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, e)} />}
-              {/* Handle on the inner edge: keep this sidebar open (the layout makes room) or let it hide. */}
-              <button className="edge-keep" title={kept ? 'Hide this sidebar (hover the edge to show it)' : 'Keep this sidebar open'}
-                aria-pressed={kept} onClick={() => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); }}>
-                {/* One chevron for every edge: points away from the edge to keep open, toward it to hide. */}
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden
-                  style={{ transform: `rotate(${({ left: 0, top: 90, right: 180, bottom: 270 }[edge]) + (kept ? 180 : 0)}deg)` }}>
-                  <path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
               {ghostAt != null && <div className="drop-ghost" style={{ width: slots[ghostAt].w, height: slots[ghostAt].h, transform: `translate(${slots[ghostAt].x}px, ${slots[ghostAt].y}px)` }} />}
               {ids.map((id) => {
                 const meta = state.instances[id];
