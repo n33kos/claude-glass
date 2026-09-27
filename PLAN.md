@@ -307,6 +307,11 @@ Queue, in order:
     Policy + a locked session permission handler (Electron granted everything by default; now
     everything is denied except declared mic). Shown in Settings and `claude-glass apps`.
 
+13. [x] **Edge tucking (tried and kept 2026-09-26)**: drag a window (or its dock icon) onto an
+    edge's Tuck strip and it leaves the flow into that edge's slide-out panel (`state.tucked`,
+    `window.tuck/untuck`); several split a panel; they stay mounted. Dock icons also drag to
+    reorder; crowded docks shrink icons then scroll. Open question: pin vs tuck in the UI.
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
