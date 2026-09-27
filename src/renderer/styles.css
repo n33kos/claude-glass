@@ -88,7 +88,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .pager button.on { background: #fff; transform: scale(1.25); }
 
 /* ---- stage & windows ---------------------------------------------------------- */
-.stage { position: relative; flex: 1; overflow: hidden; }
+.stage { position: relative; flex: 1; overflow: clip; } /* clip, not hidden: hidden still scrolls (focus in a tucked frame) */
 .strip { position: absolute; inset: 0; transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
 .empty { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, 0.7); font-size: 14px; }
 
@@ -265,9 +265,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .edge-cap.open:hover { color: var(--ink); border-color: var(--sky); }
 .edge-cap.open.kept { color: var(--sky); }
 .edge-cap svg { display: block; transition: transform .2s; }
-/* The auto-hidden dock owns the middle of the bottom edge (the bottom pull sits left of it); its
-   hover zone shrinks to the middle so the rest of the edge belongs to the bottom sidebar. */
-.dock-autohide.has-bottom-pin .dock-hot { left: 32%; right: 32%; }
+/* With an auto-hidden dock, the closed bottom pull sits above the dock's trigger strip (the whole
+   rest of the edge raises the dock), and fades out while the dock is up so they never overlap. */
+.dock-autohide .edge-cap.bottom:not(.open) { z-index: 41; transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), opacity .15s; }
+.dock-autohide:has(.dock-hot:hover, .dock:hover) :is(.edge-cap.bottom:not(.open), .edge-rail.bottom:not(.open)) { opacity: 0; pointer-events: none; }
 .edge-panel { position: absolute; z-index: 36; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; opacity: 0; pointer-events: none; }
 .edge-panel .window { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }
 .edge-panel.left { top: 12px; left: 12px; transform: translateX(calc(-100% - 24px)); }

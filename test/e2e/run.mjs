@@ -651,10 +651,17 @@ try {
     await sleep(500);
     const full = await page.locator('.stage').boundingBox(); // auto-hide gives the stage the dock's space
     await page.mouse.move(full.x + full.width / 2, full.y + full.height / 2, { steps: 3 });
-    // Use the bottom pull's capsule (it sits clear of the dock): hover starts it, click opens.
+    // The bottom pull's capsule sits centered, above the dock's trigger; the rest of the edge raises
+    // the dock, and the capsule fades out while the dock is up.
     const cap = await page.locator('.edge-cap.bottom').boundingBox();
-    const dockHot = await page.locator('.dock-hot').boundingBox();
-    check(cap.x + cap.width < dockHot.x, `with an auto-hidden dock, the bottom pull sits clear of the dock's hover zone (pull ends ${Math.round(cap.x + cap.width)}, dock zone starts ${Math.round(dockHot.x)})`);
+    const onTop = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.edge-cap.bottom'), [cap.x + cap.width / 2, cap.y + cap.height - 4]);
+    check(onTop, 'with an auto-hidden dock, the bottom pull sits above the dock trigger');
+    await page.mouse.move(cap.x - 120, full.y + full.height - 3, { steps: 3 });
+    await sleep(500);
+    const capGone = await page.locator('.edge-cap.bottom').evaluate((e) => getComputedStyle(e).opacity === '0');
+    check(capGone, 'with the dock raised, the bottom pull steps aside');
+    await page.mouse.move(full.x + full.width / 2, full.y + full.height / 2, { steps: 3 });
+    await sleep(700);
     await page.mouse.move(cap.x + cap.width / 2, cap.y + cap.height / 2, { steps: 4 });
     await sleep(300);
     await page.mouse.down(); await page.mouse.up();

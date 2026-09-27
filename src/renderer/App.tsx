@@ -651,9 +651,9 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               const state3 = open ? 'open' : near === edge ? 'near' : 'idle';
               const capThick = PULL_ICON + PULL_T * 2;
               const capLen = ids.length * PULL_ICON + (ids.length - 1) * 6 + PULL_T * 2;
-              // Where the closed capsule sits along the edge: the sidebar's middle, except the bottom
-              // when the dock auto-hides there (the dock owns the middle), then left of it.
-              const along = vertical ? r.y + r.h / 2 : edge === 'bottom' && config.dockAutoHide ? Math.max(r.x + capLen, W * 0.2) : r.x + r.w / 2;
+              // The closed capsule sits at the sidebar's middle. At the bottom with an auto-hiding dock,
+              // it sits above the dock's trigger strip and steps aside while the dock is up (CSS).
+              const along = vertical ? r.y + r.h / 2 : r.x + r.w / 2;
               const B = 10; // how far the open backing extends past the sidebar
               const E = 6; // the open backing runs the screen's full length, inset so its rounded ends show
               let railStyle: React.CSSProperties;
