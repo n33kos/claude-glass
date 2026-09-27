@@ -279,6 +279,20 @@ describe('settings from the CLI', () => {
   });
 });
 
+describe('tool reminder hook', () => {
+  const remind = async (command: string, session = SID) =>
+    (await run(join(root, 'scripts/tool-reminder.sh'), [], JSON.stringify({ session_id: session, tool_input: { command } }))).stdout;
+  it('reminds only for shell file I/O, only while a glass is open, and can be turned off', async () => {
+    expect(JSON.parse(await remind('sed -n 1,40p src/core/reducer.ts')).hookSpecificOutput.additionalContext).toContain('Read tool');
+    expect(await remind("cat > notes.md <<'EOF'")).toContain('Edit/Write');
+    for (const ok of ['npm test 2>&1 | tail -3', 'grep -n reduce src', 'git commit -qm "a > b.c"', 'claude-glass app x log --text "cat a.ts"']) expect(await remind(ok)).toBe('');
+    expect(await remind('cat a.ts', 'no-glass-here')).toBe('');
+    await cli('settings', 'set', 'toolReminders', 'false');
+    expect(await remind('cat a.ts')).toBe('');
+    await cli('settings', 'set', 'toolReminders', 'true');
+  });
+});
+
 describe('view for Claude', () => {
   it('reports display modes, window positions and pinned sidebars', async () => {
     core.dispatch({ type: 'window.tuck', id: 'terminal', edge: 'left' });

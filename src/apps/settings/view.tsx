@@ -98,6 +98,7 @@ export function SettingsView({ glass, config }: ViewProps) {
           {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
         </select>
       </label>
+      <Toggle label="Remind Claude to read and edit with its own tools (so you see the work here)" on={config.toolReminders} onChange={(v) => setConfig('toolReminders', v)} />
       <Toggle label="Scroll outside windows to switch desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />
 
       <h4>Look</h4>

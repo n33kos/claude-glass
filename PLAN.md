@@ -345,6 +345,13 @@ Queue, in order:
     (`settings.backgroundColors`, hex-validated in the reducer); the guide says what colors mean.
     Blob colors are a registered `@property --bokeh`, so changes ease over 1.6s.
 
+19. [x] **Tool reminders (2026-09-26)**: a PostToolUse Bash hook (`scripts/tool-reminder.sh`,
+    synchronous but instant) adds a reminder to Claude's context when a command read or wrote
+    files through the shell (cat/sed/head at command start, `sed -i`, grep context dumps,
+    heredocs, `python -c`, redirects into files) while a glass is open: use Read and Edit/Write
+    so the glass can show the work. Never blocks. git and claude-glass commands are skipped
+    (prose arguments). Global `toolReminders` (default on) turns it off.
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;

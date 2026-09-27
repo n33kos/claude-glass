@@ -19,6 +19,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   wheelDesktops: true,
   disabledApps: [],
   nestedView: false,
+  toolReminders: true,
 };
 
 export function loadConfig(): GlobalConfig {
@@ -51,7 +52,8 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'waitingGlow':
     case 'animateBackground':
     case 'wheelDesktops':
-    case 'nestedView': return value === true || value === 'true';
+    case 'nestedView':
+    case 'toolReminders': return value === true || value === 'true';
     case 'disabledApps': {
       const list = Array.isArray(value) ? value : String(value ?? '').split(',');
       return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];
@@ -81,4 +83,5 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   disabledApps: 'comma-separated app types the user turned off (change only if asked)',
   autoStart: 'true|false: open a glass when a Claude session starts',
   scope: 'session|folder: one glass per session, or one per project folder',
+  toolReminders: 'true|false: remind Claude to use Read/Edit/Write when a Bash command reads or writes files (change only if asked)',
 };
