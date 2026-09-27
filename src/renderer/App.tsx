@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { computeDesktops, desktopsFor, EDGES, effectiveLayout, panelSize, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
+import { computeDesktops, desktopsFor, EDGES, edgeSize, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
 import { AppIcon } from './AppIcon';
@@ -12,10 +12,23 @@ const GAP = 12;
 
 interface Rect { x: number; y: number; w: number; h: number }
 interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean }
-interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null; tuck?: Edge | null }
+interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null; tuck?: Edge | null; mod?: boolean }
 
-const TUCK_ZONE = 44; // px strip at each stage edge: drop a window there to tuck it
-const SWITCH_ZONE = 88; // left/right, just inside the tuck strip: hold to switch desktops
+const TUCK_ZONE = 44; // px strip at each stage edge: with ⌘ held, drop a window there to pin it to that sidebar
+const SWITCH_ZONE = 48; // left/right: hold a dragged window here to switch desktops
+const PIN_TARGET = 30; // radius of the pin target shown mid-edge while dragging (drop on it to pin)
+
+/** Room kept-open left/right sidebars take (top/bottom sidebars fit between them). */
+function sideRoom(s: { tucked?: Partial<Record<Edge, string[]>>; tuckKeep?: Edge[]; tuckSize?: Partial<Record<Edge, number>> }, W: number, H: number) {
+  const room = (e: Edge) => (s.tuckKeep?.includes(e) && s.tucked?.[e]?.length ? edgeSize(e, W, H, s.tuckSize) + GAP : 0);
+  return { l: room('left'), r: room('right') };
+}
+
+/** Center of an edge's pin target in stage coordinates (top/bottom: between kept side sidebars). */
+function pinTargetCenter(edge: Edge, W: number, H: number, side: { l: number; r: number }): { x: number; y: number } {
+  const mid = (W + side.l - side.r) / 2;
+  return { left: { x: 34, y: H / 2 }, right: { x: W - 34, y: H / 2 }, top: { x: mid, y: 34 }, bottom: { x: mid, y: H - 34 } }[edge];
+}
 
 type Inset = { l: number; r: number; t: number; b: number };
 
@@ -53,11 +66,32 @@ export function App() {
   const [peek, setPeek] = useState<Edge | null>(null); // edge panel slid out (hover or dock)
   // Dragging a dock icon: along the dock reorders windows; onto an edge's Tuck strip tucks it.
   const [dockDrag, setDockDrag] = useState<{ id: string; px: number; py: number; tuck: Edge | null; before: string | null } | null>(null);
-  const tuckAtPoint = (cx: number, cy: number): Edge | null => {
+  /**
+   * Where a drag at (cx, cy) would pin: a sidebar kept open takes drops anywhere over it; a hidden
+   * edge through its pin target (always shown while dragging), or its whole strip when `strips`
+   * (⌘ held, or a dock icon drag).
+   */
+  const pinTarget = (cx: number, cy: number, strips: boolean): Edge | null => {
     const st = stageRef.current?.getBoundingClientRect();
-    if (!st) return null;
-    return cx - st.left < TUCK_ZONE && cy > st.top && cy < st.bottom ? 'left' : st.right - cx < TUCK_ZONE && cy > st.top && cy < st.bottom ? 'right'
-      : cy >= st.top && cy - st.top < TUCK_ZONE ? 'top' : cy <= st.bottom && st.bottom - cy < TUCK_ZONE ? 'bottom' : null;
+    if (!st || cx < st.left || cx > st.right || cy < st.top || cy > st.bottom) return null;
+    const open = (e: Edge) => !!state.tucked?.[e]?.length && !!state.tuckKeep?.includes(e);
+    const side = sideRoom(state, st.width, st.height);
+    const x = cx - st.left, y = cy - st.top;
+    for (const e of EDGES) {
+      if (!open(e)) continue;
+      const d = PAD + edgeSize(e, st.width, st.height, state.tuckSize);
+      const betweenSides = x > PAD + side.l && x < st.width - PAD - side.r;
+      if ((e === 'left' && x < d) || (e === 'right' && st.width - x < d) || (e === 'top' && y < d && betweenSides) || (e === 'bottom' && st.height - y < d && betweenSides)) return e;
+    }
+    for (const e of EDGES) {
+      if (open(e)) continue;
+      const c = pinTargetCenter(e, st.width, st.height, side);
+      if (Math.hypot(x - c.x, y - c.y) <= PIN_TARGET) return e;
+    }
+    if (!strips) return null;
+    const hit: Edge | null = cx - st.left < TUCK_ZONE ? 'left' : st.right - cx < TUCK_ZONE ? 'right'
+      : cy - st.top < TUCK_ZONE ? 'top' : st.bottom - cy < TUCK_ZONE ? 'bottom' : null;
+    return hit && !open(hit) ? hit : null;
   };
   // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -127,10 +161,9 @@ export function App() {
   // Edge panels kept open take their space from the layout.
   const kept = state.tuckKeep ?? [];
   const inset = useMemo(() => {
-    const { side, band } = panelSize(size.W, size.H);
-    const has = (e: Edge) => kept.includes(e) && !!state.tucked?.[e]?.length;
-    return { l: has('left') ? side + GAP : 0, r: has('right') ? side + GAP : 0, t: has('top') ? band + GAP : 0, b: has('bottom') ? band + GAP : 0 };
-  }, [size.W, size.H, kept.join(), state.tucked]); // eslint-disable-line react-hooks/exhaustive-deps
+    const room = (e: Edge) => (kept.includes(e) && state.tucked?.[e]?.length ? edgeSize(e, size.W, size.H, state.tuckSize) + GAP : 0);
+    return { l: room('left'), r: room('right'), t: room('top'), b: room('bottom') };
+  }, [size.W, size.H, kept.join(), state.tucked, state.tuckSize]); // eslint-disable-line react-hooks/exhaustive-deps
   const placed = useMemo(() => place(pages, size.W, size.H, focus, inset), [pages, size, focus, inset]);
   const opacityFor = (m: InstanceMeta) => m.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
 
@@ -160,12 +193,17 @@ export function App() {
       return Math.min(page.start + page.windows.length, state.order.length);
     };
     // Dropping in an edge strip tucks the window there.
-    const tuckAt = (cx: number, cy: number): Edge | null =>
-      cx - stage.left < TUCK_ZONE ? 'left' : stage.right - cx < TUCK_ZONE ? 'right'
-        : cy - stage.top < TUCK_ZONE ? 'top' : stage.bottom - cy < TUCK_ZONE ? 'bottom' : null;
+    // A plain drag reorders; holding ⌘ offers the pin strips (open sidebars always take drops).
+    let last = { x: 0, y: 0, mod: false };
+    const update = (x: number, y: number, mod: boolean) => {
+      last = { x, y, mod };
+      const tuck = pinTarget(x, y, mod);
+      setDrag((d) => d && { ...d, px: x, py: y, target: targetAt(x, y), tuck, mod });
+      return tuck;
+    };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Meta') update(last.x, last.y, e.type === 'keydown'); };
     const move = (e: PointerEvent) => {
-      const tuck = tuckAt(e.clientX, e.clientY);
-      setDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, target: targetAt(e.clientX, e.clientY), tuck });
+      const tuck = update(e.clientX, e.clientY, e.metaKey);
       const dl = e.clientX - stage.left, dr = stage.right - e.clientX;
       const nearLeft = !tuck && dl < SWITCH_ZONE, nearRight = !tuck && dr < SWITCH_ZONE;
       if ((nearLeft || nearRight) && edgeTimer.current == null) {
@@ -179,7 +217,7 @@ export function App() {
     };
     const up = (e: PointerEvent) => {
       if (edgeTimer.current != null) { clearTimeout(edgeTimer.current); edgeTimer.current = null; }
-      const tuck = tuckAt(e.clientX, e.clientY);
+      const tuck = pinTarget(e.clientX, e.clientY, e.metaKey);
       const target = targetAt(e.clientX, e.clientY);
       const cur = state.order.indexOf(drag.id);
       if (tuck) dispatch({ type: 'window.tuck', id: drag.id, edge: tuck });
@@ -190,8 +228,13 @@ export function App() {
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [drag?.id, v, placed, pages, size.W, state.order, state.settings.windowMode]);
+    window.addEventListener('keydown', key);
+    window.addEventListener('keyup', key);
+    return () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      window.removeEventListener('keydown', key); window.removeEventListener('keyup', key);
+    };
+  }, [drag?.id, v, placed, pages, size.W, state.order, state.settings.windowMode, state.tucked, state.tuckKeep, state.tuckSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (!drag && view > pages.length - 1) setViewRaw(pages.length - 1); }, [drag, pages.length, view]);
 
@@ -211,14 +254,14 @@ export function App() {
     };
     const move = (e: PointerEvent) => {
       const b = beforeAt(e.clientX, e.clientY);
-      setDockDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, tuck: tuckAtPoint(e.clientX, e.clientY), before: b === undefined ? null : b });
+      setDockDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, tuck: pinTarget(e.clientX, e.clientY, true), before: b === undefined ? null : b });
       document.querySelectorAll('.dock-item.drop-before, .dock.drop-end').forEach((el) => el.classList.remove('drop-before', 'drop-end'));
       if (b) document.querySelector(`.dock-item[data-dock-id="${CSS.escape(b)}"]`)?.classList.add('drop-before');
       else if (b === null) document.querySelector('.dock')?.classList.add('drop-end');
     };
     const up = (e: PointerEvent) => {
       document.querySelectorAll('.dock-item.drop-before, .dock.drop-end').forEach((el) => el.classList.remove('drop-before', 'drop-end'));
-      const tuck = tuckAtPoint(e.clientX, e.clientY);
+      const tuck = pinTarget(e.clientX, e.clientY, true);
       const b = beforeAt(e.clientX, e.clientY);
       setDockDrag(null);
       if (tuck) return void dispatch({ type: 'window.tuck', id, edge: tuck });
@@ -261,7 +304,7 @@ export function App() {
 
       {waiting?.kind === 'question' && <QuestionCard waiting={waiting} />}
 
-      <main className={`stage${drag ? ' dragging-any' : ''}`} ref={stageRef}>
+      <main className={`stage${drag || dockDrag ? ' dragging-any' : ''}`} ref={stageRef}>
         <div className="strip" style={{ transform: `translateX(${-v * size.W}px)` }}>
           {/* Stable DOM order (by id): windows are placed by transform, so a reorder never moves
               a node, and app frames never reload. */}
@@ -305,8 +348,16 @@ export function App() {
             </div>
           )}
         </div>
-        {(drag || dockDrag) && EDGES.map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Tuck</span></div>)}
-        <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} />
+        {(drag?.mod || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length))
+          .map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Pin</span></div>)}
+        {/* Pin targets: drop a dragged window on one to pin it to that edge; anywhere else is a normal drag. */}
+        {(drag || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length)).map((e) => {
+          const c = pinTargetCenter(e, size.W, size.H, sideRoom(state, size.W, size.H));
+          return <div key={e} className={`pin-target ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`} style={{ left: c.x, top: c.y }} title={`Pin ${e}`}>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
+          </div>;
+        })}
+        <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} dropEdge={(drag ?? dockDrag)?.tuck ?? null} />
       </main>
 
       {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
@@ -386,7 +437,7 @@ function WindowFrame(props: {
         </div>
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em><AppIcon type={meta.type} /></em>{meta.title}</span>
         {tucked ? (
-          <button className="untuck" title="Put back in the layout" aria-label="Untuck window" onClick={() => dispatch({ type: 'window.untuck', id: meta.id })}>Untuck</button>
+          <button className="untuck" title="Unpin: put back in the layout" aria-label="Unpin window" onClick={() => dispatch({ type: 'window.untuck', id: meta.id })}>Unpin</button>
         ) : null}
         {menu && page && (
           <div className="layout-menu" onMouseLeave={() => setMenu(false)}>
@@ -480,35 +531,59 @@ function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
 }
 
 /**
- * Windows tucked into an edge: out of the tiling flow, the same on every desktop. Each edge is a
- * panel that sits off-screen with a slim tab and slides out on hover; its windows split the panel
- * evenly. They stay mounted while hidden (a voice app keeps listening).
+ * Edge sidebars ("pin" in the UI): windows pinned to an edge leave the tiling flow and live here,
+ * the same on every desktop. Hidden, a sidebar is a slim tab and hovering anywhere along its edge
+ * slides it out; kept open, the layout makes room and its inner edge drags to resize. Windows
+ * split a sidebar evenly and stay mounted while hidden (a voice app keeps listening).
  */
-function EdgePanels({ W, H, peek, setPeek }: { W: number; H: number; peek: Edge | null; setPeek: (e: Edge | null) => void }) {
+function EdgePanels({ W, H, peek, setPeek, dropEdge }: { W: number; H: number; peek: Edge | null; setPeek: (e: Edge | null) => void; dropEdge: Edge | null }) {
   const { state, config } = useSnapshot();
   const closeTimer = useRef<number | null>(null);
   const hold = (e: Edge) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
   const release = () => { closeTimer.current = window.setTimeout(() => setPeek(null), 350); };
-  const { side, band } = panelSize(W, H);
+  // Live size while dragging a sidebar's inner edge; committed to state on release.
+  const [resizing, setResizing] = useState<{ edge: Edge; size: number } | null>(null);
+  const startResize = (edge: Edge, e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); // frames under the pointer would swallow the drag
+    const stage = (e.currentTarget as HTMLElement).closest('.stage')!.getBoundingClientRect();
+    const sizeAt = (x: number, y: number) => ({ left: x - stage.left, right: stage.right - x, top: y - stage.top, bottom: stage.bottom - y }[edge] - PAD);
+    let size = edgeSize(edge, W, H, state.tuckSize);
+    document.body.classList.add('frames-off');
+    const move = (ev: PointerEvent) => { size = edgeSize(edge, W, H, { [edge]: sizeAt(ev.clientX, ev.clientY) }); setResizing({ edge, size }); };
+    const up = () => {
+      document.body.classList.remove('frames-off');
+      window.removeEventListener('pointermove', move); setResizing(null); void dispatch({ type: 'tuck.size', edge, size });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+  };
   return (
     <>
       {EDGES.map((edge) => {
         const ids = (state.tucked?.[edge] ?? []).filter((id) => state.instances[id]);
         if (!ids.length) return null;
         const vertical = edge === 'left' || edge === 'right';
-        const pw = vertical ? side : W - PAD * 2, ph = vertical ? H - PAD * 2 : band;
         const kept = !!state.tuckKeep?.includes(edge);
+        const sz = resizing?.edge === edge ? resizing.size : edgeSize(edge, W, H, state.tuckSize);
+        // Side sidebars win: top/bottom ones fit between any kept-open left/right sidebars.
+        const side = sideRoom(state, W, H);
+        const pw = vertical ? sz : W - PAD * 2 - side.l - side.r, ph = vertical ? H - PAD * 2 : sz;
         const n = ids.length;
         const each = ((vertical ? ph : pw) - GAP * (n - 1)) / n;
         return (
           <Fragment key={edge}>
-            {!kept && <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
-              {ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}
-            </div>}
-            <div className={`edge-panel ${edge}${peek === edge || kept ? ' open' : ''}${kept ? ' kept' : ''}`} style={{ width: pw, height: ph }}
-              onMouseEnter={() => hold(edge)} onMouseLeave={release}>
-              {/* Handle on the inner edge: keep this panel open (the layout makes room) or let it hide. */}
-              <button className="edge-keep" title={kept ? 'Hide this panel (hover the edge to show it)' : 'Keep this panel open'}
+            {!kept && <>
+              <div className={`edge-hot ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} />
+              <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
+                {ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}
+              </div>
+            </>}
+            <div className={`edge-panel ${edge}${peek === edge || kept ? ' open' : ''}${kept ? ' kept' : ''}${dropEdge === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
+              style={{ width: pw, height: ph, ...(vertical ? {} : { left: PAD + side.l }) }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
+              {kept && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, e)} />}
+              {/* Handle on the inner edge: keep this sidebar open (the layout makes room) or let it hide. */}
+              <button className="edge-keep" title={kept ? 'Hide this sidebar (hover the edge to show it)' : 'Keep this sidebar open'}
                 aria-pressed={kept} onClick={() => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); }}>
                 {{ left: kept ? '‹' : '›', right: kept ? '›' : '‹', top: kept ? '˄' : '˅', bottom: kept ? '˅' : '˄' }[edge]}
               </button>

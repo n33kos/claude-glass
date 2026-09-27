@@ -257,8 +257,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .untuck { margin-left: auto; padding: 1px 8px; border-radius: 6px; font-size: 11px; color: var(--ink-dim); background: rgba(255, 255, 255, 0.07); }
 .untuck:hover { color: var(--ink); background: rgba(255, 255, 255, 0.14); }
 
-/* While any window is dragged, app frames ignore the pointer (they'd swallow the drag). */
-.stage.dragging-any iframe { pointer-events: none; }
+/* While anything is dragged (window, dock icon, sidebar edge), app frames ignore the pointer: they'd
+   swallow the moves and the drop, and pointer capture doesn't stop that. */
+.stage.dragging-any iframe, body.frames-off iframe { pointer-events: none; }
 
 /* Dock: crowded docks scroll with faded ends; dragging icons reorders or tucks. */
 .dock.crowded { max-width: calc(100vw - 32px); overflow-x: auto; scrollbar-width: none;
@@ -287,3 +288,29 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .edge-panel.top .edge-keep { bottom: -12px; left: 50%; transform: translateX(-50%); }
 .edge-panel.bottom .edge-keep { top: -12px; left: 50%; transform: translateX(-50%); }
 .edge-panel.kept .window { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+
+/* Edge sidebars: hovering anywhere along an edge reveals its sidebar; a kept sidebar resizes from
+   its inner edge and lights up as a drop target. */
+.edge-hot { position: absolute; z-index: 34; }
+.edge-hot.left, .edge-hot.right { top: 0; bottom: 0; width: 10px; }
+.edge-hot.left { left: 0; } .edge-hot.right { right: 0; }
+.edge-hot.top, .edge-hot.bottom { left: 0; right: 0; height: 10px; }
+.edge-hot.top { top: 0; } .edge-hot.bottom { bottom: 0; }
+.edge-keep { width: 32px !important; height: 32px !important; font-size: 17px !important; }
+.edge-panel.left .edge-keep { right: -16px !important; } .edge-panel.right .edge-keep { left: -16px !important; }
+.edge-panel.top .edge-keep { bottom: -16px !important; } .edge-panel.bottom .edge-keep { top: -16px !important; }
+.edge-resize { position: absolute; z-index: 1; }
+.edge-resize.left, .edge-resize.right { top: 0; bottom: 0; width: 10px; cursor: col-resize; }
+.edge-resize.left { right: -11px; } .edge-resize.right { left: -11px; }
+.edge-resize.top, .edge-resize.bottom { left: 0; right: 0; height: 10px; cursor: row-resize; }
+.edge-resize.top { bottom: -11px; } .edge-resize.bottom { top: -11px; }
+.edge-resize:hover, .edge-panel.resizing .edge-resize { background: rgba(127, 200, 255, 0.25); border-radius: 4px; }
+.edge-panel.resizing { transition: none; }
+.edge-panel.drop-on::after { content: 'Pin here'; position: absolute; inset: 0; z-index: 3; border-radius: var(--radius-win);
+  display: grid; place-items: center; font-size: 13px; color: #cfe9ff; background: rgba(127, 200, 255, 0.22); border: 2px dashed rgba(127, 200, 255, 0.7); }
+/* Pin targets shown mid-edge while dragging. */
+.pin-target { position: absolute; z-index: 41; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%;
+  display: grid; place-items: center; color: #cfe9ff; background: rgba(20, 23, 34, 0.78); border: 2px dashed rgba(127, 200, 255, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); pointer-events: none; transition: transform .12s, background .12s; }
+.pin-target svg { fill: currentColor; }
+.pin-target.on { transform: scale(1.15); background: rgba(127, 200, 255, 0.35); border-style: solid; color: #fff; }

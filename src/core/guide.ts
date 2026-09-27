@@ -15,7 +15,8 @@ Work visibly while the glass is open. Hooks only see your dedicated tools, so pr
 that feed the glass: change files with Edit/Write (never sed, python, or heredocs through Bash;
 those edits never reach "changes"), write plans to plan files, and Read images you want to discuss.
 
-  claude-glass view                          layout: desktops, windows (index 0 = first slot), closed apps
+  claude-glass view                          layout: display modes, desktops, each window's slot + position,
+                                             pinned edge sidebars, closed apps
   claude-glass show <file> [--id ID] [--title T]   .md → markdown, image → image, .html → html. Opens at 0
   claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff, browser
   claude-glass app <id> <command> [--text T | --file F] [--key value]
@@ -35,7 +36,7 @@ windows, so directing attention is your job:
   supporting context goes next to it (the plan beside the diff it drives, the chart beside its
   numbers). Move stale windows back or close them.
 - Before rearranging, run \`claude-glass view\` (the user may have moved things). Leave windows the
-  user tucked into an edge alone. Don't reshuffle on every tool call; move windows when the topic
+  user pinned to an edge sidebar alone. Don't reshuffle on every tool call; move windows when the topic
   changes.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.

@@ -497,7 +497,7 @@ try {
     for (let i = errors.length - 1; i >= 0; i--) if (errors[i].includes(permOrigin) || /Permissions policy violation: microphone/.test(errors[i])) errors.splice(i, 1);
   }
 
-  // Edge tucking (experiment): drag a window to an edge, it leaves the flow into a slide-out panel.
+  // Edge sidebars ("pin"): ⌘-drag a window to an edge to pin it; a plain drag only reorders.
   {
     await sleep(800); // let window moves finish animating before measuring a title bar
     const first = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
@@ -507,38 +507,95 @@ try {
     await page.mouse.down();
     await page.mouse.move(stage.x + stage.width - 6, stage.y + stage.height / 2, { steps: 10 });
     await sleep(150);
-    check((await page.locator('.tuck-zone.right.on').count()) === 1, 'dragging to an edge highlights its tuck strip');
+    check((await page.locator('.tuck-zone').count()) === 0, 'a plain drag to an edge shows no pin strips');
+    await page.keyboard.down('Meta');
+    await page.mouse.move(stage.x + stage.width - 8, stage.y + stage.height / 2 + 4);
+    await sleep(150);
+    check((await page.locator('.tuck-zone.right.on').count()) === 1, 'holding ⌘ shows the pin strips and lights the one under the pointer');
     await page.mouse.up();
+    await page.keyboard.up('Meta');
     await sleep(500);
     let v = JSON.parse(await cli(env, 'view', '--json'));
-    check(v.tucked?.right?.[0]?.id === first, `dropping on the strip tucks the window right (${JSON.stringify(v.tucked)})`);
-    await cli(env, 'window', 'tuck', 'terminal', 'right');
+    check(v.tucked?.right?.[0]?.id === first, `⌘-dropping on the strip pins the window right (${JSON.stringify(v.tucked)})`);
+    await cli(env, 'window', 'pin', 'terminal', 'right');
     await sleep(400);
-    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 4 }); // approach from inside, like a person
-    await page.locator('.edge-tab.right').hover();
+    // Hover anywhere along the edge (not just the tab) to reveal it.
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 4 });
+    await page.mouse.move(stage.x + stage.width - 4, stage.y + stage.height * 0.85, { steps: 4 });
     await sleep(600);
-    check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'hovering the tab slides the panel out, two windows split it');
+    check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'hovering anywhere along the edge slides the sidebar out; two windows split it');
     await page.screenshot({ path: join(shots, '12-edge-tuck.png') });
-    // Keep it open: the panel stays when the pointer leaves, and the layout makes room for it.
+    // Keep it open: it stays when the pointer leaves, and the layout makes room for it.
     await page.locator('.edge-panel.right .edge-keep').click();
     await page.mouse.move(stage.x + stage.width / 3, stage.y + stage.height / 2, { steps: 4 });
     await sleep(700);
     const panelLeft = (await page.locator('.edge-panel.right').boundingBox()).x;
     const rightmost = await page.locator('.strip > .window').evaluateAll((els, vw) => Math.max(...els.map((e) => e.getBoundingClientRect()).filter((r) => r.left >= 0 && r.right <= vw + 1).map((r) => r.right)), (await page.evaluate(() => innerWidth)));
-    check((await page.locator('.edge-panel.right.open.kept').count()) === 1 && rightmost <= panelLeft, `a kept-open panel stays and the layout makes room (windows end at ${Math.round(rightmost)}, panel starts ${Math.round(panelLeft)})`);
-    await page.screenshot({ path: join(shots, '12b-edge-kept.png') });
-    await page.locator('.edge-panel.right .edge-keep').click();
-    await page.mouse.move(stage.x + stage.width / 3, stage.y + stage.height / 3, { steps: 3 });
-    await sleep(700);
-    check((await page.locator('.edge-panel.right.open').count()) === 0, 'un-keeping hides the panel again');
-    await page.locator('.edge-tab.right').hover();
+    check((await page.locator('.edge-panel.right.open.kept').count()) === 1 && rightmost <= panelLeft, `a kept-open sidebar stays and the layout makes room (windows end at ${Math.round(rightmost)}, sidebar starts ${Math.round(panelLeft)})`);
+    // Resize it from its inner edge.
+    const handle = await page.locator('.edge-resize.right').boundingBox();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + 40);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - 120, handle.y + 40, { steps: 6 });
+    await page.mouse.up();
     await sleep(500);
-    await page.locator(`.edge-panel.right [data-window="${first}"] .untuck`).click();
-    await cli(env, 'window', 'untuck', 'terminal');
+    const wider = (await page.locator('.edge-panel.right').boundingBox()).width;
+    const st = JSON.parse(await cli(env, 'state', '--json'));
+    check(Math.abs(wider - st.tuckSize.right) < 2 && st.tuckSize.right > 400, `dragging a kept sidebar's inner edge resizes it (${Math.round(wider)}px, saved ${st.tuckSize.right})`);
+    await page.screenshot({ path: join(shots, '12b-edge-kept.png') });
+    // A kept-open sidebar takes a plain drop anywhere over it (no ⌘).
+    const other = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    const tb2 = await page.locator(`.strip [data-window="${other}"] .titlebar`).first().boundingBox();
+    await page.mouse.move(tb2.x + tb2.width / 2, tb2.y + 18);
+    await page.mouse.down();
+    const pb = await page.locator('.edge-panel.right').boundingBox();
+    await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2, { steps: 8 });
+    await sleep(150);
+    check((await page.locator('.edge-panel.right.drop-on').count()) === 1, 'dragging over a kept-open sidebar lights it up as the target');
+    await page.mouse.up();
+    await sleep(500);
+    v = JSON.parse(await cli(env, 'view', '--json'));
+    check(v.tucked?.right?.some((w) => w.id === other), `dropping over a kept-open sidebar pins the window there (${JSON.stringify(v.tucked?.right?.map((w) => w.id))})`);
+    await page.locator('.edge-panel.right .edge-keep').click();
+    for (const w of v.tucked.right) await cli(env, 'window', 'unpin', w.id);
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
     await sleep(600);
     v = JSON.parse(await cli(env, 'view', '--json'));
-    check(!v.tucked && v.desktops[0].windows.some((w) => w.id === first), 'untuck puts windows back in the layout');
+    check(!v.tucked && v.desktops[0].windows.some((w) => w.id === first), 'unpin puts windows back in the layout');
+    // Mouse only: drop on the pin target mid-edge (no ⌘) to pin; top/bottom sidebars fit between sides.
+    await sleep(500);
+    const w1 = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    const t1 = await page.locator(`.strip [data-window="${w1}"] .titlebar`).first().boundingBox();
+    await page.mouse.move(t1.x + t1.width / 2, t1.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 4 });
+    const tgt = await page.locator('.pin-target.left').boundingBox();
+    await page.mouse.move(tgt.x + tgt.width / 2, tgt.y + tgt.height / 2, { steps: 6 });
+    await sleep(150);
+    const lit = await page.locator('.pin-target.left.on').count();
+    await page.mouse.up();
+    await sleep(500);
+    await cli(env, 'window', 'pin', 'terminal', 'bottom');
+    v = JSON.parse(await cli(env, 'view', '--json'));
+    check(lit === 1 && v.tucked?.left?.[0]?.id === w1, `dropping on a pin target pins the window (${JSON.stringify(v.tucked)})`);
+    await sleep(300);
+    for (const e of ['left', 'bottom']) {
+      await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 3 });
+      await page.locator(`.edge-tab.${e}`).hover();
+      await sleep(500);
+      await page.locator(`.edge-panel.${e} .edge-keep`).click();
+      await sleep(400);
+    }
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 3, { steps: 3 });
+    await sleep(600);
+    const L = await page.locator('.edge-panel.left').boundingBox(), B = await page.locator('.edge-panel.bottom').boundingBox();
+    check(B.x >= L.x + L.width, `side sidebars win: the bottom one fits beside the left one (left ends ${Math.round(L.x + L.width)}, bottom starts ${Math.round(B.x)})`);
+    await page.screenshot({ path: join(shots, '12c-sidebars.png') });
+    for (const e of ['left', 'bottom']) await page.locator(`.edge-panel.${e} .edge-keep`).click();
+    await cli(env, 'window', 'unpin', w1);
+    await cli(env, 'window', 'unpin', 'terminal');
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+    await sleep(500);
   }
 
   // Dock: drag an icon along the dock to reorder windows, or onto an edge to tuck it.

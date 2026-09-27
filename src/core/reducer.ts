@@ -92,6 +92,11 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...s, tuckKeep: a.keep && s.tucked?.[a.edge]?.length ? [...keep, a.edge] : keep } };
     }
 
+    case 'tuck.size': {
+      if (!EDGES.includes(a.edge) || !(a.size > 0)) throw new Error('tuck.size needs an edge and a positive size');
+      return { state: { ...s, tuckSize: { ...s.tuckSize, [a.edge]: Math.round(a.size) } } };
+    }
+
     case 'window.untuck': {
       requireInstance(s, a.id);
       const t = untuck(s, a.id);

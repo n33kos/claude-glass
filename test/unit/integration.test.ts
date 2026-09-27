@@ -264,3 +264,16 @@ describe('settings from the CLI', () => {
     expect(await cli('open')).toContain('claude-glass settings set <key> <value>');
   });
 });
+
+describe('view for Claude', () => {
+  it('reports display modes, window positions and pinned sidebars', async () => {
+    core.dispatch({ type: 'window.tuck', id: 'terminal', edge: 'left' });
+    core.dispatch({ type: 'tuck.keep', edge: 'left', keep: true });
+    const v = JSON.parse(await cli('view', '--json'));
+    expect(v.display).toMatchObject({ nestedView: false, windowMode: 'live' });
+    expect(v.desktops[0].windows[0].rect).toMatchObject({ x: 0, y: 0 });
+    expect(v.sidebars.left).toMatchObject({ open: true, windows: ['terminal'] });
+    expect(await cli('view')).toMatch(/Pinned left sidebar \(kept open, \d+px\): terminal/);
+    core.dispatch({ type: 'window.untuck', id: 'terminal' });
+  });
+});

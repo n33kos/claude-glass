@@ -63,10 +63,13 @@ export interface GlassState {
   ui: { viewingDesktop: number };
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
-  // Windows tucked into an edge panel: out of the tiling flow, on every desktop, shown on hover.
+  // Windows pinned to an edge sidebar (shown to users as "pin"; stored as "tucked"): out of the
+  // tiling flow, on every desktop, shown on hover or kept open.
   tucked?: Partial<Record<Edge, string[]>>;
   // Edges whose panel stays open; the layout makes room for them (like a docked sidebar).
   tuckKeep?: Edge[];
+  // Sidebar sizes the user dragged (px: width for left/right, height for top/bottom).
+  tuckSize?: Partial<Record<Edge, number>>;
 }
 
 export type Action =
@@ -84,7 +87,8 @@ export type Action =
   | { type: 'app.hook'; payload: unknown }
   | { type: 'window.tuck'; id: string; edge: Edge }
   | { type: 'window.untuck'; id: string }
-  | { type: 'tuck.keep'; edge: Edge; keep: boolean };
+  | { type: 'tuck.keep'; edge: Edge; keep: boolean }
+  | { type: 'tuck.size'; edge: Edge; size: number };
 
 export interface Envelope {
   op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'quit';

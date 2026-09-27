@@ -8,7 +8,7 @@ import { coerceConfigValue, loadConfig, saveConfig, writeJsonAtomic } from './co
 import { guideFor } from './guide';
 import { applyHook } from './hooks';
 import { loadMods, type ModReport } from './mods';
-import { computeDesktops, desktopsFor } from './layout';
+import { computeDesktops, desktopsFor, edgeSize, effectiveLayout, EDGES, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
 import type { Action, GlassState, Envelope, GlobalConfig, Reply } from './types';
@@ -119,8 +119,21 @@ export class GlassCore {
     return {
       session: { id: s.session.id, title: s.session.title, cwd: s.session.cwd, activity: s.session.activity, ended: !!s.session.endedAt },
       userViewingDesktop: s.ui.viewingDesktop,
-      desktops: pages.map((p) => ({ desktop: p.index, layout: p.layout, windows: p.windows.map((id, slot) => ({ index: p.start + slot, ...meta(id) })) })),
+      // How the user displays things, so Claude can judge layout changes.
+      display: { nestedView: this.config.nestedView, windowMode: s.settings.windowMode ?? 'live' },
+      // rect: where a window sits in the tiling area (fractions 0..1; nested view shown unscrolled).
+      desktops: pages.map((p) => {
+        const slots = p.layout === 'nested' ? nestedSlots(p.windows.length) : LAYOUTS[effectiveLayout(p)].slots;
+        return {
+          desktop: p.index, layout: p.layout,
+          windows: p.windows.map((id, slot) => ({ index: p.start + slot, ...meta(id), ...(slots[slot] ? { rect: slots[slot] } : { hidden: true }) })),
+        };
+      }),
       ...(s.tucked && Object.keys(s.tucked).length ? { tucked: Object.fromEntries(Object.entries(s.tucked).map(([e, ids]) => [e, (ids ?? []).map(meta)])) } : {}),
+      // Edge sidebars ("pinned" windows): open = kept open, taking room from the layout (px size).
+      sidebars: Object.fromEntries(EDGES.filter((e) => s.tucked?.[e]?.length).map((e) => [e, {
+        open: !!s.tuckKeep?.includes(e), size: s.tuckSize?.[e] ?? edgeSize(e, 1440, 860), windows: s.tucked![e]!,
+      }])),
       closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
     };
   }

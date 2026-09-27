@@ -84,12 +84,19 @@ function ingest(sid: string, path: string): string {
 
 function formatView(v: any): string {
   const lines = [`Claude Glass "${v.session.title}" · ${v.session.activity}${v.session.ended ? ' · session ended' : ''} · user is viewing desktop ${v.userViewingDesktop + 1}`];
+  const d0 = v.display ?? {};
+  lines.push(`Display: ${d0.nestedView ? 'nested view (index 0 = big pane)' : 'desktops'} · new things: ${d0.windowMode === 'history' ? 'a new window per action (history; windows stay in time order)' : 'update one window'}`);
+  // Where a window sits: x/y ranges as % of the tiling area.
+  const pos = (r: any) => (r ? `x ${Math.round(r.x * 100)}–${Math.round((r.x + r.w) * 100)}%, y ${Math.round(r.y * 100)}–${Math.round((r.y + r.h) * 100)}%` : 'not shown (too deep)');
   for (const d of v.desktops) {
     lines.push(`Desktop ${d.desktop + 1} [${d.layout}]`);
     if (!d.windows.length) lines.push('  (empty)');
-    for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title}`);
+    for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title.padEnd(20)} ${pos(w.rect)}`);
   }
-  for (const [edge, ws] of Object.entries(v.tucked ?? {}) as [string, any[]][]) lines.push(`Tucked ${edge}: ${ws.map((w) => `${w.id} (${w.type})`).join(', ')}`);
+  for (const [edge, sb] of Object.entries(v.sidebars ?? {}) as [string, any][]) {
+    const names = (v.tucked?.[edge] ?? []).map((w: any) => `${w.id} (${w.type})`).join(', ');
+    lines.push(`Pinned ${edge} sidebar (${sb.open ? `kept open, ${sb.size}px` : 'hidden until hovered'}): ${names}`);
+  }
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
   return lines.join('\n');
 }
@@ -208,14 +215,15 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-glass window open|close|move|tuck|untuck|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
       else if (sub === 'opacity') await dispatch(sid, { type: 'window.opacity', id, value: arg === undefined || arg === 'reset' ? null : Number(arg) });
       else if (sub === 'rename') await dispatch(sid, { type: 'instance.rename', id, title: String(arg ?? id) });
-      else if (sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
-      else if (sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
+      // Pin to an edge sidebar ("tuck"/"untuck" still work).
+      else if (sub === 'pin' || sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
+      else if (sub === 'unpin' || sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
       else throw new Error(`unknown window command "${sub}"`);
       out({ ok: true }, 'ok');
       return;

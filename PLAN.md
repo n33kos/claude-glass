@@ -317,6 +317,13 @@ Queue, in order:
     history mode ("New things Claude makes") is now a per-session setting; shell containers are
     `overflow: clip` so focus in the hidden dock or an edge panel can't scroll the glass.
 
+15. [x] **Edge sidebars ("pin", 2026-09-26)**: tucking is called pinning in the UI and CLI
+    (`window pin <id> <edge>` / `unpin`; state still `tucked`). A plain drag only reorders; drop on
+    the pin target mid-edge (or ⌘-drag onto a strip) to pin; a kept-open sidebar takes drops
+    anywhere over it, resizes from its inner edge (`tuckSize`), and side sidebars win over
+    top/bottom. Hovering anywhere along an edge reveals it. Frames ignore the pointer during any
+    drag. `claude-glass view` reports display modes, window positions and sidebars for Claude.
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
