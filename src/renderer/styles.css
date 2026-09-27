@@ -238,38 +238,31 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .tuck-zone.left span, .tuck-zone.right span { writing-mode: vertical-rl; }
 .tuck-zone.top, .tuck-zone.bottom { left: 44px; right: 44px; height: 44px; }
 .tuck-zone.top { top: 0; } .tuck-zone.bottom { bottom: 0; }
-/* The drawer pull on a hidden sidebar's edge: a thin black rail (--t thick) hugging the edge that
-   bulges into a capsule around the pinned apps' icons, like a camera bevel, with the same --t
-   margin all round. It's a label (the whole edge reveals). When the sidebar slides out, the pull
-   eases off the edge and the rail stretches to the drawer's full length (--full). */
-.edge-tab { --t: 6px; --ink-pull: #000; position: absolute; z-index: 35; display: grid; place-items: center; pointer-events: none;
-  transition: transform .28s cubic-bezier(.2, .8, .2, 1); }
-.edge-tab .rail { position: absolute; background: var(--ink-pull); border-radius: 999px;
-  transition: width .32s cubic-bezier(.2, .8, .2, 1), height .32s cubic-bezier(.2, .8, .2, 1); }
-.edge-tab .cap { position: relative; display: flex; gap: 5px; align-items: center; padding: var(--t); background: var(--ink-pull);
-  border-radius: 14px; color: rgba(255, 255, 255, 0.72); font-size: 12px; line-height: 1; }
-.edge-tab .cap > span { display: grid; place-items: center; width: 16px; height: 16px; }
-/* Left/right: vertical rail through the capsule's middle, flush to the edge. */
-.edge-tab.left, .edge-tab.right { top: 50%; translate: 0 -50%; }
-.edge-tab.left { left: 0; } .edge-tab.right { right: 0; }
-.edge-tab.left .cap, .edge-tab.right .cap { flex-direction: column; }
-.edge-tab.left .rail, .edge-tab.right .rail { width: var(--t); height: calc(100% + 72px); top: 50%; translate: 0 -50%; }
-.edge-tab.left .rail { left: 0; } .edge-tab.right .rail { right: 0; }
-.edge-tab.left .cap { border-radius: 0 14px 14px 0; } .edge-tab.right .cap { border-radius: 14px 0 0 14px; }
-/* Top/bottom: horizontal rail. */
-.edge-tab.top, .edge-tab.bottom { left: 50%; translate: -50% 0; }
-.edge-tab.top { top: 0; } .edge-tab.bottom { bottom: 0; }
-.edge-tab.top .rail, .edge-tab.bottom .rail { height: var(--t); width: calc(100% + 72px); left: 50%; translate: -50% 0; }
-.edge-tab.top .rail { top: 0; } .edge-tab.bottom .rail { bottom: 0; }
-.edge-tab.top .cap { border-radius: 0 0 14px 14px; } .edge-tab.bottom .cap { border-radius: 14px 14px 0 0; }
-/* Pulled: ease off the edge; the rail runs the drawer's length. */
-.edge-tab.left.pulled { transform: translateX(4px); } .edge-tab.right.pulled { transform: translateX(-4px); }
-.edge-tab.top.pulled { transform: translateY(4px); } .edge-tab.bottom.pulled { transform: translateY(-4px); }
-.edge-tab.left.pulled .rail, .edge-tab.right.pulled .rail { height: var(--full); }
-.edge-tab.top.pulled .rail, .edge-tab.bottom.pulled .rail { width: var(--full); }
-/* The auto-hidden dock owns the middle of the bottom edge: the bottom pull sits left of it, and the
-   dock's hover zone shrinks to its middle so the rest of the edge reveals the bottom sidebar. */
-.dock-autohide.has-bottom-pin .edge-tab.bottom { left: 22%; }
+/* The drawer pull. The rail is black and runs from just off the screen edge; its size/position are
+   set inline per state (idle: a short thin strip around the capsule; near: longer and thicker;
+   open: backs the whole drawer, reaching in under its windows). The capsule holds the pinned apps'
+   icons with the rail's thickness as its margin, flush to the edge like a camera bevel; hovering
+   eases it off the edge, and it hides under the drawer when open. */
+.edge-rail { position: absolute; z-index: 35; background: #000; pointer-events: none;
+  transition: top .32s cubic-bezier(.2, .8, .2, 1), left .32s cubic-bezier(.2, .8, .2, 1), width .32s cubic-bezier(.2, .8, .2, 1), height .32s cubic-bezier(.2, .8, .2, 1); }
+.edge-rail.left { border-radius: 0 999px 999px 0; } .edge-rail.right { border-radius: 999px 0 0 999px; }
+.edge-rail.top { border-radius: 0 0 999px 999px; } .edge-rail.bottom { border-radius: 999px 999px 0 0; }
+.edge-rail.open.left { border-radius: 0 18px 18px 0; } .edge-rail.open.right { border-radius: 18px 0 0 18px; }
+.edge-rail.open.top { border-radius: 0 0 18px 18px; } .edge-rail.open.bottom { border-radius: 18px 18px 0 0; }
+.edge-cap { position: absolute; z-index: 35; display: flex; gap: 6px; align-items: center; padding: 7px; background: #000;
+  color: rgba(255, 255, 255, 0.85); font-size: 22px; line-height: 1; cursor: pointer;
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; }
+.edge-cap > span { display: grid; place-items: center; width: 34px; height: 34px; }
+.edge-cap .app-icon { width: 30px; height: 30px; }
+.edge-cap.left, .edge-cap.right { flex-direction: column; translate: 0 -50%; }
+.edge-cap.top, .edge-cap.bottom { translate: -50% 0; }
+.edge-cap.left { border-radius: 0 18px 18px 0; } .edge-cap.right { border-radius: 18px 0 0 18px; }
+.edge-cap.top { border-radius: 0 0 18px 18px; } .edge-cap.bottom { border-radius: 18px 18px 0 0; }
+.edge-cap.near.left { transform: translateX(8px); } .edge-cap.near.right { transform: translateX(-8px); }
+.edge-cap.near.top { transform: translateY(8px); } .edge-cap.near.bottom { transform: translateY(-8px); }
+.edge-cap.open { opacity: 0; pointer-events: none; }
+/* The auto-hidden dock owns the middle of the bottom edge (the bottom pull sits left of it); its
+   hover zone shrinks to the middle so the rest of the edge belongs to the bottom sidebar. */
 .dock-autohide.has-bottom-pin .dock-hot { left: 32%; right: 32%; }
 .edge-panel { position: absolute; z-index: 36; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; opacity: 0; pointer-events: none; }
 .edge-panel .window { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }

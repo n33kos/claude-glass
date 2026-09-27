@@ -42,6 +42,8 @@ function panelSlots(edge: Edge, n: number, r: Rect): Rect[] {
 const TUCK_ZONE = 44; // px strip at each stage edge: with ⌘ held, drop a window there to pin it to that sidebar
 const SWITCH_ZONE = 48; // left/right: hold a dragged window here to switch desktops
 const PIN_TARGET = 30; // radius of the pin target shown mid-edge while dragging (drop on it to pin)
+const PULL_ICON = 34; // icon cell in a sidebar's pull capsule
+const PULL_T = 7; // the pull rail's thickness, and the capsule's margin around its icons
 
 /** Room kept-open left/right sidebars take (top/bottom sidebars fit between them). */
 function sideRoom(s: TuckState, W: number, H: number) {
@@ -595,6 +597,11 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
   const { state, config } = useSnapshot();
   const closeTimer = useRef<number | null>(null);
   const hold = (e: Edge) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
+  // Pointer near an edge's pull (hovering the edge or its capsule): starts the pull-out animation,
+  // and keeps an open sidebar open (it slides in under the pointer, which would otherwise count
+  // as leaving it and close it again).
+  const [near, setNear] = useState<Edge | null>(null);
+  const enterPull = (e: Edge) => { setNear(e); if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; };
   const release = () => { closeTimer.current = window.setTimeout(() => setPeek(null), 350); };
   // Live size while dragging a sidebar's inner edge; committed to state on release.
   const [resizing, setResizing] = useState<{ edge: Edge; size: number } | null>(null);
@@ -635,17 +642,37 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
         const stage = drag ? document.querySelector('.stage')?.getBoundingClientRect() : undefined;
         return (
           <Fragment key={edge}>
-            {!kept && <>
-              <div className={`edge-hot ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} />
-              {/* The drawer pull: a thin black rail on the edge that bulges around the pinned apps'
-                  icons (a label, not a button: the whole edge reveals). When the sidebar slides out
-                  it eases off the edge and the rail stretches the drawer's full length. */}
-              <div className={`edge-tab ${edge}${open ? ' pulled' : ''}`} style={{ ['--full' as any]: `${vertical ? r.h : r.w}px` }}
-                onMouseEnter={() => hold(edge)} onMouseLeave={release}>
-                <i className="rail" />
-                <span className="cap">{ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}</span>
-              </div>
-            </>}
+            {(() => {
+              // The drawer pull: a black rail running off the screen edge with a capsule of the
+              // pinned apps' icons. Hovering the edge or the capsule starts pulling it out (the rail
+              // grows, the capsule eases off the edge); clicking opens the sidebar, and the rail then
+              // backs the whole drawer, reaching in under its windows.
+              const state3 = open ? 'open' : near === edge ? 'near' : 'idle';
+              const capLen = ids.length * PULL_ICON + (ids.length - 1) * 6 + PULL_T * 2;
+              // Where the capsule sits along the edge: the sidebar's middle, except the bottom when
+              // the dock auto-hides there (the dock owns the middle), then left of it.
+              const along = vertical ? r.y + r.h / 2 : edge === 'bottom' && config.dockAutoHide ? Math.max(r.x + capLen, W * 0.2) : r.x + r.w / 2;
+              const len = { idle: capLen + 80, near: Math.max(capLen + 80, (vertical ? r.h : r.w) * 0.45), open: vertical ? r.h : r.w }[state3];
+              const start = state3 === 'open' ? (vertical ? r.y : r.x) : along - len / 2;
+              const depth = { idle: PULL_T + 4, near: PULL_T + 8, open: PAD + 24 }[state3]; // from 4px off-screen inward
+              const railStyle: React.CSSProperties = vertical
+                ? { top: start, height: len, width: depth, [edge]: -4 }
+                : { left: start, width: len, height: depth, [edge]: -4 };
+              const capStyle: React.CSSProperties = vertical ? { top: along, [edge]: 0 } : { left: along, [edge]: 0 };
+              const openIt = () => hold(edge);
+              return (
+                <>
+                  {!kept && <div className={`edge-hot ${edge}`} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
+                  <i className={`edge-rail ${edge} ${state3}`} style={railStyle} />
+                  {!kept && (
+                    <button className={`edge-cap ${edge} ${state3}`} style={capStyle} title={`Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
+                      onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt}>
+                      {ids.map((id) => <span key={id}><AppIcon type={state.instances[id].type} /></span>)}
+                    </button>
+                  )}
+                </>
+              );
+            })()}
             <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
               style={{ width: pw, height: ph, ...(vertical ? {} : { left: PAD + side.l }) }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
               {kept && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, e)} />}

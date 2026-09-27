@@ -522,8 +522,12 @@ try {
     // Hover anywhere along the edge (not just the tab) to reveal it.
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 4 });
     await page.mouse.move(stage.x + stage.width - 4, stage.y + stage.height * 0.85, { steps: 4 });
-    await sleep(600);
-    check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'hovering anywhere along the edge slides the sidebar out; two windows split it');
+    await sleep(400);
+    check((await page.locator('.edge-cap.right.near').count()) === 1 && (await page.locator('.edge-panel.right.open').count()) === 0,
+      'hovering anywhere along the edge starts pulling the sidebar out (without opening it)');
+    await page.mouse.down(); await page.mouse.up(); // click the edge
+    await sleep(900); // stays open after sliding in under the pointer
+    check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'clicking the edge opens the sidebar; two windows split it');
     await page.screenshot({ path: join(shots, '12-edge-tuck.png') });
     // Keep it open: it stays when the pointer leaves, and the layout makes room for it.
     await page.locator('.edge-panel.right .edge-keep').click();
@@ -582,8 +586,9 @@ try {
     await sleep(300);
     for (const e of ['left', 'bottom']) {
       await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 3 });
-      // Hover the edge itself (the tab is a label, not the target).
+      // Click the edge to open it.
       await page.mouse.move(e === 'left' ? stage.x + 4 : stage.x + stage.width * 0.15, e === 'left' ? stage.y + stage.height * 0.3 : stage.y + stage.height - 4, { steps: 3 });
+      await page.mouse.down(); await page.mouse.up();
       await sleep(500);
       await page.locator(`.edge-panel.${e} .edge-keep`).click();
       await sleep(400);
@@ -608,7 +613,10 @@ try {
     await page.screenshot({ path: join(shots, '12d-pull.png') }); // the drawer pull on the right edge
     await page.mouse.move(stage.x + stage.width - 4, stage.y + stage.height * 0.2, { steps: 4 });
     await sleep(600);
-    await page.screenshot({ path: join(shots, '12e-pulled.png') });
+    await page.screenshot({ path: join(shots, '12e-pulled.png') }); // hovering: the pull starts coming out
+    await page.mouse.down(); await page.mouse.up();
+    await sleep(600);
+    await page.screenshot({ path: join(shots, '12g-open.png') }); // open: the rail backs the drawer
     await page.locator('.edge-panel.right .edge-keep').click();
     await sleep(500);
     const topWin = await page.locator(`.edge-panel.right [data-window="${lay[0]}"] .titlebar`).boundingBox();
@@ -643,9 +651,16 @@ try {
     await sleep(500);
     const full = await page.locator('.stage').boundingBox(); // auto-hide gives the stage the dock's space
     await page.mouse.move(full.x + full.width / 2, full.y + full.height / 2, { steps: 3 });
-    await page.mouse.move(full.x + full.width * 0.12, full.y + full.height - 3, { steps: 4 });
+    // Use the bottom pull's capsule (it sits clear of the dock): hover starts it, click opens.
+    const cap = await page.locator('.edge-cap.bottom').boundingBox();
+    const dockHot = await page.locator('.dock-hot').boundingBox();
+    check(cap.x + cap.width < dockHot.x, `with an auto-hidden dock, the bottom pull sits clear of the dock's hover zone (pull ends ${Math.round(cap.x + cap.width)}, dock zone starts ${Math.round(dockHot.x)})`);
+    await page.mouse.move(cap.x + cap.width / 2, cap.y + cap.height / 2, { steps: 4 });
+    await sleep(300);
+    await page.mouse.down(); await page.mouse.up();
     await sleep(600);
-    check((await page.locator('.edge-panel.bottom.open').count()) === 1, 'with an auto-hidden dock, the bottom edge beside it reveals the bottom sidebar');
+    check((await page.locator('.edge-panel.bottom.open').count()) === 1, 'with an auto-hidden dock, clicking the bottom pull opens the bottom sidebar');
+    await page.screenshot({ path: join(shots, '12h-bottom.png') });
     await cli(env, 'window', 'unpin', 'terminal');
     await cli(env, 'settings', 'set', 'dockAutoHide', 'false');
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
