@@ -110,6 +110,16 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...t, order: [...rest.slice(0, i), a.id, ...rest.slice(i)] } };
     }
 
+    case 'instance.delete': {
+      requireInstance(s, a.id);
+      // Hooks write to these on every event: they can be closed, not deleted.
+      if (a.id === 'terminal' || a.id === 'conversation') throw new Error(`"${a.id}" can be closed but not deleted`);
+      const t = untuck(s, a.id);
+      const { [a.id]: _i, ...instances } = t.instances;
+      const { [a.id]: _a, ...appState } = t.appState;
+      return { state: { ...t, instances, appState, order: t.order.filter((x) => x !== a.id), autoOpened: t.autoOpened.filter((x) => x !== a.id) } };
+    }
+
     case 'window.move': {
       requireInstance(s, a.id);
       const rest = s.order.filter((x) => x !== a.id);

@@ -87,6 +87,7 @@ export type Action =
   | { type: 'app.hook'; payload: unknown }
   | { type: 'window.tuck'; id: string; edge: Edge; index?: number } // index: position in the sidebar (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
+  | { type: 'instance.delete'; id: string } // remove a window and its state entirely
   | { type: 'tuck.keep'; edge: Edge; keep: boolean }
   | { type: 'tuck.size'; edge: Edge; size: number };
 

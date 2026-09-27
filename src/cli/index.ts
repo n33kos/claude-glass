@@ -215,7 +215,7 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|delete|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
@@ -224,6 +224,7 @@ async function main(argv: string[]) {
       // Pin to an edge sidebar ("tuck"/"untuck" still work).
       else if (sub === 'pin' || sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
       else if (sub === 'unpin' || sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
+      else if (sub === 'delete') await dispatch(sid, { type: 'instance.delete', id });
       else throw new Error(`unknown window command "${sub}"`);
       out({ ok: true }, 'ok');
       return;

@@ -404,6 +404,15 @@ describe('edge tucking (experiment)', () => {
     s = reduce(s, { type: 'window.untuck', id: 'terminal', index: 1 }).state;
     expect(s.order).toEqual(['notes', 'terminal']);
   });
+  it('delete removes a window everywhere; terminal and conversation can only be closed', () => {
+    let s = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    s = reduce(s, { type: 'window.tuck', id: 'notes', edge: 'top' }).state;
+    s = reduce(s, { type: 'instance.delete', id: 'notes' }).state;
+    expect(s.instances.notes).toBeUndefined();
+    expect(s.appState.notes).toBeUndefined();
+    expect(s.tucked?.top).toBeUndefined();
+    expect(() => reduce(s, { type: 'instance.delete', id: 'terminal' })).toThrow(/closed but not deleted/);
+  });
   it('an edge kept open stays open only while it has windows', () => {
     let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'right' }).state;
     s = reduce(s, { type: 'tuck.keep', edge: 'right', keep: true }).state;
