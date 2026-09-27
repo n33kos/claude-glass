@@ -247,8 +247,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   transition: top .32s cubic-bezier(.2, .8, .2, 1), left .32s cubic-bezier(.2, .8, .2, 1), width .32s cubic-bezier(.2, .8, .2, 1), height .32s cubic-bezier(.2, .8, .2, 1); }
 .edge-rail.left { border-radius: 0 999px 999px 0; } .edge-rail.right { border-radius: 999px 0 0 999px; }
 .edge-rail.top { border-radius: 0 0 999px 999px; } .edge-rail.bottom { border-radius: 999px 999px 0 0; }
-/* Open: the rail is a translucent backing behind the whole sidebar. */
-.edge-rail.open { background: rgba(0, 0, 0, 0.38); backdrop-filter: blur(10px); }
+/* Open: the rail grows into a solid backing behind the whole sidebar (same black as when closed). */
 .edge-rail.open.left { border-radius: 0 22px 22px 0; } .edge-rail.open.right { border-radius: 22px 0 0 22px; }
 .edge-rail.open.top { border-radius: 0 0 22px 22px; } .edge-rail.open.bottom { border-radius: 22px 22px 0 0; }
 /* The capsule is placed by its center (inline left/top), so every state move animates. */
