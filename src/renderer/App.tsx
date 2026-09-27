@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { computeDesktops, desktopsFor, EDGES, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
+import { AppIcon } from './AppIcon';
 import { FrameView } from './FrameView';
 import { apps, dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
@@ -300,7 +301,7 @@ export function App() {
       </main>
 
       {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
-      {dockDrag && <div className="dock-ghost" style={{ left: dockDrag.px, top: dockDrag.py }}><span className={`tile tile-${state.instances[dockDrag.id]?.type}`}>{apps[state.instances[dockDrag.id]?.type]?.icon ?? '▢'}</span></div>}
+      {dockDrag && <div className="dock-ghost" style={{ left: dockDrag.px, top: dockDrag.py }}><span className={`tile tile-${state.instances[dockDrag.id]?.type}`}><AppIcon type={state.instances[dockDrag.id]?.type} /></span></div>}
       <Dock pages={pages} viewing={v} width={size.W} dragging={dockDrag} onDragStart={(id, x, y) => setDockDrag({ id, px: x, py: y, tuck: null, before: null })} onReveal={(id) => {
         const edge = EDGES.find((e) => state.tucked?.[e]?.includes(id));
         if (edge) return setPeek(edge);
@@ -374,7 +375,7 @@ function WindowFrame(props: {
           {!history && !tucked && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
           {page && page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
         </div>
-        <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em>{app?.icon}</em>{meta.title}</span>
+        <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em><AppIcon type={meta.type} /></em>{meta.title}</span>
         {tucked ? (
           <button className="untuck" title="Put back in the layout" aria-label="Untuck window" onClick={() => dispatch({ type: 'window.untuck', id: meta.id })}>Untuck</button>
         ) : <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}
@@ -455,7 +456,7 @@ function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
             <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}${dragging?.id === m.id ? ' lifted' : ''}`} title={m.title} data-dock-id={m.id}
               onPointerDown={(e) => onPointerDown(m.id, e)}
               onClick={clickable(() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id))))}>
-              <span className={`tile tile-${m.type}`}>{apps[m.type]?.icon ?? '▢'}</span>
+              <span className={`tile tile-${m.type}${apps[m.type]?.iconUrl ? ' has-img' : ''}`}><AppIcon type={m.type} /></span>
               <span className="label">{m.title}</span>
               {open.has(m.id) && <i className="running" />}
             </button>
@@ -497,7 +498,7 @@ function EdgePanels({ W, H, peek, setPeek }: { W: number; H: number; peek: Edge 
         return (
           <Fragment key={edge}>
             <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
-              {ids.map((id) => <span key={id} title={state.instances[id].title}>{apps[state.instances[id].type]?.icon ?? '▢'}</span>)}
+              {ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}
             </div>
             <div className={`edge-panel ${edge}${peek === edge ? ' open' : ''}`} style={{ width: pw, height: ph }}
               onMouseEnter={() => hold(edge)} onMouseLeave={release}>
@@ -519,3 +520,4 @@ function EdgePanels({ W, H, peek, setPeek }: { W: number; H: number; peek: Edge 
     </>
   );
 }
+

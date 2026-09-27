@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
 import { BACKGROUNDS } from '../../renderer/backgrounds';
+import { AppIcon } from '../../renderer/AppIcon';
 import { apps, dispatch, mods, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
 
@@ -101,7 +102,7 @@ export function SettingsView({ glass, config }: ViewProps) {
         return (
           <Toggle key={a.type} on={on}
             onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
-            label={<span className="s-app"><b>{a.icon}</b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
+            label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
               {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
                 {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
         );

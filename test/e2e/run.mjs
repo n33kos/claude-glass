@@ -439,6 +439,8 @@ try {
     await page.screenshot({ path: join(shots, '10-mod.png') });
     const guide = JSON.parse(await cli(env, 'catalog', '--json')).find((a) => a.type === 'tool-count');
     check(guide?.source === 'user', 'mod is in the catalog');
+    const iconOk = await page.locator('.dock-item[data-dock-id="tool-count"] .tile img.app-icon').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
+    check(iconOk, 'a custom app shows its own image icon in the dock');
   }
 
   // Nested view (global setting): one spiral page, no layout button.

@@ -21,6 +21,7 @@ my-app/
   core.js          state logic (CommonJS)
   view.html        what the window shows (optional; runs in a sandboxed frame)
   guide.md         instructions for Claude (optional)
+  icon.svg         the app's icon (optional; or icon.png, or name a file in "icon")
 ```
 
 ### `glass-app.json`
@@ -46,6 +47,7 @@ my-app/
 | Field | Meaning |
 |---|---|
 | `type` | id: lowercase letters, digits, dashes. Same as a built-in's → replaces it |
+| `icon` | a glyph (`"✦"`) or an image file in the folder (`"icon.svg"`); an `icon.svg`/`icon.png` in the folder is used automatically. Images fill the dock tile, so give them their own background. |
 | `singleton` | one window, whose id is `type`. Otherwise `claude-glass new my-app` makes more |
 | `commands` | what Claude can run: `claude-glass app <id> <command> --key value`. Flags arrive as `args` |
 | `view: true` / `viewCommands` | commands the view may run too (view-only changes) |

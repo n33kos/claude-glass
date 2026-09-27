@@ -12,7 +12,8 @@ export interface CommandSpec {
 export interface AppDef<S = any> {
   type: string;
   title: string; // default window title
-  icon: string; // single glyph for dock/title bar
+  icon: string; // single glyph for dock/title bar (fallback when there's no image icon)
+  iconFile?: string; // image icon in the app's folder (served as glass-app://<type>/<file>)
   singleton: boolean; // singleton apps use their type as instance id
   description: string;
   commands: Record<string, CommandSpec>;
@@ -83,6 +84,7 @@ export interface AppInfo {
   type: string;
   title: string;
   icon: string;
+  iconUrl?: string;
   singleton: boolean;
   frame: boolean; // view is a mod-style frame (glass-app://<type>/view.html)
   viewCommands: string[];
@@ -92,5 +94,5 @@ export interface AppInfo {
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS };
+  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS };
 }

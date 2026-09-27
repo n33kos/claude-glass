@@ -67,6 +67,11 @@ export function readMod(modDir: string): AppDef {
   if (typeof core?.init !== 'function' || typeof core?.command !== 'function') throw new Error('core.js must export init() and command()');
   if (core.onHook !== undefined && typeof core.onHook !== 'function') throw new Error('onHook must be a function');
 
+  // Icon: an image file (named in the manifest, or icon.svg/icon.png in the folder), else a glyph.
+  const IMG = /\.(svg|png|jpe?g|webp)$/i;
+  const named = typeof m.icon === 'string' && IMG.test(m.icon) && !m.icon.includes('..') ? m.icon.replace(/^\.?\//, '') : undefined;
+  const iconFile = [named, 'icon.svg', 'icon.png'].find((f) => f && existsSync(join(modDir, f)));
+
   let guide: string | undefined;
   const guidePath = join(modDir, 'guide.md');
   if (existsSync(guidePath)) guide = readFileSync(guidePath, 'utf8').trim().slice(0, GUIDE_MAX);
@@ -74,7 +79,8 @@ export function readMod(modDir: string): AppDef {
   return {
     type: m.type,
     title: m.title,
-    icon: typeof m.icon === 'string' && m.icon ? m.icon : '▢',
+    icon: typeof m.icon === 'string' && m.icon && !IMG.test(m.icon) ? m.icon : '▢',
+    iconFile,
     singleton: m.singleton === true,
     description: String(m.description ?? ''),
     commands,
