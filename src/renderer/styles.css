@@ -282,8 +282,6 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .edge-panel.top { top: 12px; left: 12px; transform: translateY(calc(-100% - 24px)); }
 .edge-panel.bottom { bottom: 12px; left: 12px; transform: translateY(calc(100% + 24px)); }
 .edge-panel.open { transform: none; opacity: 1; pointer-events: auto; }
-.untuck { margin-left: auto; padding: 1px 8px; border-radius: 6px; font-size: 11px; color: var(--ink-dim); background: rgba(255, 255, 255, 0.07); }
-.untuck:hover { color: var(--ink); background: rgba(255, 255, 255, 0.14); }
 
 /* While anything is dragged (window, dock icon, sidebar edge), app frames ignore the pointer: they'd
    swallow the moves and the drop, and pointer capture doesn't stop that. */

@@ -490,9 +490,6 @@ function WindowFrame(props: {
           {page && page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
         </div>
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em><AppIcon type={meta.type} /></em>{meta.title}</span>
-        {tucked ? (
-          <button className="untuck" title="Unpin: put back in the layout" aria-label="Unpin window" onClick={() => dispatch({ type: 'window.untuck', id: meta.id })}>Unpin</button>
-        ) : null}
         {menu && page && (
           <div className="layout-menu" onMouseLeave={() => setMenu(false)}>
             {LAYOUT_NAMES.map((l) => (
@@ -655,7 +652,9 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               // The closed capsule sits at the sidebar's middle. At the bottom with an auto-hiding dock,
               // it sits above the dock's trigger strip and steps aside while the dock is up (CSS).
               const along = vertical ? r.y + r.h / 2 : r.x + r.w / 2;
-              const B = 10; // how far the open backing extends past the sidebar
+              // How far the open backing extends past the sidebar: half the gap, so its edge (and the
+              // pin riding on it) sits exactly mid-gap between the sidebar and the layout.
+              const B = GAP / 2;
               const E = 6; // the open backing runs the screen's full length, inset so its rounded ends show
               let railStyle: React.CSSProperties;
               if (state3 === 'open') {
