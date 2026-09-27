@@ -80,6 +80,27 @@ glass; after `/clear` you start fresh, and `claude --resume` picks the old glass
 restarts and resumes all continue in the same window. A folder glass's id is
 `sha256(project dir)[:12]`, the same id Voice Multiplexer uses for the folder.
 
+## Using the glass
+
+- **Desktops**: windows tile into desktops; ⌘←/⌘→, a horizontal swipe, or scrolling outside
+  windows moves between them. Drag a title bar to reorder; drag to a side edge and hold to move a
+  window to the next desktop.
+- **Edge sidebars (pin)**: while dragging a window (or its dock icon), drop it on the pin target in
+  the middle of an edge, or hold ⌘ for full-edge strips, to pin it to that sidebar. Hover the edge
+  to slide a sidebar out; its round handle keeps it open (the layout makes room), and its inner edge
+  drags to resize. Useful for things you interact with, like a voice app.
+- **Nested view** (Settings): one screen, newest window big, older ones spiral smaller; scroll or
+  ⌘↑/⌘↓ to walk back.
+- **History mode** (Settings, per session): every edit, plan, image, search and page opens its own
+  window, newest first, so the glass reads as a timeline.
+- **Browser**: Claude's web searches and fetched pages show up live (with back/forward, history,
+  and passages Claude highlights); a Playwright/Chrome DevTools browser can stream in too.
+- **Dock**: click to open/show; drag icons to reorder windows or onto an edge to pin them.
+- **Settings**: every app can be turned off; custom apps show what they're allowed to use.
+
+Claude can see all of this with `claude-glass view`, and change display settings when you ask
+(`claude-glass settings`).
+
 ## Custom apps
 
 Every window is an app, and anyone can write one: drop a folder into

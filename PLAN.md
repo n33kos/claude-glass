@@ -346,7 +346,7 @@ Other candidates:
 - [x] **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
   wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only
   (view state, no reducer action), so it's small. Good for small screenshots and diagrams.
-- **Thoughts app** (explore first, skip if it's unreasonable): list Claude's thinking. No hook
+- **Thoughts app** (skipped 2026-09-26 by the user's call; kept for the record): list Claude's thinking. No hook
   carries thinking (the captured `MessageDisplay` payloads only have visible text), so the only
   source is the session transcript JSONL, whose path (`transcript_path`) arrives in every hook
   payload. Idea: on `Stop` (and maybe `PostToolUse`), have core read new transcript lines from
@@ -360,7 +360,7 @@ Other candidates:
   "thinking: …" lines in the conversation app, read from the transcript on Stop from a saved byte
   offset (this does bend the "no transcript tailing" rule). On hold pending the user's call.
 
-## 6b. Experiment: history mode (design, not started)
+## 6b. History mode (built and kept; see item 9)
 
 Idea: instead of updating one "changes"/"plan"/"images"/"browser" window in place and
 reordering, every new thing Claude produces opens a **new window**. Because new windows already
@@ -386,7 +386,7 @@ cyclomatic complexity. So:
 - **Try it on a branch** (`experiment/history-mode`), use it for real sessions, then decide:
   merge, adjust, or delete the branch. No partial merges.
 
-## 6c. Experiment: nested layout (design, not started)
+## 6c. Nested view (built and kept as a setting; see item 10)
 
 Idea: one screen, no desktops. The newest window takes the biggest pane (half the screen); each
 older one gets half of what's left, alternating direction (a spiral of ever-smaller panes), so
