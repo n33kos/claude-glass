@@ -263,6 +263,20 @@ describe('settings from the CLI', () => {
     expect(core.config.windowOpacity).toBe(0.5);
     expect(await cli('open')).toContain('claude-glass settings set <key> <value>');
   });
+  it('background colors: the user sets their own; Claude signals per session, validated', async () => {
+    await cli('settings', 'set', 'backgroundColors', '#112233,445566');
+    expect(core.config.backgroundColors).toEqual(['#112233', '#445566']);
+    expect(await cli('background', '--colors', '#c0392b,#e67e22')).toContain('#c0392b, #e67e22');
+    expect(core.state.settings.backgroundColors).toEqual(['#c0392b', '#e67e22']);
+    const bad = await run(join(root, 'bin/claude-glass'), ['background', '--colors', 'red;}body{']);
+    expect(bad.stderr).toContain('not a hex color');
+    expect(core.state.settings.backgroundColors).toEqual(['#c0392b', '#e67e22']);
+    expect(await cli('background', 'reset')).toContain("the user's own");
+    expect(core.state.settings.backgroundColors).toBeUndefined();
+    expect(await cli('open')).toContain('claude-glass background --colors');
+    await cli('settings', 'set', 'backgroundColors', '');
+    expect(core.config.backgroundColors).toEqual([]);
+  });
 });
 
 describe('view for Claude', () => {

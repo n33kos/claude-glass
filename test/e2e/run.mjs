@@ -209,6 +209,9 @@ try {
   await page.locator('.dock-item[title="Settings"]').click();
   await sleep(700);
   await page.screenshot({ path: join(shots, '07-settings.png') });
+  await page.locator('.s-color').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await sleep(150);
+  await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07c-settings-look.png') });
   await page.locator('.settings').evaluate((el) => { el.scrollTop = el.scrollHeight; });
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07d-settings-apps.png') });
@@ -709,6 +712,20 @@ try {
     check(fit.dock <= fit.win && fit.tile < 38, `a crowded dock shrinks its icons and stays on screen (${Math.round(fit.tile)}px icons, dock ${Math.round(fit.dock)} of ${fit.win})`);
     await page.screenshot({ path: join(shots, '13-dock.png') });
     for (const id of made) await cli(env, 'window', 'close', id);
+  }
+
+  // Background light: Claude's signal recolors the wallpaper blobs, easing over; reset restores.
+  {
+    const blobColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.bokeh')).getPropertyValue('--bokeh').trim());
+    const before = await blobColor();
+    await cli(env, 'background', '--colors', '#c0392b,#8e2a1e');
+    await sleep(2000);
+    const signal = await blobColor();
+    check(signal === 'rgb(192, 57, 43)', `Claude's background signal recolors the wallpaper light (${before} → ${signal})`);
+    await page.screenshot({ path: join(shots, '14-signal.png') });
+    await cli(env, 'background', 'reset');
+    await sleep(2000);
+    check((await blobColor()) === before, 'background reset brings back the usual light');
   }
 
   // Session ended

@@ -270,6 +270,18 @@ async function main(argv: string[]) {
       out({ apps: cat, mods: reports }, [...rows, '', `Custom apps folder: ${dir}`].join('\n'));
       return;
     }
+    case 'background': {
+      // Claude's signal: recolor this glass's wallpaper light. Only this session; `reset` clears it.
+      const sid = sessionId(flags);
+      const [sub] = rest;
+      if (sub === 'reset') await dispatch(sid, { type: 'settings.set', key: 'backgroundColors', value: [] });
+      else if (typeof flags.colors === 'string') await dispatch(sid, { type: 'settings.set', key: 'backgroundColors', value: flags.colors });
+      else if (sub !== undefined || flags.colors !== undefined) throw new Error('usage: claude-glass background [--colors "#c0392b,#e67e22" | reset]');
+      const st = await call(sid, { op: 'state' });
+      const now: string[] | undefined = st.settings?.backgroundColors;
+      out({ colors: now ?? null }, now ? `Background light: ${now.join(', ')} (this session)` : "Background light: the user's own");
+      return;
+    }
     case 'settings': {
       const [sub, key, value] = rest;
       if (sub === 'set') {
@@ -284,7 +296,7 @@ async function main(argv: string[]) {
         const c = loadConfig() as unknown as Record<string, unknown>;
         const rows = Object.entries(SETTINGS_HELP).map(([k, help]) => `  ${k.padEnd(18)} ${JSON.stringify(c[k]).padEnd(12)} ${help}`);
         out({ global: c }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
-          '', 'This session: settings set session.windowMode live|history, session.historyLimit <n> (history windows kept; default 12),session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
+          '', 'This session: settings set session.windowMode live|history, session.historyLimit <n> (history windows kept; default 12), session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
       }
       return;
     }

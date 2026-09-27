@@ -331,7 +331,7 @@ export function App() {
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
     <div className={`glass${config.dockAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}>
-      <Wallpaper bg={config.background} animate={config.animateBackground} />
+      <Wallpaper bg={config.background} colors={state.settings.backgroundColors ?? config.backgroundColors ?? []} animate={config.animateBackground} />
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>
@@ -425,8 +425,9 @@ export function App() {
   );
 }
 
-function Wallpaper({ bg, animate }: { bg: string; animate: boolean }) {
-  const w = useMemo(() => wallpaper(bg), [bg]);
+function Wallpaper({ bg, colors, animate }: { bg: string; colors: string[]; animate: boolean }) {
+  const key = colors.join(',');
+  const w = useMemo(() => wallpaper(bg, colors), [bg, key]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className={`wallpaper${animate ? ' drifting' : ''}`} style={w.style} aria-hidden>
       {w.blobs.map((b, i) => <div key={i} className={`bokeh bokeh-${i % 4}`} style={b.style} />)}

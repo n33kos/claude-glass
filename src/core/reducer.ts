@@ -1,5 +1,6 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
+import { parseColors } from './colors';
 import { EDGES, isLayout } from './layout';
 import type { Action, Edge, GlassState, InstanceMeta, SessionInfo } from './types';
 
@@ -205,7 +206,9 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       const path = a.key.split('.');
       let obj = settings;
       for (const k of path.slice(0, -1)) obj = obj[k] ??= {};
-      obj[path[path.length - 1]] = a.value;
+      // Colors reach the renderer's CSS: only validated hex gets in; empty clears the signal.
+      const colors = a.key === 'backgroundColors' ? parseColors(a.value) : undefined;
+      obj[path[path.length - 1]] = colors ? (colors.length ? colors : undefined) : a.value;
       return { state: { ...s, settings } };
     }
 

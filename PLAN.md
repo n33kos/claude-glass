@@ -332,6 +332,19 @@ Queue, in order:
     middle, bottom sidebar either side). New layout `main-left-nest` (one big, two small, with
     the bottom-right small split again).
 
+17. [x] **Sidebar pull v2 + history cap (2026-09-26)**: opening a sidebar turns its rail into a
+    solid black backing along the screen's whole edge, and the capsule rides to the sidebar's
+    inner edge as the keep-open chevron. With the dock on auto-hide, the closed bottom capsule
+    sits centered above the dock trigger and fades while the dock is up. `.stage` clips (hidden
+    still scrolled when a tucked frame took focus). History mode keeps the newest
+    `session.historyLimit` history windows (default 12; pinned ones spared).
+
+18. [x] **Custom background colors (2026-09-26)**: global `backgroundColors` (up to 4 hex; Settings
+    → Look pickers, "Use preset" clears) recolor the wallpaper light over any preset (and over an
+    image). Claude's signal is per session: `claude-glass background --colors ... | reset`
+    (`settings.backgroundColors`, hex-validated in the reducer); the guide says what colors mean.
+    Blob colors are a registered `@property --bokeh`, so changes ease over 1.6s.
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
@@ -352,11 +365,7 @@ Other candidates:
   hoc; the launcher prefers it. No new dependency. Dock/menu bar say "Claude Glass".
 - [x] Placeholder ghost slot while dragging (2026-09-26): a dashed slot shows where a dragged window
   lands, in the layout and inside sidebars (the sidebar's windows reflow around it).
-- **Custom background colors**: the wallpaper's main gradient colors become user-editable (color
-  pickers in Settings; today's presets are just starting examples). Plus a CLI
-  (`claude-glass background --colors ...`) so Claude can shift the colors on the fly as a signal
-  (warnings, status, mood), with guide instructions on what colors mean. That dynamic part is a
-  per-session setting, so a session's signals don't leak into other glasses.
+- [x] **Custom background colors** (2026-09-26; see 18).
 - [x] **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
   wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only
   (view state, no reducer action), so it's small. Good for small screenshots and diagrams.

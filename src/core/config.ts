@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { parseColors } from './colors';
 import { isDefaultLayout } from './layout';
 import { configPath } from './paths';
 import type { GlobalConfig } from './types';
@@ -7,6 +8,7 @@ import type { GlobalConfig } from './types';
 export const DEFAULT_CONFIG: GlobalConfig = {
   autoStart: false,
   background: 'aurora',
+  backgroundColors: [],
   defaultLayout: 'grid',
   windowOpacity: 0.78,
   dockAutoHide: false,
@@ -24,6 +26,7 @@ export function loadConfig(): GlobalConfig {
     const raw = JSON.parse(readFileSync(configPath(), 'utf8'));
     const c = { ...DEFAULT_CONFIG, ...raw };
     if (!isDefaultLayout(c.defaultLayout)) c.defaultLayout = DEFAULT_CONFIG.defaultLayout;
+    try { c.backgroundColors = parseColors(c.backgroundColors ?? []); } catch { c.backgroundColors = []; }
     return c;
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -58,6 +61,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
     case 'defaultLayout': if (!isDefaultLayout(value)) throw new Error(`unknown layout ${value}`); return value;
     case 'background': return String(value);
+    case 'backgroundColors': return parseColors(value);
     default: throw new Error(`unknown global setting "${key}"`);
   }
 }
@@ -68,6 +72,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   defaultLayout: 'claude|full|split|main-left|main-left-nest|columns|grid: layout for new desktops',
   windowOpacity: '0.2..1: window glass opacity',
   background: 'aurora|dune|tide|graphite or an absolute image path',
+  backgroundColors: 'up to 4 hex colors ("#2b6f8f,#7a3d8c"): the user\'s own wallpaper light; empty = the preset\'s (change only if asked)',
   animateBackground: 'true|false: drift the wallpaper light',
   waitingGlow: 'true|false: amber edge glow while Claude waits on the user',
   dockAutoHide: 'true|false: hide the dock until the pointer reaches the bottom edge',

@@ -21,7 +21,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* Wallpaper: base gradient + bokeh layers. Drift is transform/opacity only (compositor), each
    blob on its own 19–29s period so the pattern never visibly repeats but motion is noticeable. */
 .wallpaper { position: absolute; inset: 0; z-index: -1; overflow: hidden; background-size: cover; }
-.bokeh { position: absolute; will-change: transform; }
+/* A blob's color is a registered <color> property, so recoloring (the user's colors, or Claude's
+   signal) eases over instead of snapping. */
+@property --bokeh { syntax: '<color>'; inherits: false; initial-value: transparent; }
+.bokeh { position: absolute; will-change: transform; background-image: radial-gradient(closest-side, var(--bokeh), transparent); transition: --bokeh 1.6s ease; }
 .drifting .bokeh-0 { animation: drift-a 19s ease-in-out infinite alternate; }
 .drifting .bokeh-1 { animation: drift-b 25s ease-in-out infinite alternate; }
 .drifting .bokeh-2 { animation: drift-c 22s ease-in-out infinite alternate; }
@@ -205,6 +208,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .switch i { position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
 .switch.on { background: #34c759; }
 .switch.on i { transform: translateX(15px); }
+.s-color { width: 30px; height: 30px; padding: 0; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.s-color::-webkit-color-swatch-wrapper { padding: 0; } .s-color::-webkit-color-swatch { border: none; border-radius: 50%; }
+.s-dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
 .swatches { display: flex; gap: 8px; }
 .swatches button { width: 54px; height: 34px; border-radius: 7px; border: 2px solid transparent; background-size: cover; cursor: pointer; }
 .swatches button.on { border-color: #fff; }

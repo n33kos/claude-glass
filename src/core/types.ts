@@ -36,11 +36,13 @@ export interface SessionSettings {
   historyLimit?: number; // history mode keeps this many history windows (default 12); older ones are deleted
   autoOpen: { changes: boolean; plan: boolean; images: boolean; web?: boolean }; // web: absent = on
   windowOpacity?: number;
+  backgroundColors?: string[]; // Claude's signal: this glass's wallpaper light (hex), over the user's
 }
 
 export interface GlobalConfig {
   autoStart: boolean;
   background: string; // preset name or absolute image path
+  backgroundColors: string[]; // the user's own wallpaper light colors (hex); empty = the preset's
   defaultLayout: LayoutName | 'claude'; // claude: new desktops fit their window count; Claude picks layouts
   windowOpacity: number;
   dockAutoHide: boolean; // dock overlays and hides; windows get its space

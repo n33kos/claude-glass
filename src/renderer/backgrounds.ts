@@ -38,7 +38,6 @@ export const PRESETS: Record<string, Preset> = {
   },
 };
 
-const blobGradient = (b: Blob) => `radial-gradient(closest-side, ${b.color}, transparent)`;
 
 /** Flat CSS for a preset (settings swatches). */
 export const BACKGROUNDS: Record<string, string> = Object.fromEntries(
@@ -48,17 +47,23 @@ export const BACKGROUNDS: Record<string, string> = Object.fromEntries(
   ]),
 );
 
-export function wallpaper(bg: string): { style: CSSProperties; blobs: { style: CSSProperties }[] } {
-  if (bg && bg.startsWith('/')) {
-    return { style: { backgroundImage: `url("glass-file://f${encodeURI(bg)}")`, backgroundSize: 'cover', backgroundPosition: 'center' }, blobs: [] };
-  }
+/**
+ * The wallpaper for a background setting. `colors` (the user's own, or Claude's signal for this
+ * session) recolor the light: they cycle over the preset's blobs (aurora's four when the preset has
+ * fewer). An image wallpaper gets the colored light over it only when there are colors.
+ */
+export function wallpaper(bg: string, colors: string[] = []): { style: CSSProperties; blobs: { style: CSSProperties }[] } {
+  const image = !!bg && bg.startsWith('/');
   const p = PRESETS[bg] ?? PRESETS.aurora;
+  const slots = colors.length > p.blobs.length || (image && colors.length) ? PRESETS.aurora.blobs : p.blobs;
+  const lit = colors.length ? slots.map((b, i) => ({ ...b, color: colors[i % colors.length] })) : image ? [] : p.blobs;
   return {
-    style: { backgroundImage: p.base },
-    blobs: p.blobs.map((b) => ({
+    style: image ? { backgroundImage: `url("glass-file://f${encodeURI(bg)}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : { backgroundImage: p.base },
+    blobs: lit.map((b) => ({
+      // The color rides in --bokeh (a registered <color>, see styles.css), so a change eases over.
       style: {
         left: `${b.x - b.rx}%`, top: `${b.y - b.ry}%`, width: `${b.rx * 2}%`, height: `${b.ry * 2}%`,
-        backgroundImage: blobGradient(b),
+        ['--bokeh' as string]: b.color,
       },
     })),
   };

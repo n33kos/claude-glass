@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
-import { BACKGROUNDS } from '../../renderer/backgrounds';
+import { BACKGROUNDS, PRESETS } from '../../renderer/backgrounds';
 import { AppIcon } from '../../renderer/AppIcon';
 import { apps, dispatch, mods, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
@@ -10,6 +10,25 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
     <label className="s-row">
       <span>{label}</span>
       <button role="switch" aria-checked={on} className={`switch${on ? ' on' : ''}`} onClick={() => onChange(!on)}><i /></button>
+    </label>
+  );
+}
+
+/** The user's own wallpaper light: four pickers over the preset's colors; empty = the preset's. */
+function LightColors({ config }: { config: ViewProps['config'] }) {
+  const own = config.backgroundColors ?? [];
+  const preset = (PRESETS[config.background] ?? PRESETS.aurora).blobs.map((b) => b.color);
+  const shown = Array.from({ length: 4 }, (_, i) => own.length ? own[i % own.length] : preset[i % preset.length]);
+  return (
+    <label className="s-row">
+      <span>Light colors{own.length ? '' : ' (preset)'}</span>
+      <span className="s-inline">
+        {shown.map((c, i) => (
+          <input key={i} type="color" className="s-color" value={c} aria-label={`Light color ${i + 1}`}
+            onChange={(e) => setConfig('backgroundColors', shown.map((x, j) => (j === i ? e.target.value : x)))} />
+        ))}
+        {own.length > 0 && <button className="s-link" onClick={() => setConfig('backgroundColors', [])}>Use preset</button>}
+      </span>
     </label>
   );
 }
@@ -48,6 +67,15 @@ export function SettingsView({ glass, config }: ViewProps) {
           {s.windowOpacity != null && <button className="s-link" onClick={() => setSession('windowOpacity', undefined)}>Use global</button>}
         </span>
       </label>
+      {s.backgroundColors && (
+        <label className="s-row">
+          <span>Background light set by Claude</span>
+          <span className="s-inline">
+            {s.backgroundColors.map((c, i) => <i key={i} className="s-dot" style={{ background: c }} />)}
+            <button className="s-link" onClick={() => setSession('backgroundColors', [])}>Clear</button>
+          </span>
+        </label>
+      )}
 
       <h3>All sessions</h3>
 
@@ -89,6 +117,7 @@ export function SettingsView({ glass, config }: ViewProps) {
           <button type="submit" className="s-btn">Use image</button>
         </form>
       </div>
+      <LightColors config={config} />
       <Toggle label="Drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
       <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
 
