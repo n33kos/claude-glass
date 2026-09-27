@@ -24,7 +24,7 @@ those edits never reach "changes"), write plans to plan files, and Read images y
       diff: add --path P --before-file A --after-file B     terminal: log --text T
   claude-glass window open|close <id>        open = bring back at index 0
   claude-glass window move <id> <index>      move to 0 to bring something to the user's attention
-  claude-glass layout <desktop#> full|split|main-left|columns|grid
+  claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
   claude-glass catalog                       all apps and commands
 
 Treat the glass as a live feed of your focus. Hook updates (and \`app\` commands) never move

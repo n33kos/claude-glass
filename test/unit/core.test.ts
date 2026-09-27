@@ -392,6 +392,18 @@ describe('edge tucking (experiment)', () => {
     s = reduce(s, { type: 'window.close', id: 'terminal' }).state;
     expect(s.tucked).toEqual({});
   });
+  it('pins at a position, reorders within a sidebar (staying open), and unpins into a slot', () => {
+    let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'left' }).state;
+    s = reduce(s, { type: 'window.tuck', id: 'conversation', edge: 'left', index: 0 }).state;
+    expect(s.tucked?.left).toEqual(['conversation', 'terminal']);
+    s = reduce(s, { type: 'tuck.keep', edge: 'left', keep: true }).state;
+    s = reduce(s, { type: 'window.tuck', id: 'conversation', edge: 'left', index: 1 }).state; // reorder
+    expect(s.tucked?.left).toEqual(['terminal', 'conversation']);
+    expect(s.tuckKeep).toEqual(['left']);
+    s = reduce(s, { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    s = reduce(s, { type: 'window.untuck', id: 'terminal', index: 1 }).state;
+    expect(s.order).toEqual(['notes', 'terminal']);
+  });
   it('an edge kept open stays open only while it has windows', () => {
     let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'right' }).state;
     s = reduce(s, { type: 'tuck.keep', edge: 'right', keep: true }).state;

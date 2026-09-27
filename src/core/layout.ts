@@ -24,6 +24,14 @@ export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> =
     label: 'One big, two small',
     slots: [{ x: 0, y: 0, w: 0.6, h: 1 }, { x: 0.6, y: 0, w: 0.4, h: 0.5 }, { x: 0.6, y: 0.5, w: 0.4, h: 0.5 }],
   },
+  // One big, two small, where the bottom-right small slot is itself one big, two small.
+  'main-left-nest': {
+    label: 'One big, two small, nested',
+    slots: [
+      { x: 0, y: 0, w: 0.6, h: 1 }, { x: 0.6, y: 0, w: 0.4, h: 0.5 },
+      { x: 0.6, y: 0.5, w: 0.24, h: 0.5 }, { x: 0.84, y: 0.5, w: 0.16, h: 0.25 }, { x: 0.84, y: 0.75, w: 0.16, h: 0.25 },
+    ],
+  },
   columns: {
     label: 'Three tall',
     slots: [{ x: 0, y: 0, w: 1 / 3, h: 1 }, { x: 1 / 3, y: 0, w: 1 / 3, h: 1 }, { x: 2 / 3, y: 0, w: 1 / 3, h: 1 }],
@@ -114,5 +122,6 @@ export function effectiveLayout(page: DesktopPage): LayoutName {
   if (n >= want || n === 0) return page.layout;
   if (n === 1) return 'full';
   if (n === 2) return 'split';
+  if (page.layout === 'main-left-nest') return n === 3 ? 'main-left' : 'grid';
   return page.layout === 'grid' ? 'main-left' : page.layout;
 }

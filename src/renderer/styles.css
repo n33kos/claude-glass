@@ -238,15 +238,39 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .tuck-zone.left span, .tuck-zone.right span { writing-mode: vertical-rl; }
 .tuck-zone.top, .tuck-zone.bottom { left: 44px; right: 44px; height: 44px; }
 .tuck-zone.top { top: 0; } .tuck-zone.bottom { bottom: 0; }
-/* Collapsed: a slim tab of app icons on the edge; hover slides the panel out. */
-.edge-tab { position: absolute; z-index: 35; display: flex; gap: 6px; align-items: center; justify-content: center; padding: 6px;
-  background: rgba(20, 23, 34, 0.8); border: 1px solid var(--line-strong); color: var(--ink-dim); font-size: 12px; cursor: default; }
-.edge-tab.left, .edge-tab.right { top: 50%; transform: translateY(-50%); flex-direction: column; width: 22px; }
-.edge-tab.left { left: 0; border-left: 0; border-radius: 0 9px 9px 0; }
-.edge-tab.right { right: 0; border-right: 0; border-radius: 9px 0 0 9px; }
-.edge-tab.top, .edge-tab.bottom { left: 50%; transform: translateX(-50%); height: 22px; }
-.edge-tab.top { top: 0; border-top: 0; border-radius: 0 0 9px 9px; }
-.edge-tab.bottom { bottom: 0; border-bottom: 0; border-radius: 9px 9px 0 0; }
+/* The drawer pull on a hidden sidebar's edge: a thin black rail (--t thick) hugging the edge that
+   bulges into a capsule around the pinned apps' icons, like a camera bevel, with the same --t
+   margin all round. It's a label (the whole edge reveals). When the sidebar slides out, the pull
+   eases off the edge and the rail stretches to the drawer's full length (--full). */
+.edge-tab { --t: 6px; --ink-pull: #000; position: absolute; z-index: 35; display: grid; place-items: center; pointer-events: none;
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1); }
+.edge-tab .rail { position: absolute; background: var(--ink-pull); border-radius: 999px;
+  transition: width .32s cubic-bezier(.2, .8, .2, 1), height .32s cubic-bezier(.2, .8, .2, 1); }
+.edge-tab .cap { position: relative; display: flex; gap: 5px; align-items: center; padding: var(--t); background: var(--ink-pull);
+  border-radius: 14px; color: rgba(255, 255, 255, 0.72); font-size: 12px; line-height: 1; }
+.edge-tab .cap > span { display: grid; place-items: center; width: 16px; height: 16px; }
+/* Left/right: vertical rail through the capsule's middle, flush to the edge. */
+.edge-tab.left, .edge-tab.right { top: 50%; translate: 0 -50%; }
+.edge-tab.left { left: 0; } .edge-tab.right { right: 0; }
+.edge-tab.left .cap, .edge-tab.right .cap { flex-direction: column; }
+.edge-tab.left .rail, .edge-tab.right .rail { width: var(--t); height: calc(100% + 72px); top: 50%; translate: 0 -50%; }
+.edge-tab.left .rail { left: 0; } .edge-tab.right .rail { right: 0; }
+.edge-tab.left .cap { border-radius: 0 14px 14px 0; } .edge-tab.right .cap { border-radius: 14px 0 0 14px; }
+/* Top/bottom: horizontal rail. */
+.edge-tab.top, .edge-tab.bottom { left: 50%; translate: -50% 0; }
+.edge-tab.top { top: 0; } .edge-tab.bottom { bottom: 0; }
+.edge-tab.top .rail, .edge-tab.bottom .rail { height: var(--t); width: calc(100% + 72px); left: 50%; translate: -50% 0; }
+.edge-tab.top .rail { top: 0; } .edge-tab.bottom .rail { bottom: 0; }
+.edge-tab.top .cap { border-radius: 0 0 14px 14px; } .edge-tab.bottom .cap { border-radius: 14px 14px 0 0; }
+/* Pulled: ease off the edge; the rail runs the drawer's length. */
+.edge-tab.left.pulled { transform: translateX(4px); } .edge-tab.right.pulled { transform: translateX(-4px); }
+.edge-tab.top.pulled { transform: translateY(4px); } .edge-tab.bottom.pulled { transform: translateY(-4px); }
+.edge-tab.left.pulled .rail, .edge-tab.right.pulled .rail { height: var(--full); }
+.edge-tab.top.pulled .rail, .edge-tab.bottom.pulled .rail { width: var(--full); }
+/* The auto-hidden dock owns the middle of the bottom edge: the bottom pull sits left of it, and the
+   dock's hover zone shrinks to its middle so the rest of the edge reveals the bottom sidebar. */
+.dock-autohide.has-bottom-pin .edge-tab.bottom { left: 22%; }
+.dock-autohide.has-bottom-pin .dock-hot { left: 32%; right: 32%; }
 .edge-panel { position: absolute; z-index: 36; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; opacity: 0; pointer-events: none; }
 .edge-panel .window { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }
 .edge-panel.left { top: 12px; left: 12px; transform: translateX(calc(-100% - 24px)); }
@@ -278,15 +302,16 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .dock-item .tile.has-img, .dock-ghost .tile:has(.app-icon) { background: rgba(255, 255, 255, 0.06) !important; padding: 0; overflow: hidden; }
 .tile .app-icon { width: 100%; height: 100%; }
 /* Keep-open handle on a panel's inner edge. */
-.edge-keep { position: absolute; z-index: 2; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 14px; line-height: 1; color: var(--ink-dim); background: rgba(20, 23, 34, 0.92); border: 1px solid var(--line-strong);
+.edge-keep { position: absolute; z-index: 2; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--ink-dim); background: rgba(20, 23, 34, 0.92); border: 1px solid var(--line-strong);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); cursor: pointer; }
+.edge-keep svg { transition: transform .2s; }
 .edge-keep:hover { color: var(--ink); border-color: var(--sky); }
 .edge-panel.kept .edge-keep { color: var(--sky); }
-.edge-panel.left .edge-keep { right: -12px; top: 50%; transform: translateY(-50%); }
-.edge-panel.right .edge-keep { left: -12px; top: 50%; transform: translateY(-50%); }
-.edge-panel.top .edge-keep { bottom: -12px; left: 50%; transform: translateX(-50%); }
-.edge-panel.bottom .edge-keep { top: -12px; left: 50%; transform: translateX(-50%); }
+.edge-panel.left .edge-keep { right: -16px; top: 50%; transform: translateY(-50%); }
+.edge-panel.right .edge-keep { left: -16px; top: 50%; transform: translateY(-50%); }
+.edge-panel.top .edge-keep { bottom: -16px; left: 50%; transform: translateX(-50%); }
+.edge-panel.bottom .edge-keep { top: -16px; left: 50%; transform: translateX(-50%); }
 .edge-panel.kept .window { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 
 /* Edge sidebars: hovering anywhere along an edge reveals its sidebar; a kept sidebar resizes from
@@ -296,9 +321,6 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .edge-hot.left { left: 0; } .edge-hot.right { right: 0; }
 .edge-hot.top, .edge-hot.bottom { left: 0; right: 0; height: 10px; }
 .edge-hot.top { top: 0; } .edge-hot.bottom { bottom: 0; }
-.edge-keep { width: 32px !important; height: 32px !important; font-size: 17px !important; }
-.edge-panel.left .edge-keep { right: -16px !important; } .edge-panel.right .edge-keep { left: -16px !important; }
-.edge-panel.top .edge-keep { bottom: -16px !important; } .edge-panel.bottom .edge-keep { top: -16px !important; }
 .edge-resize { position: absolute; z-index: 1; }
 .edge-resize.left, .edge-resize.right { top: 0; bottom: 0; width: 10px; cursor: col-resize; }
 .edge-resize.left { right: -11px; } .edge-resize.right { left: -11px; }
@@ -306,8 +328,11 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .edge-resize.top { bottom: -11px; } .edge-resize.bottom { top: -11px; }
 .edge-resize:hover, .edge-panel.resizing .edge-resize { background: rgba(127, 200, 255, 0.25); border-radius: 4px; }
 .edge-panel.resizing { transition: none; }
-.edge-panel.drop-on::after { content: 'Pin here'; position: absolute; inset: 0; z-index: 3; border-radius: var(--radius-win);
-  display: grid; place-items: center; font-size: 13px; color: #cfe9ff; background: rgba(127, 200, 255, 0.22); border: 2px dashed rgba(127, 200, 255, 0.7); }
+.edge-panel.drop-on::after { content: ''; position: absolute; inset: -4px; z-index: -1; border-radius: calc(var(--radius-win) + 4px);
+  box-shadow: 0 0 0 2px rgba(127, 200, 255, 0.55); pointer-events: none; }
+/* Placeholder slot where a dragged window will land (layout or sidebar). */
+.drop-ghost { position: absolute; left: 0; top: 0; border-radius: var(--radius-win); pointer-events: none;
+  background: rgba(127, 200, 255, 0.10); border: 2px dashed rgba(127, 200, 255, 0.6); transition: transform .18s, width .18s, height .18s; }
 /* Pin targets shown mid-edge while dragging. */
 .pin-target { position: absolute; z-index: 41; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%;
   display: grid; place-items: center; color: #cfe9ff; background: rgba(20, 23, 34, 0.78); border: 2px dashed rgba(127, 200, 255, 0.55);

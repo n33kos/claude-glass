@@ -83,7 +83,11 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       requireInstance(s, a.id);
       if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
       const t = untuck(s, a.id);
-      return { state: { ...t, order: t.order.filter((x) => x !== a.id), tucked: { ...t.tucked, [a.edge]: [...(t.tucked?.[a.edge] ?? []), a.id] } } };
+      const list = [...(t.tucked?.[a.edge] ?? [])];
+      list.splice(a.index == null ? list.length : clampIndex(a.index, list.length), 0, a.id);
+      // Reordering within a kept-open sidebar must not close it (untuck may have emptied it).
+      const tuckKeep = s.tuckKeep?.includes(a.edge) ? [...(t.tuckKeep ?? []).filter((e) => e !== a.edge), a.edge] : t.tuckKeep;
+      return { state: { ...t, order: t.order.filter((x) => x !== a.id), tucked: { ...t.tucked, [a.edge]: list }, tuckKeep } };
     }
 
     case 'tuck.keep': {
@@ -100,7 +104,10 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     case 'window.untuck': {
       requireInstance(s, a.id);
       const t = untuck(s, a.id);
-      return { state: { ...t, order: openAtZero(t.order, a.id) } };
+      if (a.index == null) return { state: { ...t, order: openAtZero(t.order, a.id) } };
+      const rest = t.order.filter((x) => x !== a.id);
+      const i = clampIndex(a.index, rest.length);
+      return { state: { ...t, order: [...rest.slice(0, i), a.id, ...rest.slice(i)] } };
     }
 
     case 'window.move': {

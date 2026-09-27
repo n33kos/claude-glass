@@ -12,14 +12,39 @@ const GAP = 12;
 
 interface Rect { x: number; y: number; w: number; h: number }
 interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean }
-interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null; tuck?: Edge | null; mod?: boolean }
+interface Drag {
+  id: string; px: number; py: number; ox: number; oy: number; // pointer, and its offset inside the window
+  target: number | null; // layout slot it would land in
+  tuck?: Edge | null; slot?: number | null; // sidebar it would pin to, and where in it
+  from?: Edge; // dragging a window out of this sidebar
+  mod?: boolean; // ⌘ held
+}
+
+type TuckState = { tucked?: Partial<Record<Edge, string[]>>; tuckKeep?: Edge[]; tuckSize?: Partial<Record<Edge, number>> };
+
+/** Where an edge sidebar sits in a W×H stage (side sidebars full height; top/bottom between them). */
+function panelRect(edge: Edge, W: number, H: number, s: TuckState): Rect {
+  const sz = edgeSize(edge, W, H, s.tuckSize);
+  const side = sideRoom(s, W, H);
+  if (edge === 'left') return { x: PAD, y: PAD, w: sz, h: H - PAD * 2 };
+  if (edge === 'right') return { x: W - PAD - sz, y: PAD, w: sz, h: H - PAD * 2 };
+  const w = W - PAD * 2 - side.l - side.r;
+  return { x: PAD + side.l, y: edge === 'top' ? PAD : H - PAD - sz, w, h: sz };
+}
+
+/** n equal slots along a sidebar (stacked on left/right, side by side on top/bottom), panel-relative. */
+function panelSlots(edge: Edge, n: number, r: Rect): Rect[] {
+  const vertical = edge === 'left' || edge === 'right';
+  const each = ((vertical ? r.h : r.w) - GAP * (n - 1)) / n;
+  return Array.from({ length: n }, (_, i) => (vertical ? { x: 0, y: i * (each + GAP), w: r.w, h: each } : { x: i * (each + GAP), y: 0, w: each, h: r.h }));
+}
 
 const TUCK_ZONE = 44; // px strip at each stage edge: with ⌘ held, drop a window there to pin it to that sidebar
 const SWITCH_ZONE = 48; // left/right: hold a dragged window here to switch desktops
 const PIN_TARGET = 30; // radius of the pin target shown mid-edge while dragging (drop on it to pin)
 
 /** Room kept-open left/right sidebars take (top/bottom sidebars fit between them). */
-function sideRoom(s: { tucked?: Partial<Record<Edge, string[]>>; tuckKeep?: Edge[]; tuckSize?: Partial<Record<Edge, number>> }, W: number, H: number) {
+function sideRoom(s: TuckState, W: number, H: number) {
   const room = (e: Edge) => (s.tuckKeep?.includes(e) && s.tucked?.[e]?.length ? edgeSize(e, W, H, s.tuckSize) + GAP : 0);
   return { l: room('left'), r: room('right') };
 }
@@ -65,23 +90,23 @@ export function App() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [peek, setPeek] = useState<Edge | null>(null); // edge panel slid out (hover or dock)
   // Dragging a dock icon: along the dock reorders windows; onto an edge's Tuck strip tucks it.
-  const [dockDrag, setDockDrag] = useState<{ id: string; px: number; py: number; tuck: Edge | null; before: string | null } | null>(null);
+  const [dockDrag, setDockDrag] = useState<{ id: string; px: number; py: number; tuck: Edge | null; slot?: number | null; before: string | null } | null>(null);
   /**
    * Where a drag at (cx, cy) would pin: a sidebar kept open takes drops anywhere over it; a hidden
    * edge through its pin target (always shown while dragging), or its whole strip when `strips`
    * (⌘ held, or a dock icon drag).
    */
-  const pinTarget = (cx: number, cy: number, strips: boolean): Edge | null => {
+  const pinTarget = (cx: number, cy: number, strips: boolean, showing: Edge | null = null): Edge | null => {
     const st = stageRef.current?.getBoundingClientRect();
     if (!st || cx < st.left || cx > st.right || cy < st.top || cy > st.bottom) return null;
-    const open = (e: Edge) => !!state.tucked?.[e]?.length && !!state.tuckKeep?.includes(e);
+    // Open = kept open, or slid out right now (e.g. the sidebar a window is being dragged out of).
+    const open = (e: Edge) => !!state.tucked?.[e]?.length && (!!state.tuckKeep?.includes(e) || e === showing);
     const side = sideRoom(state, st.width, st.height);
     const x = cx - st.left, y = cy - st.top;
     for (const e of EDGES) {
       if (!open(e)) continue;
-      const d = PAD + edgeSize(e, st.width, st.height, state.tuckSize);
-      const betweenSides = x > PAD + side.l && x < st.width - PAD - side.r;
-      if ((e === 'left' && x < d) || (e === 'right' && st.width - x < d) || (e === 'top' && y < d && betweenSides) || (e === 'bottom' && st.height - y < d && betweenSides)) return e;
+      const r = panelRect(e, st.width, st.height, state);
+      if (x >= r.x - GAP / 2 && x <= r.x + r.w + GAP / 2 && y >= r.y - GAP / 2 && y <= r.y + r.h + GAP / 2) return e;
     }
     for (const e of EDGES) {
       if (open(e)) continue;
@@ -92,6 +117,15 @@ export function App() {
     const hit: Edge | null = cx - st.left < TUCK_ZONE ? 'left' : st.right - cx < TUCK_ZONE ? 'right'
       : cy - st.top < TUCK_ZONE ? 'top' : st.bottom - cy < TUCK_ZONE ? 'bottom' : null;
     return hit && !open(hit) ? hit : null;
+  };
+  /** Where in an open sidebar a window dropped at (cx, cy) would go (its other windows keep order). */
+  const panelIndexAt = (edge: Edge, cx: number, cy: number, dragId: string): number => {
+    const st = stageRef.current!.getBoundingClientRect();
+    const r = panelRect(edge, st.width, st.height, state);
+    const others = (state.tucked?.[edge] ?? []).filter((x) => x !== dragId);
+    const vertical = edge === 'left' || edge === 'right';
+    const pos = vertical ? (cy - st.top - r.y) / r.h : (cx - st.left - r.x) / r.w;
+    return Math.max(0, Math.min(others.length, Math.floor(pos * (others.length + 1))));
   };
   // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -169,14 +203,14 @@ export function App() {
 
   // ---- drag to reorder -------------------------------------------------------------
   const edgeTimer = useRef<number | null>(null);
-  const onDragStart = (id: string, e: React.PointerEvent) => {
-    const p = placed.find((x) => x.id === id);
-    if (!p) return;
-    const stage = stageRef.current!.getBoundingClientRect();
-    // Keep the pointer while dragging: app views are frames, and a frame under the pointer would
-    // otherwise swallow the moves and the release.
+  /** Start dragging a window by its title bar: one in the layout, or one pinned to a sidebar (`from`). */
+  const onDragStart = (id: string, e: React.PointerEvent, from?: Edge) => {
+    const win = (e.currentTarget as HTMLElement).closest('.window')?.getBoundingClientRect();
+    if (!win) return;
+    // Keep the pointer while dragging (app frames under it are also switched off, see CSS).
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    setDrag({ id, px: e.clientX, py: e.clientY, ox: e.clientX - stage.left - (p.rect.x - v * size.W), oy: e.clientY - stage.top - p.rect.y, target: null });
+    if (from) setPeek(from); // keep its sidebar out while dragging from it
+    setDrag({ id, px: e.clientX, py: e.clientY, ox: e.clientX - win.left, oy: e.clientY - win.top, target: null, from });
   };
 
   useEffect(() => {
@@ -197,8 +231,10 @@ export function App() {
     let last = { x: 0, y: 0, mod: false };
     const update = (x: number, y: number, mod: boolean) => {
       last = { x, y, mod };
-      const tuck = pinTarget(x, y, mod);
-      setDrag((d) => d && { ...d, px: x, py: y, target: targetAt(x, y), tuck, mod });
+      const tuck = pinTarget(x, y, mod, drag.from ?? null);
+      const open = tuck && (state.tuckKeep?.includes(tuck) || tuck === drag.from);
+      const slot = open ? panelIndexAt(tuck, x, y, drag.id) : null;
+      setDrag((d) => d && { ...d, px: x, py: y, target: targetAt(x, y), tuck, slot, mod });
       return tuck;
     };
     const key = (e: KeyboardEvent) => { if (e.key === 'Meta') update(last.x, last.y, e.type === 'keydown'); };
@@ -217,14 +253,20 @@ export function App() {
     };
     const up = (e: PointerEvent) => {
       if (edgeTimer.current != null) { clearTimeout(edgeTimer.current); edgeTimer.current = null; }
-      const tuck = pinTarget(e.clientX, e.clientY, e.metaKey);
+      const tuck = pinTarget(e.clientX, e.clientY, e.metaKey, drag.from ?? null);
+      const open = tuck && (state.tuckKeep?.includes(tuck) || tuck === drag.from);
       const target = targetAt(e.clientX, e.clientY);
       const cur = state.order.indexOf(drag.id);
-      if (tuck) dispatch({ type: 'window.tuck', id: drag.id, edge: tuck });
-      // Reorder (history mode keeps time order: dragging there only tucks). Final index = target;
-      // the reducer removes, then inserts, and clamps past-the-end.
-      else if (target !== cur && state.settings.windowMode !== 'history') dispatch({ type: 'window.move', id: drag.id, index: target });
+      const history = state.settings.windowMode === 'history';
+      // Pin (at the dropped position if the sidebar is open), including reordering within a sidebar.
+      if (tuck) dispatch({ type: 'window.tuck', id: drag.id, edge: tuck, index: open ? panelIndexAt(tuck, e.clientX, e.clientY, drag.id) : undefined });
+      // Dragged out of a sidebar onto the layout: unpin into that slot (history mode: newest first).
+      else if (drag.from) dispatch({ type: 'window.untuck', id: drag.id, index: history ? undefined : target });
+      // Reorder (history mode keeps time order). Final index = target; the reducer removes, then
+      // inserts, and clamps past-the-end.
+      else if (target !== cur && !history) dispatch({ type: 'window.move', id: drag.id, index: target });
       setDrag(null);
+      setPeek(null);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
@@ -254,7 +296,9 @@ export function App() {
     };
     const move = (e: PointerEvent) => {
       const b = beforeAt(e.clientX, e.clientY);
-      setDockDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, tuck: pinTarget(e.clientX, e.clientY, true), before: b === undefined ? null : b });
+      const tuck = pinTarget(e.clientX, e.clientY, true);
+      const slot = tuck && state.tuckKeep?.includes(tuck) ? panelIndexAt(tuck, e.clientX, e.clientY, id) : null;
+      setDockDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, tuck, slot, before: b === undefined ? null : b });
       document.querySelectorAll('.dock-item.drop-before, .dock.drop-end').forEach((el) => el.classList.remove('drop-before', 'drop-end'));
       if (b) document.querySelector(`.dock-item[data-dock-id="${CSS.escape(b)}"]`)?.classList.add('drop-before');
       else if (b === null) document.querySelector('.dock')?.classList.add('drop-end');
@@ -264,7 +308,7 @@ export function App() {
       const tuck = pinTarget(e.clientX, e.clientY, true);
       const b = beforeAt(e.clientX, e.clientY);
       setDockDrag(null);
-      if (tuck) return void dispatch({ type: 'window.tuck', id, edge: tuck });
+      if (tuck) return void dispatch({ type: 'window.tuck', id, edge: tuck, index: state.tuckKeep?.includes(tuck) ? panelIndexAt(tuck, e.clientX, e.clientY, id) : undefined });
       if (b === undefined || state.settings.windowMode === 'history' || config.dockOrder === 'fixed' || b === id) return;
       // Reorder: the window lands where its icon was dropped among the open windows.
       const open = state.order.filter((x) => x !== id);
@@ -284,7 +328,7 @@ export function App() {
   const rel = (t: string) => (s.cwd ? t.split(s.cwd + '/').join('') : t);
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
-    <div className={`glass${config.dockAutoHide ? ' dock-autohide' : ''}${glow}`}>
+    <div className={`glass${config.dockAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}>
       <Wallpaper bg={config.background} animate={config.animateBackground} />
       <header className="topbar">
         <div className="session">
@@ -322,7 +366,7 @@ export function App() {
                 meta={meta}
                 style={style}
                 dragging={dragging}
-                dropTarget={!!drag && !dragging && drag.target === p.index}
+                dropTarget={false}
                 opacity={opacityFor(meta)}
                 page={pages[p.page]}
                 onDragStart={(e) => onDragStart(p.id, e)}
@@ -334,6 +378,12 @@ export function App() {
               </WindowFrame>
             );
           })}
+          {/* Placeholder: where the dragged window will land in the layout (not while over a sidebar). */}
+          {drag && !drag.tuck && drag.target != null && (state.settings.windowMode !== 'history') && (() => {
+            const slot = placed.find((p) => p.index === drag.target);
+            if (!slot || (!drag.from && slot.id === drag.id)) return null;
+            return <div className="drop-ghost" style={{ width: slot.rect.w, height: slot.rect.h, transform: `translate(${slot.rect.x}px, ${slot.rect.y}px)` }} />;
+          })()}
           {nestedPage && (() => {
             const newer = focus, older = Math.max(0, nestedPage.windows.length - focus - 6);
             const left = nestedPage.index * size.W;
@@ -348,16 +398,17 @@ export function App() {
             </div>
           )}
         </div>
-        {(drag?.mod || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length))
+        {(drag?.mod || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length) && e !== drag?.from)
           .map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Pin</span></div>)}
         {/* Pin targets: drop a dragged window on one to pin it to that edge; anywhere else is a normal drag. */}
-        {(drag || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length)).map((e) => {
+        {(drag || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length) && e !== drag?.from).map((e) => {
           const c = pinTargetCenter(e, size.W, size.H, sideRoom(state, size.W, size.H));
           return <div key={e} className={`pin-target ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`} style={{ left: c.x, top: c.y }} title={`Pin ${e}`}>
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
           </div>;
         })}
-        <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} dropEdge={(drag ?? dockDrag)?.tuck ?? null} />
+        <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} onWindowDragStart={onDragStart}
+          drag={drag ?? (dockDrag ? { id: dockDrag.id, px: dockDrag.px, py: dockDrag.py, ox: 0, oy: 0, tuck: dockDrag.tuck, slot: dockDrag.slot ?? null } : null)} />
       </main>
 
       {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
@@ -536,7 +587,11 @@ function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
  * slides it out; kept open, the layout makes room and its inner edge drags to resize. Windows
  * split a sidebar evenly and stay mounted while hidden (a voice app keeps listening).
  */
-function EdgePanels({ W, H, peek, setPeek, dropEdge }: { W: number; H: number; peek: Edge | null; setPeek: (e: Edge | null) => void; dropEdge: Edge | null }) {
+function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
+  W: number; H: number; peek: Edge | null; setPeek: (e: Edge | null) => void;
+  drag: Pick<Drag, 'id' | 'px' | 'py' | 'ox' | 'oy' | 'from' | 'tuck' | 'slot'> | null;
+  onWindowDragStart: (id: string, e: React.PointerEvent, from: Edge) => void;
+}) {
   const { state, config } = useSnapshot();
   const closeTimer = useRef<number | null>(null);
   const hold = (e: Edge) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
@@ -565,36 +620,59 @@ function EdgePanels({ W, H, peek, setPeek, dropEdge }: { W: number; H: number; p
         if (!ids.length) return null;
         const vertical = edge === 'left' || edge === 'right';
         const kept = !!state.tuckKeep?.includes(edge);
-        const sz = resizing?.edge === edge ? resizing.size : edgeSize(edge, W, H, state.tuckSize);
+        const open = peek === edge || kept || drag?.from === edge;
         // Side sidebars win: top/bottom ones fit between any kept-open left/right sidebars.
+        const r = panelRect(edge, W, H, resizing?.edge === edge ? { ...state, tuckSize: { ...state.tuckSize, [edge]: resizing.size } } : state);
         const side = sideRoom(state, W, H);
-        const pw = vertical ? sz : W - PAD * 2 - side.l - side.r, ph = vertical ? H - PAD * 2 : sz;
-        const n = ids.length;
-        const each = ((vertical ? ph : pw) - GAP * (n - 1)) / n;
+        const pw = r.w, ph = r.h;
+        // While a window is dragged over (or out of) this sidebar, the others reflow around a
+        // placeholder slot where it will land; the dragged one follows the pointer.
+        const dragged = drag && ids.includes(drag.id) ? drag.id : null;
+        const others = ids.filter((id) => id !== dragged);
+        const ghostAt = drag && drag.tuck === edge && drag.slot != null ? Math.min(drag.slot, others.length) : null;
+        const slots = panelSlots(edge, Math.max(1, others.length + (ghostAt != null ? 1 : 0)), r);
+        const slotOf = (i: number) => slots[ghostAt != null && i >= ghostAt ? i + 1 : i];
+        const stage = drag ? document.querySelector('.stage')?.getBoundingClientRect() : undefined;
         return (
           <Fragment key={edge}>
             {!kept && <>
               <div className={`edge-hot ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} />
-              <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
-                {ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}
+              {/* The drawer pull: a thin black rail on the edge that bulges around the pinned apps'
+                  icons (a label, not a button: the whole edge reveals). When the sidebar slides out
+                  it eases off the edge and the rail stretches the drawer's full length. */}
+              <div className={`edge-tab ${edge}${open ? ' pulled' : ''}`} style={{ ['--full' as any]: `${vertical ? r.h : r.w}px` }}
+                onMouseEnter={() => hold(edge)} onMouseLeave={release}>
+                <i className="rail" />
+                <span className="cap">{ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}</span>
               </div>
             </>}
-            <div className={`edge-panel ${edge}${peek === edge || kept ? ' open' : ''}${kept ? ' kept' : ''}${dropEdge === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
+            <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
               style={{ width: pw, height: ph, ...(vertical ? {} : { left: PAD + side.l }) }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
               {kept && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, e)} />}
               {/* Handle on the inner edge: keep this sidebar open (the layout makes room) or let it hide. */}
               <button className="edge-keep" title={kept ? 'Hide this sidebar (hover the edge to show it)' : 'Keep this sidebar open'}
                 aria-pressed={kept} onClick={() => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); }}>
-                {{ left: kept ? '‹' : '›', right: kept ? '›' : '‹', top: kept ? '˄' : '˅', bottom: kept ? '˅' : '˄' }[edge]}
+                {/* One chevron for every edge: points away from the edge to keep open, toward it to hide. */}
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden
+                  style={{ transform: `rotate(${({ left: 0, top: 90, right: 180, bottom: 270 }[edge]) + (kept ? 180 : 0)}deg)` }}>
+                  <path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
-              {ids.map((id, i) => {
+              {ghostAt != null && <div className="drop-ghost" style={{ width: slots[ghostAt].w, height: slots[ghostAt].h, transform: `translate(${slots[ghostAt].x}px, ${slots[ghostAt].y}px)` }} />}
+              {ids.map((id) => {
                 const meta = state.instances[id];
-                const w = vertical ? pw : each, h = vertical ? each : ph;
-                const style: React.CSSProperties = { width: w, height: h, transform: `translate(${vertical ? 0 : i * (each + GAP)}px, ${vertical ? i * (each + GAP) : 0}px)` };
+                const isDragged = id === dragged && drag && stage;
+                // The dragged window keeps its size and follows the pointer (panel-relative).
+                const home = slotOf(Math.max(0, others.indexOf(id))) ?? slots[0];
+                const own = panelSlots(edge, ids.length, r)[ids.indexOf(id)];
+                const style: React.CSSProperties = isDragged
+                  ? { width: own.w, height: own.h, zIndex: 5, transform: `translate(${drag.px - stage.left - r.x - drag.ox}px, ${drag.py - stage.top - r.y - drag.oy}px) scale(.97)` }
+                  : { width: home.w, height: home.h, transform: `translate(${home.x}px, ${home.y}px)` };
                 const opacity = meta.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
                 return (
-                  <WindowFrame key={id} meta={meta} style={style} dragging={false} dropTarget={false} opacity={opacity} tucked={edge}>
-                    <AppBody id={id} meta={meta} w={w} h={h} />
+                  <WindowFrame key={id} meta={meta} style={style} dragging={!!isDragged} dropTarget={false} opacity={opacity} tucked={edge}
+                    onDragStart={(e) => onWindowDragStart(id, e, edge)}>
+                    <AppBody id={id} meta={meta} w={isDragged ? own.w : home.w} h={isDragged ? own.h : home.h} />
                   </WindowFrame>
                 );
               })}

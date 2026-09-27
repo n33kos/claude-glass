@@ -575,13 +575,15 @@ try {
     const lit = await page.locator('.pin-target.left.on').count();
     await page.mouse.up();
     await sleep(500);
-    await cli(env, 'window', 'pin', 'terminal', 'bottom');
     v = JSON.parse(await cli(env, 'view', '--json'));
     check(lit === 1 && v.tucked?.left?.[0]?.id === w1, `dropping on a pin target pins the window (${JSON.stringify(v.tucked)})`);
+    const w2 = v.desktops[0].windows[0].id; // a different window for the bottom sidebar
+    await cli(env, 'window', 'pin', w2, 'bottom');
     await sleep(300);
     for (const e of ['left', 'bottom']) {
       await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 3 });
-      await page.locator(`.edge-tab.${e}`).hover();
+      // Hover the edge itself (the tab is a label, not the target).
+      await page.mouse.move(e === 'left' ? stage.x + 4 : stage.x + stage.width * 0.15, e === 'left' ? stage.y + stage.height * 0.3 : stage.y + stage.height - 4, { steps: 3 });
       await sleep(500);
       await page.locator(`.edge-panel.${e} .edge-keep`).click();
       await sleep(400);
@@ -593,9 +595,61 @@ try {
     await page.screenshot({ path: join(shots, '12c-sidebars.png') });
     for (const e of ['left', 'bottom']) await page.locator(`.edge-panel.${e} .edge-keep`).click();
     await cli(env, 'window', 'unpin', w1);
-    await cli(env, 'window', 'unpin', 'terminal');
+    await cli(env, 'window', 'unpin', w2);
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
     await sleep(500);
+
+    // Inside a sidebar: drag to reorder, drag out onto the layout to unpin. Placeholders show where.
+    const lay = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows.map((w) => w.id);
+    await cli(env, 'window', 'pin', lay[0], 'right');
+    await cli(env, 'window', 'pin', lay[1], 'right');
+    await cli(env, 'settings', 'set', 'dockAutoHide', 'false');
+    await sleep(500);
+    await page.screenshot({ path: join(shots, '12d-pull.png') }); // the drawer pull on the right edge
+    await page.mouse.move(stage.x + stage.width - 4, stage.y + stage.height * 0.2, { steps: 4 });
+    await sleep(600);
+    await page.screenshot({ path: join(shots, '12e-pulled.png') });
+    await page.locator('.edge-panel.right .edge-keep').click();
+    await sleep(500);
+    const topWin = await page.locator(`.edge-panel.right [data-window="${lay[0]}"] .titlebar`).boundingBox();
+    const botWin = await page.locator(`.edge-panel.right [data-window="${lay[1]}"]`).boundingBox();
+    await page.mouse.move(topWin.x + 60, topWin.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(botWin.x + botWin.width / 2, botWin.y + botWin.height * 0.85, { steps: 8 });
+    await sleep(200);
+    const panelGhost = await page.locator('.edge-panel.right .drop-ghost').count();
+    await page.mouse.up();
+    await sleep(500);
+    let st2 = JSON.parse(await cli(env, 'state', '--json'));
+    check(panelGhost === 1 && st2.tucked.right.join() === [lay[1], lay[0]].join(), `dragging within a sidebar reorders it, with a placeholder (${st2.tucked.right.join(', ')})`);
+    const moving = await page.locator(`.edge-panel.right [data-window="${lay[0]}"] .titlebar`).boundingBox();
+    const into = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    const slotBox = await page.locator(`.strip [data-window="${into}"]`).boundingBox();
+    await page.mouse.move(moving.x + 60, moving.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(slotBox.x + slotBox.width / 2, slotBox.y + slotBox.height / 2, { steps: 10 });
+    await sleep(200);
+    const layoutGhost = await page.locator('.strip .drop-ghost').count();
+    await page.screenshot({ path: join(shots, '12f-drag-out.png') });
+    await page.mouse.up();
+    await sleep(500);
+    st2 = JSON.parse(await cli(env, 'state', '--json'));
+    check(layoutGhost === 1 && !st2.tucked.right.includes(lay[0]) && st2.order[0] === lay[0], `dragging a window out of a sidebar unpins it into that slot, with a placeholder (order starts ${st2.order[0]})`);
+    await page.locator('.edge-panel.right .edge-keep').click();
+    await cli(env, 'window', 'unpin', lay[1]);
+    // With the dock on auto-hide, the bottom edge away from the dock still reveals the bottom sidebar.
+    await cli(env, 'settings', 'set', 'dockAutoHide', 'true');
+    await cli(env, 'window', 'pin', 'terminal', 'bottom');
+    await sleep(500);
+    const full = await page.locator('.stage').boundingBox(); // auto-hide gives the stage the dock's space
+    await page.mouse.move(full.x + full.width / 2, full.y + full.height / 2, { steps: 3 });
+    await page.mouse.move(full.x + full.width * 0.12, full.y + full.height - 3, { steps: 4 });
+    await sleep(600);
+    check((await page.locator('.edge-panel.bottom.open').count()) === 1, 'with an auto-hidden dock, the bottom edge beside it reveals the bottom sidebar');
+    await cli(env, 'window', 'unpin', 'terminal');
+    await cli(env, 'settings', 'set', 'dockAutoHide', 'false');
+    await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);
+    await sleep(400);
   }
 
   // Dock: drag an icon along the dock to reorder windows, or onto an edge to tuck it.

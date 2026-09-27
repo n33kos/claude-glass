@@ -324,6 +324,14 @@ Queue, in order:
     top/bottom. Hovering anywhere along an edge reveals it. Frames ignore the pointer during any
     drag. `claude-glass view` reports display modes, window positions and sidebars for Claude.
 
+16. [x] **Sidebar dragging & polish (2026-09-26)**: drag to reorder within a sidebar, drag a
+    window out of a sidebar to unpin it into that layout slot, placeholders everywhere; one
+    chevron icon for every edge's keep-open handle; the hidden sidebar's pull is a black
+    "camera bevel" rail that eases off the edge and stretches the drawer's length when it opens
+    (a label, not a target); with the dock on auto-hide the bottom edge is shared (dock in the
+    middle, bottom sidebar either side). New layout `main-left-nest` (one big, two small, with
+    the bottom-right small split again).
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
@@ -342,7 +350,13 @@ Other candidates:
 - [x] Packaged .app (2026-09-26): `scripts/make-app.mjs` (macOS, part of `npm run build`) clones
   Electron.app to `dist/Claude Glass.app` (APFS clone), renames it, swaps in our icon, re-signs ad
   hoc; the launcher prefers it. No new dependency. Dock/menu bar say "Claude Glass".
-- Placeholder ghost slot while dragging
+- [x] Placeholder ghost slot while dragging (2026-09-26): a dashed slot shows where a dragged window
+  lands, in the layout and inside sidebars (the sidebar's windows reflow around it).
+- **Custom background colors**: the wallpaper's main gradient colors become user-editable (color
+  pickers in Settings; today's presets are just starting examples). Plus a CLI
+  (`claude-glass background --colors ...`) so Claude can shift the colors on the fly as a signal
+  (warnings, status, mood), with guide instructions on what colors mean. That dynamic part is a
+  per-session setting, so a session's signals don't leak into other glasses.
 - [x] **Image lightbox**: clicking an image in the image viewer opens it as a full-window overlay with
   wheel/pinch zoom and drag to pan; Esc (or clicking the backdrop) closes it. Renderer-only
   (view state, no reducer action), so it's small. Good for small screenshots and diagrams.

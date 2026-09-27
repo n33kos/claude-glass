@@ -2,7 +2,7 @@
 
 export type Edge = 'left' | 'right' | 'top' | 'bottom';
 
-export type LayoutName = 'full' | 'split' | 'main-left' | 'columns' | 'grid' | 'nested';
+export type LayoutName = 'full' | 'split' | 'main-left' | 'main-left-nest' | 'columns' | 'grid' | 'nested';
 
 export interface InstanceMeta {
   id: string;
@@ -85,8 +85,8 @@ export type Action =
   | { type: 'session.update'; patch: Partial<SessionInfo> }
   | { type: 'ui.viewDesktop'; index: number }
   | { type: 'app.hook'; payload: unknown }
-  | { type: 'window.tuck'; id: string; edge: Edge }
-  | { type: 'window.untuck'; id: string }
+  | { type: 'window.tuck'; id: string; edge: Edge; index?: number } // index: position in the sidebar (default last)
+  | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'tuck.keep'; edge: Edge; keep: boolean }
   | { type: 'tuck.size'; edge: Edge; size: number };
 

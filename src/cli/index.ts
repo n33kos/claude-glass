@@ -231,7 +231,7 @@ async function main(argv: string[]) {
     case 'layout': {
       const sid = sessionId(flags);
       const [desk, layout] = rest;
-      if (!desk || !layout) throw new Error('usage: claude-glass layout <desktop#> <full|split|main-left|columns|grid>');
+      if (!desk || !layout) throw new Error('usage: claude-glass layout <desktop#> <full|split|main-left|main-left-nest|columns|grid>');
       await dispatch(sid, { type: 'desktop.layout', desktop: Number(desk) - 1, layout: layout as any });
       out({ ok: true }, 'ok');
       return;
