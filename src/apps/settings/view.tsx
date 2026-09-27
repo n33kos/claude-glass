@@ -28,6 +28,14 @@ export function SettingsView({ glass, config }: ViewProps) {
           <option value="history">New window for every action (history)</option>
         </select>
       </label>
+      {s.windowMode === 'history' && (
+        <label className="s-row">
+          <span>History windows to keep</span>
+          <select value={String(s.historyLimit ?? 12)} onChange={(e) => setSession('historyLimit', Number(e.target.value))}>
+            {[4, 8, 12, 20, 40].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+      )}
       <Toggle label="Open file changes automatically" on={s.autoOpen.changes} onChange={(v) => setSession('autoOpen.changes', v)} />
       <Toggle label="Open plans automatically" on={s.autoOpen.plan} onChange={(v) => setSession('autoOpen.plan', v)} />
       <Toggle label="Open images Claude reads" on={s.autoOpen.images} onChange={(v) => setSession('autoOpen.images', v)} />

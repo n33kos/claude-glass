@@ -361,7 +361,15 @@ describe('history mode (experiment)', () => {
     expect(browsers).toHaveLength(1);
     expect((s.appState[browsers[0].id] as BrowserState).history[0]).toMatchObject({ kind: 'search', results: expect.any(Array) });
   });
-
+  it('keeps only the newest historyLimit windows; pinned ones survive', () => {
+    let s = reduce(fresh(), { type: 'settings.set', key: 'historyLimit', value: 3 }).state;
+    s = applyHook(s, editAs('toolu_P0'), hctx);
+    s = reduce(s, { type: 'window.tuck', id: 'changes-tooluP0', edge: 'left' }).state;
+    for (let i = 1; i <= 5; i++) s = applyHook(s, editAs(`toolu_E${i}`), hctx);
+    const kept = Object.keys(s.instances).filter((id) => id.startsWith('changes-'));
+    expect(kept.sort()).toEqual(['changes-tooluE3', 'changes-tooluE4', 'changes-tooluE5', 'changes-tooluP0']);
+    expect(s.order).not.toContain('changes-tooluE1');
+  });
 });
 
 describe('app permissions', () => {

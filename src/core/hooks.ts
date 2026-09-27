@@ -140,8 +140,24 @@ function builtinHook(s: GlassState, p: any, ctx: HookContext): GlassState {
 function autoWindow(s: GlassState, ctx: HookContext, opts: Parameters<typeof autoCommand>[1]): GlassState {
   if (ctx.windowMode !== 'history') return autoCommand(s, opts);
   const key = (ctx.toolUseId ?? String(Date.now())).replace(/[^A-Za-z0-9]/g, '').slice(-10);
-  return autoCommand(s, { ...opts, id: `${opts.id}-${key}` });
+  return pruneHistory(autoCommand(s, { ...opts, id: `${opts.id}-${key}` }));
 }
+
+export const HISTORY_LIMIT = 12;
+const HISTORY_ID = /^(changes|plan|images|browser)-[A-Za-z0-9]+$/;
+
+/** History mode keeps only the newest `historyLimit` history windows; older ones are deleted (pinned ones stay). */
+function pruneHistory(s: GlassState): GlassState {
+  const limit = Math.max(1, Math.floor(Number(s.settings.historyLimit ?? HISTORY_LIMIT)));
+  const pinned = new Set(Object.values(s.tucked ?? {}).flat());
+  const old = Object.values(s.instances)
+    .filter((i) => HISTORY_ID.test(i.id) && !pinned.has(i.id))
+    .sort((a, b) => b.createdAt - a.createdAt || rank(s, a.id) - rank(s, b.id))
+    .slice(limit);
+  for (const i of old) s = reduce(s, { type: 'instance.delete', id: i.id }).state;
+  return s;
+}
+const rank = (s: GlassState, id: string) => { const i = s.order.indexOf(id); return i < 0 ? Infinity : i; };
 
 const web = (s: GlassState, ctx: HookContext, command: string, args: Record<string, unknown>) =>
   autoWindow(s, ctx, { id: 'browser', appType: 'browser', title: 'Browser', command, args, autoOpen: s.settings.autoOpen.web !== false });

@@ -284,7 +284,7 @@ async function main(argv: string[]) {
         const c = loadConfig() as unknown as Record<string, unknown>;
         const rows = Object.entries(SETTINGS_HELP).map(([k, help]) => `  ${k.padEnd(18)} ${JSON.stringify(c[k]).padEnd(12)} ${help}`);
         out({ global: c }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
-          '', 'This session: settings set session.windowMode live|history, session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
+          '', 'This session: settings set session.windowMode live|history, session.historyLimit <n> (history windows kept; default 12),session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
       }
       return;
     }

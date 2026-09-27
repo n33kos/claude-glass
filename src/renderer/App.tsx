@@ -655,13 +655,14 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               // when the dock auto-hides there (the dock owns the middle), then left of it.
               const along = vertical ? r.y + r.h / 2 : edge === 'bottom' && config.dockAutoHide ? Math.max(r.x + capLen, W * 0.2) : r.x + r.w / 2;
               const B = 10; // how far the open backing extends past the sidebar
+              const E = 6; // the open backing runs the screen's full length, inset so its rounded ends show
               let railStyle: React.CSSProperties;
               if (state3 === 'open') {
                 railStyle = {
-                  left: { left: -4, right: r.x - B, top: r.x - B, bottom: r.x - B }[edge],
-                  top: { left: r.y - B, right: r.y - B, top: -4, bottom: r.y - B }[edge],
-                  width: { left: r.x + r.w + B + 4, right: W - r.x + B + 4, top: r.w + B * 2, bottom: r.w + B * 2 }[edge],
-                  height: { left: r.h + B * 2, right: r.h + B * 2, top: r.y + r.h + B + 4, bottom: H - r.y + B + 4 }[edge],
+                  left: { left: -4, right: r.x - B, top: E, bottom: E }[edge],
+                  top: { left: E, right: E, top: -4, bottom: r.y - B }[edge],
+                  width: { left: r.x + r.w + B + 4, right: W - r.x + B + 4, top: W - E * 2, bottom: W - E * 2 }[edge],
+                  height: { left: H - E * 2, right: H - E * 2, top: r.y + r.h + B + 4, bottom: H - r.y + B + 4 }[edge],
                 };
               } else {
                 const len = state3 === 'near' ? Math.max(capLen + 80, (vertical ? r.h : r.w) * 0.45) : capLen + 80;

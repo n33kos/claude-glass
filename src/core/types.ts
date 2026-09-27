@@ -33,6 +33,7 @@ export interface Waiting {
 
 export interface SessionSettings {
   windowMode?: 'live' | 'history'; // history = a new window for every edit, plan, image, search and page
+  historyLimit?: number; // history mode keeps this many history windows (default 12); older ones are deleted
   autoOpen: { changes: boolean; plan: boolean; images: boolean; web?: boolean }; // web: absent = on
   windowOpacity?: number;
 }
