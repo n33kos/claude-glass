@@ -167,7 +167,7 @@ claude-glass new <type> [--id ID] [--title T] [--no-open]
 claude-glass app <id> <command> [--key value ...] [--file F] [--text T]
 claude-glass window open|close <id>
 claude-glass window move <id> <index>
-claude-glass window pin <id> [index] | unpin <id>
+claude-glass window tuck <id> <left|right|top|bottom> | untuck <id>
 claude-glass window opacity <id> <0..1>
 claude-glass layout <desktop#> <full|split|main-left|columns|grid>
 claude-glass settings [get | set <scope> <key> <value>]
@@ -223,7 +223,7 @@ screenshots), and a real headless `claude -p --plugin-dir . --session-id <uuid>`
 glass (hooks, bin on PATH, session binding, CLI all work).
 
 ### Post-MVP feedback round (2026-09-26)
-- [x] Pin a window to its slot (title-bar pin button, `window pin/unpin`); others flow around it
+- [x] Pin a window to its slot (later removed: edge tucking replaced it)
 - [x] Look less like real macOS: blue (not yellow) "move to front" light; darker, squarer dock,
       no magnify, bar-style running indicator
 - [x] Dock auto-hide (global `dockAutoHide`): dock overlays, stage takes its space, 6px bottom
