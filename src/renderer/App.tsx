@@ -684,13 +684,14 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
                   {!kept && <div className={`edge-hot ${edge}`} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
                   <i className={`edge-rail ${edge} ${state3}`} style={railStyle} />
                   <button className={`edge-cap ${edge} ${state3}${kept ? ' kept' : ''}`} style={{ left: cx, top: cy }} aria-pressed={state3 === 'open' ? kept : undefined}
-                    title={state3 === 'open' ? (kept ? 'Hide this sidebar (hover the edge to show it)' : 'Keep this sidebar open') : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
+                    title={state3 === 'open' ? (kept ? 'Unpin: hide this sidebar until you hover its edge' : 'Pin this sidebar open') : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
                     onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={state3 === 'open' ? toggleKeep : openIt}>
                     {state3 === 'open'
-                      // One chevron for every edge: points away from the edge to keep open, toward it to hide.
-                      ? <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden
-                          style={{ transform: `rotate(${({ left: 0, top: 90, right: 180, bottom: 270 }[edge]) + (kept ? 180 : 0)}deg)` }}>
-                          <path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      // A pushpin, not an arrow (arrows read as "switch desktop"): upright and filled
+                      // when the sidebar is pinned open, tilted and hollow when it isn't.
+                      ? <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden style={{ transform: `rotate(${kept ? 0 : 45}deg)` }}>
+                          <path d="M5.5 1.75h5M6.5 1.75v3.5L4.25 8.5h7.5L9.5 5.25v-3.5Z" fill={kept ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                          <path d="M8 8.5v5.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
                       : ids.map((id) => <span key={id}><AppIcon type={state.instances[id].type} /></span>)}
                   </button>
