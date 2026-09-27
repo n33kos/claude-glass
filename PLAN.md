@@ -402,8 +402,8 @@ cyclomatic complexity. So:
 - **Granularity:** one window per event is too many for diffs (every Edit). Start with one per
   *turn* per kind: all edits in a turn land in that turn's "Changes" window; the next turn opens
   a new one. `turn_id` is in the hook payloads.
-- **Bound it:** (dropped 2026-09-26) no cap on history windows for now; far windows are
-  virtualized instead. Revisit if state.json gets heavy.
+- **Bound it:** far windows are virtualized, and (2026-09-26, it got out of hand fast) history
+  windows are capped at `session.historyLimit` (default 12), oldest deleted first, pinned spared.
 - **Singletons stay live:** conversation and terminal are already running logs.
 - **Setting:** global `windowMode: 'live' | 'history'` (default live). Off = exactly today.
 - **Try it on a branch** (`experiment/history-mode`), use it for real sessions, then decide:
