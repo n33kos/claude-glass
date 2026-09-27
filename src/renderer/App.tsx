@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { computeDesktops, desktopsFor, EDGES, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
+import { computeDesktops, desktopsFor, EDGES, effectiveLayout, panelSize, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { wallpaper } from './backgrounds';
 import { AppIcon } from './AppIcon';
@@ -14,12 +14,15 @@ interface Rect { x: number; y: number; w: number; h: number }
 interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean }
 interface Drag { id: string; px: number; py: number; ox: number; oy: number; target: number | null; tuck?: Edge | null }
 
-const TUCK_ZONE = 16; // px strip at each stage edge: drop a window there to tuck it
-const SWITCH_ZONE = 48; // left/right, just inside the tuck strip: hold to switch desktops
+const TUCK_ZONE = 44; // px strip at each stage edge: drop a window there to tuck it
+const SWITCH_ZONE = 88; // left/right, just inside the tuck strip: hold to switch desktops
 
-function place(pages: DesktopPage[], W: number, H: number, focus: number): Placed[] {
+type Inset = { l: number; r: number; t: number; b: number };
+
+/** Tile the desktops into the stage, minus room for any edge panels kept open. */
+function place(pages: DesktopPage[], W: number, H: number, focus: number, ins: Inset): Placed[] {
   const out: Placed[] = [];
-  const iw = W - PAD * 2, ih = H - PAD * 2;
+  const iw = W - PAD * 2 - ins.l - ins.r, ih = H - PAD * 2 - ins.t - ins.b;
   for (const p of pages) {
     // Nested: windows before the focus are scrolled past (hidden, parked in the big pane);
     // windows past the spiral's depth are parked in its smallest pane.
@@ -31,8 +34,8 @@ function place(pages: DesktopPage[], W: number, H: number, focus: number): Place
       const hidden = nested && (k < 0 || k >= slots.length);
       const far = nested && (k < -2 || k >= slots.length + 2); // virtualized: frame only, no app view
       const s = slots[Math.max(0, Math.min(k, slots.length - 1))];
-      const x = p.index * W + PAD + s.x * iw + (s.x > 0 ? GAP / 2 : 0);
-      const y = PAD + s.y * ih + (s.y > 0 ? GAP / 2 : 0);
+      const x = p.index * W + PAD + ins.l + s.x * iw + (s.x > 0 ? GAP / 2 : 0);
+      const y = PAD + ins.t + s.y * ih + (s.y > 0 ? GAP / 2 : 0);
       const w = s.w * iw - (s.x > 0 ? GAP / 2 : 0) - (s.x + s.w < 0.999 ? GAP / 2 : 0);
       const h = s.h * ih - (s.y > 0 ? GAP / 2 : 0) - (s.y + s.h < 0.999 ? GAP / 2 : 0);
       out.push({ id, page: p.index, index: p.start + i, rect: { x, y, w, h }, hidden, far });
@@ -121,7 +124,14 @@ export function App() {
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); };
   }, [v, pages, setView, config.wheelDesktops, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const placed = useMemo(() => place(pages, size.W, size.H, focus), [pages, size, focus]);
+  // Edge panels kept open take their space from the layout.
+  const kept = state.tuckKeep ?? [];
+  const inset = useMemo(() => {
+    const { side, band } = panelSize(size.W, size.H);
+    const has = (e: Edge) => kept.includes(e) && !!state.tucked?.[e]?.length;
+    return { l: has('left') ? side + GAP : 0, r: has('right') ? side + GAP : 0, t: has('top') ? band + GAP : 0, b: has('bottom') ? band + GAP : 0 };
+  }, [size.W, size.H, kept.join(), state.tucked]); // eslint-disable-line react-hooks/exhaustive-deps
+  const placed = useMemo(() => place(pages, size.W, size.H, focus, inset), [pages, size, focus, inset]);
   const opacityFor = (m: InstanceMeta) => m.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
 
   // ---- drag to reorder -------------------------------------------------------------
@@ -175,13 +185,13 @@ export function App() {
       if (tuck) dispatch({ type: 'window.tuck', id: drag.id, edge: tuck });
       // Reorder (history mode keeps time order: dragging there only tucks). Final index = target;
       // the reducer removes, then inserts, and clamps past-the-end.
-      else if (target !== cur && config.windowMode !== 'history') dispatch({ type: 'window.move', id: drag.id, index: target });
+      else if (target !== cur && state.settings.windowMode !== 'history') dispatch({ type: 'window.move', id: drag.id, index: target });
       setDrag(null);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [drag?.id, v, placed, pages, size.W, state.order, config.windowMode]);
+  }, [drag?.id, v, placed, pages, size.W, state.order, state.settings.windowMode]);
 
   useEffect(() => { if (!drag && view > pages.length - 1) setViewRaw(pages.length - 1); }, [drag, pages.length, view]);
 
@@ -212,7 +222,7 @@ export function App() {
       const b = beforeAt(e.clientX, e.clientY);
       setDockDrag(null);
       if (tuck) return void dispatch({ type: 'window.tuck', id, edge: tuck });
-      if (b === undefined || config.windowMode === 'history' || config.dockOrder === 'fixed' || b === id) return;
+      if (b === undefined || state.settings.windowMode === 'history' || config.dockOrder === 'fixed' || b === id) return;
       // Reorder: the window lands where its icon was dropped among the open windows.
       const open = state.order.filter((x) => x !== id);
       const idx = b === null ? open.length : Math.max(0, open.indexOf(b));
@@ -223,7 +233,7 @@ export function App() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [dockDrag?.id, state.order, config.windowMode, config.dockOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dockDrag?.id, state.order, state.settings.windowMode, config.dockOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const s = state.session;
   const waiting = s.endedAt ? undefined : s.waiting;
@@ -267,7 +277,6 @@ export function App() {
               <WindowFrame
                 key={p.id}
                 meta={meta}
-                pinned={state.pinned?.[p.id] != null}
                 style={style}
                 dragging={dragging}
                 dropTarget={!!drag && !dragging && drag.target === p.index}
@@ -356,13 +365,13 @@ function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number
 }
 
 function WindowFrame(props: {
-  meta: InstanceMeta; pinned: boolean; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
+  meta: InstanceMeta; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
   page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Edge;
 }) {
   const { meta, page, tucked } = props;
   const [menu, setMenu] = useState(false);
   const app = apps[meta.type];
-  const history = useSnapshot().config.windowMode === 'history';
+  const history = useSnapshot().state.settings.windowMode === 'history';
   return (
     <section
       className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}`}
@@ -378,11 +387,7 @@ function WindowFrame(props: {
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em><AppIcon type={meta.type} /></em>{meta.title}</span>
         {tucked ? (
           <button className="untuck" title="Put back in the layout" aria-label="Untuck window" onClick={() => dispatch({ type: 'window.untuck', id: meta.id })}>Untuck</button>
-        ) : <button className={`pin${props.pinned ? ' on' : ''}`} title={props.pinned ? 'Unpin from this slot' : 'Pin to this slot'}
-          aria-label={props.pinned ? 'Unpin window' : 'Pin window'} aria-pressed={props.pinned}
-          onClick={() => dispatch(props.pinned ? { type: 'window.unpin', id: meta.id } : { type: 'window.pin', id: meta.id })}>
-          <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
-        </button>}
+        ) : null}
         {menu && page && (
           <div className="layout-menu" onMouseLeave={() => setMenu(false)}>
             {LAYOUT_NAMES.map((l) => (
@@ -484,8 +489,7 @@ function EdgePanels({ W, H, peek, setPeek }: { W: number; H: number; peek: Edge 
   const closeTimer = useRef<number | null>(null);
   const hold = (e: Edge) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
   const release = () => { closeTimer.current = window.setTimeout(() => setPeek(null), 350); };
-  const side = Math.round(Math.min(480, Math.max(320, W * 0.32)));
-  const band = Math.round(Math.min(380, Math.max(240, H * 0.38)));
+  const { side, band } = panelSize(W, H);
   return (
     <>
       {EDGES.map((edge) => {
@@ -493,22 +497,28 @@ function EdgePanels({ W, H, peek, setPeek }: { W: number; H: number; peek: Edge 
         if (!ids.length) return null;
         const vertical = edge === 'left' || edge === 'right';
         const pw = vertical ? side : W - PAD * 2, ph = vertical ? H - PAD * 2 : band;
+        const kept = !!state.tuckKeep?.includes(edge);
         const n = ids.length;
         const each = ((vertical ? ph : pw) - GAP * (n - 1)) / n;
         return (
           <Fragment key={edge}>
-            <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
+            {!kept && <div className={`edge-tab ${edge}`} onMouseEnter={() => hold(edge)} onMouseLeave={release} onClick={() => hold(edge)}>
               {ids.map((id) => <span key={id} title={state.instances[id].title}><AppIcon type={state.instances[id].type} /></span>)}
-            </div>
-            <div className={`edge-panel ${edge}${peek === edge ? ' open' : ''}`} style={{ width: pw, height: ph }}
+            </div>}
+            <div className={`edge-panel ${edge}${peek === edge || kept ? ' open' : ''}${kept ? ' kept' : ''}`} style={{ width: pw, height: ph }}
               onMouseEnter={() => hold(edge)} onMouseLeave={release}>
+              {/* Handle on the inner edge: keep this panel open (the layout makes room) or let it hide. */}
+              <button className="edge-keep" title={kept ? 'Hide this panel (hover the edge to show it)' : 'Keep this panel open'}
+                aria-pressed={kept} onClick={() => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); }}>
+                {{ left: kept ? '‹' : '›', right: kept ? '›' : '‹', top: kept ? '˄' : '˅', bottom: kept ? '˅' : '˄' }[edge]}
+              </button>
               {ids.map((id, i) => {
                 const meta = state.instances[id];
                 const w = vertical ? pw : each, h = vertical ? each : ph;
                 const style: React.CSSProperties = { width: w, height: h, transform: `translate(${vertical ? 0 : i * (each + GAP)}px, ${vertical ? i * (each + GAP) : 0}px)` };
                 const opacity = meta.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
                 return (
-                  <WindowFrame key={id} meta={meta} pinned={false} style={style} dragging={false} dropTarget={false} opacity={opacity} tucked={edge}>
+                  <WindowFrame key={id} meta={meta} style={style} dragging={false} dropTarget={false} opacity={opacity} tucked={edge}>
                     <AppBody id={id} meta={meta} w={w} h={h} />
                   </WindowFrame>
                 );

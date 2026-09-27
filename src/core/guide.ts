@@ -23,7 +23,6 @@ those edits never reach "changes"), write plans to plan files, and Read images y
       diff: add --path P --before-file A --after-file B     terminal: log --text T
   claude-glass window open|close <id>        open = bring back at index 0
   claude-glass window move <id> <index>      move to 0 to bring something to the user's attention
-  claude-glass window pin <id> [index]       keep a window at a slot; others flow around it. unpin <id>
   claude-glass layout <desktop#> full|split|main-left|columns|grid
   claude-glass catalog                       all apps and commands
 
@@ -35,9 +34,9 @@ windows, so directing attention is your job:
 - As the work shifts, reorder to match: what you're discussing or changing goes first, and
   supporting context goes next to it (the plan beside the diff it drives, the chart beside its
   numbers). Move stale windows back or close them.
-- Before rearranging, run \`claude-glass view\` (the user may have moved things). Never move or
-  unpin windows the user pinned; the rest flow around them. Don't reshuffle on every tool call;
-  move windows when the topic changes.
+- Before rearranging, run \`claude-glass view\` (the user may have moved things). Leave windows the
+  user tucked into an edge alone. Don't reshuffle on every tool call; move windows when the topic
+  changes.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.
 
@@ -79,7 +78,7 @@ const HISTORY_MODE = `
 The user has history mode on: every edit, plan, image, search and page opens in its own new window,
 newest first, so the glass reads as a timeline. Windows stay in time order; \`window move\` is refused.`;
 
-export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView' | 'windowMode'>>): string {
+export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView'>> & { windowMode?: 'live' | 'history' }): string {
   const apps = Object.values(APPS).filter((a) => a.guide && !config.disabledApps?.includes(a.type));
   const appGuides = apps.length
     ? '\n\n# Installed apps\n' + apps.map((a) => `\n## ${a.title} (\`${a.type}\`)\n${a.guide}`).join('\n')

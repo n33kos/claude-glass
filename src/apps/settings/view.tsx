@@ -21,6 +21,13 @@ export function SettingsView({ glass, config }: ViewProps) {
   return (
     <div className="settings">
       <h3>This session</h3>
+      <label className="s-row">
+        <span>New things Claude makes</span>
+        <select value={s.windowMode ?? 'live'} onChange={(e) => setSession('windowMode', e.target.value)}>
+          <option value="live">Update one window</option>
+          <option value="history">New window for every action (history)</option>
+        </select>
+      </label>
       <Toggle label="Open file changes automatically" on={s.autoOpen.changes} onChange={(v) => setSession('autoOpen.changes', v)} />
       <Toggle label="Open plans automatically" on={s.autoOpen.plan} onChange={(v) => setSession('autoOpen.plan', v)} />
       <Toggle label="Open images Claude reads" on={s.autoOpen.images} onChange={(v) => setSession('autoOpen.images', v)} />
@@ -47,13 +54,6 @@ export function SettingsView({ glass, config }: ViewProps) {
       </label>
 
       <h4>Windows &amp; layout</h4>
-      <label className="s-row">
-        <span>New things Claude makes</span>
-        <select value={config.windowMode} onChange={(e) => setConfig('windowMode', e.target.value)}>
-          <option value="live">Update one window</option>
-          <option value="history">New window for every action (history)</option>
-        </select>
-      </label>
       <Toggle label="Nested view: newest window big, older ones spiral smaller (scroll to walk back)" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />
       <label className="s-row">
         <span>Layout for new desktops</span>

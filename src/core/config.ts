@@ -17,7 +17,6 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   wheelDesktops: true,
   disabledApps: [],
   nestedView: false,
-  windowMode: 'live',
 };
 
 export function loadConfig(): GlobalConfig {
@@ -54,7 +53,6 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
       const list = Array.isArray(value) ? value : String(value ?? '').split(',');
       return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];
     }
-    case 'windowMode': if (value !== 'live' && value !== 'history') throw new Error('windowMode must be live or history'); return value;
     case 'scope': if (value !== 'session' && value !== 'folder') throw new Error(`scope must be session or folder`); return value;
     case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
@@ -67,7 +65,6 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
 /** What each global setting does, for `claude-glass settings` (Claude reads this). */
 export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   nestedView: 'true|false: one screen, newest window big, older ones spiral smaller',
-  windowMode: 'live|history: update one window per kind, or a new window for every action',
   defaultLayout: 'claude|full|split|main-left|columns|grid: layout for new desktops',
   windowOpacity: '0.2..1: window glass opacity',
   background: 'aurora|dune|tide|graphite or an absolute image path',

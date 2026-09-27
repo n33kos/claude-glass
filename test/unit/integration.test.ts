@@ -246,11 +246,11 @@ describe('nested view', () => {
 
 describe('history mode', () => {
   it('refuses window moves so the timeline stays in order', async () => {
-    core.setConfig('windowMode', 'history');
+    core.dispatch({ type: 'settings.set', key: 'windowMode', value: 'history' });
     const r = await run(join(root, 'bin/claude-glass'), ['window', 'move', 'terminal', '0']);
     expect(r.stderr).toContain('history mode');
     expect(JSON.parse(await cli('state', '--json')) && (await run(join(root, 'bin/claude-glass'), ['open'])).stdout).toContain('history mode on');
-    core.setConfig('windowMode', 'live');
+    core.dispatch({ type: 'settings.set', key: 'windowMode', value: 'live' });
   });
 });
 
@@ -258,7 +258,7 @@ describe('settings from the CLI', () => {
   it('lists every setting with what it does, and Claude is told how to change them', async () => {
     const out = await cli('settings');
     expect(out).toContain('nestedView');
-    expect(out).toContain('windowMode');
+    expect(out).toContain('session.windowMode');
     await cli('settings', 'set', 'windowOpacity', '0.5');
     expect(core.config.windowOpacity).toBe(0.5);
     expect(await cli('open')).toContain('claude-glass settings set <key> <value>');

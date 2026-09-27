@@ -47,32 +47,12 @@ function openAtZero(order: string[], id: string): string[] {
   return [id, ...order.filter((x) => x !== id)];
 }
 
-/**
- * Put pinned windows at their pinned slots and flow the rest, in their current relative order,
- * around them. A pin past the end of the open windows lands at the end (no holes).
- */
-export function arrange(order: string[], pinned: Record<string, number> = {}): string[] {
-  const pins = order.filter((id) => id in pinned).sort((a, b) => pinned[a] - pinned[b]);
-  if (!pins.length) return order;
-  const free = order.filter((id) => !(id in pinned));
-  const out: string[] = [];
-  while (free.length || pins.length) {
-    if (pins.length && (pinned[pins[0]] <= out.length || !free.length)) out.push(pins.shift()!);
-    else out.push(free.shift()!);
-  }
-  return out;
-}
-
-function withOrder(s: GlassState, order: string[], pinned = s.pinned ?? {}): GlassState {
-  const kept = Object.fromEntries(Object.entries(pinned).filter(([id]) => order.includes(id)));
-  return { ...s, pinned: kept, order: arrange(order, kept) };
-}
-
 /** Take a window out of whatever edge panel it's tucked in (no-op if it isn't). */
 function untuck(s: GlassState, id: string): GlassState {
   if (!s.tucked || !EDGES.some((e) => s.tucked![e]?.includes(id))) return s;
   const tucked = Object.fromEntries(EDGES.map((e) => [e, (s.tucked![e] ?? []).filter((x) => x !== id)]).filter(([, l]) => l.length));
-  return { ...s, tucked };
+  // An emptied edge can't stay open.
+  return { ...s, tucked, tuckKeep: (s.tuckKeep ?? []).filter((e) => e in tucked) };
 }
 
 export const tuckedEdge = (s: GlassState, id: string): Edge | undefined => EDGES.find((e) => s.tucked?.[e]?.includes(id));
@@ -83,8 +63,7 @@ export function reduce(s: GlassState, a: Action): ReduceResult {
   if (r.state.tucked && r.state.order.some((id) => tuckedEdge(r.state, id))) {
     r.state = { ...r.state, order: r.state.order.filter((id) => !tuckedEdge(r.state, id)) };
   }
-  if (r.state.order === s.order && r.state.pinned === s.pinned) return r;
-  return { ...r, state: withOrder(r.state, r.state.order) };
+  return r;
 }
 
 function reduceRaw(s: GlassState, a: Action): ReduceResult {
@@ -107,6 +86,12 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...t, order: t.order.filter((x) => x !== a.id), tucked: { ...t.tucked, [a.edge]: [...(t.tucked?.[a.edge] ?? []), a.id] } } };
     }
 
+    case 'tuck.keep': {
+      if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
+      const keep = (s.tuckKeep ?? []).filter((e) => e !== a.edge);
+      return { state: { ...s, tuckKeep: a.keep && s.tucked?.[a.edge]?.length ? [...keep, a.edge] : keep } };
+    }
+
     case 'window.untuck': {
       requireInstance(s, a.id);
       const t = untuck(s, a.id);
@@ -115,44 +100,9 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
 
     case 'window.move': {
       requireInstance(s, a.id);
-      // Moving a pinned window re-pins it at the new slot.
-      if (s.pinned && a.id in s.pinned) return reduceRaw(s, { type: 'window.pin', id: a.id, index: a.index });
-      const pinned = s.pinned ?? {};
-      if (!Object.keys(pinned).length) {
-        const rest = s.order.filter((x) => x !== a.id);
-        const i = clampIndex(a.index, rest.length);
-        return { state: { ...s, order: [...rest.slice(0, i), a.id, ...rest.slice(i)] } };
-      }
-      // With pins, work in free-slot space: a target on a pinned slot slides to the nearest free
-      // slot in the direction of travel, then the window takes that free slot's rank.
-      const order = s.order.includes(a.id) ? s.order : arrange(openAtZero(s.order, a.id), pinned);
-      const free = (k: number) => k >= 0 && k < order.length && !(order[k] in pinned);
-      const cur = order.indexOf(a.id);
-      const want = clampIndex(a.index, order.length - 1);
-      const dir = want >= cur ? 1 : -1;
-      let j = want;
-      while (!free(j) && j >= 0 && j < order.length) j += dir;
-      if (!free(j)) for (j = want; !free(j); j -= dir);
-      const rest = order.filter((x) => x !== a.id && !(x in pinned));
-      const rank = order.slice(0, j).filter((x) => !(x in pinned)).length;
-      const flowed = [...rest.slice(0, rank), a.id, ...rest.slice(rank)];
-      return { state: { ...s, order: arrange([...flowed, ...order.filter((x) => x in pinned)], pinned) } };
-    }
-
-    case 'window.pin': {
-      requireInstance(s, a.id);
-      const order = s.order.includes(a.id) ? s.order : openAtZero(s.order, a.id);
-      const index = clampIndex(a.index ?? order.indexOf(a.id), order.length - 1);
-      // One window per pinned slot: pinning onto a pinned slot unpins the old occupant.
-      const pinned = Object.fromEntries(Object.entries(s.pinned ?? {}).filter(([id, i]) => id !== a.id && i !== index));
-      const rest = order.filter((x) => x !== a.id);
-      return { state: { ...s, order: [...rest.slice(0, index), a.id, ...rest.slice(index)], pinned: { ...pinned, [a.id]: index } } };
-    }
-
-    case 'window.unpin': {
-      requireInstance(s, a.id);
-      const { [a.id]: _, ...pinned } = s.pinned ?? {};
-      return { state: { ...s, pinned } };
+      const rest = s.order.filter((x) => x !== a.id);
+      const i = clampIndex(a.index, rest.length);
+      return { state: { ...s, order: [...rest.slice(0, i), a.id, ...rest.slice(i)] } };
     }
 
     case 'window.opacity': {

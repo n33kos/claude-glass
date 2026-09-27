@@ -87,7 +87,7 @@ function formatView(v: any): string {
   for (const d of v.desktops) {
     lines.push(`Desktop ${d.desktop + 1} [${d.layout}]`);
     if (!d.windows.length) lines.push('  (empty)');
-    for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title}${w.pinned ? '  [pinned]' : ''}`);
+    for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title}`);
   }
   for (const [edge, ws] of Object.entries(v.tucked ?? {}) as [string, any[]][]) lines.push(`Tucked ${edge}: ${ws.map((w) => `${w.id} (${w.type})`).join(', ')}`);
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
@@ -208,12 +208,10 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|tuck|untuck|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|tuck|untuck|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
-      else if (sub === 'pin') await dispatch(sid, { type: 'window.pin', id, index: arg === undefined ? undefined : Number(arg) });
-      else if (sub === 'unpin') await dispatch(sid, { type: 'window.unpin', id });
       else if (sub === 'opacity') await dispatch(sid, { type: 'window.opacity', id, value: arg === undefined || arg === 'reset' ? null : Number(arg) });
       else if (sub === 'rename') await dispatch(sid, { type: 'instance.rename', id, title: String(arg ?? id) });
       else if (sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
@@ -277,7 +275,7 @@ async function main(argv: string[]) {
         const c = loadConfig() as unknown as Record<string, unknown>;
         const rows = Object.entries(SETTINGS_HELP).map(([k, help]) => `  ${k.padEnd(18)} ${JSON.stringify(c[k]).padEnd(12)} ${help}`);
         out({ global: c }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
-          '', 'This session: settings set session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
+          '', 'This session: settings set session.windowMode live|history, session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
       }
       return;
     }

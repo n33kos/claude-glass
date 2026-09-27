@@ -310,7 +310,12 @@ Queue, in order:
 13. [x] **Edge tucking (tried and kept 2026-09-26)**: drag a window (or its dock icon) onto an
     edge's Tuck strip and it leaves the flow into that edge's slide-out panel (`state.tucked`,
     `window.tuck/untuck`); several split a panel; they stay mounted. Dock icons also drag to
-    reorder; crowded docks shrink icons then scroll. Open question: pin vs tuck in the UI.
+    reorder; crowded docks shrink icons then scroll. Pinning later removed in favour of tucking.
+
+14. [x] **Tuck polish (2026-09-26)**: pinning removed (tucking supersedes it); tuck strips 44px;
+    a panel's inner-edge handle keeps it open and the layout insets to make room (`tuckKeep`);
+    history mode ("New things Claude makes") is now a per-session setting; shell containers are
+    `overflow: clip` so focus in the hidden dock or an edge panel can't scroll the glass.
 
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,

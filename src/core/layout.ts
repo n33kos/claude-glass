@@ -4,6 +4,11 @@ import type { Edge, LayoutName } from './types';
 /** Edges a window can be tucked into (out of the tiling flow). */
 export const EDGES: Edge[] = ['left', 'right', 'top', 'bottom'];
 
+/** Edge panel sizes for a stage: side panels' width, top/bottom panels' height. */
+export function panelSize(W: number, H: number): { side: number; band: number } {
+  return { side: Math.round(Math.min(480, Math.max(320, W * 0.32))), band: Math.round(Math.min(380, Math.max(240, H * 0.38))) };
+}
+
 export interface SlotRect { x: number; y: number; w: number; h: number } // fractions 0..1
 
 export const LAYOUTS: Record<LayoutName, { label: string; slots: SlotRect[] }> = {

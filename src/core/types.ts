@@ -32,6 +32,7 @@ export interface Waiting {
 }
 
 export interface SessionSettings {
+  windowMode?: 'live' | 'history'; // history = a new window for every edit, plan, image, search and page
   autoOpen: { changes: boolean; plan: boolean; images: boolean; web?: boolean }; // web: absent = on
   windowOpacity?: number;
 }
@@ -49,15 +50,12 @@ export interface GlobalConfig {
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
   scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
   nestedView: boolean; // one screen: newest window big, older ones spiral into smaller panes
-  windowMode: 'live' | 'history'; // experiment: history = a new window for every edit, plan, image, search and page
 }
 
 export interface GlassState {
   version: 1;
   session: SessionInfo;
   order: string[];
-  // Pinned windows: id → slot index in `order`. The reducer keeps them there; others flow around.
-  pinned?: Record<string, number>;
   desktops: LayoutName[];
   instances: Record<string, InstanceMeta>;
   appState: Record<string, unknown>;
@@ -67,14 +65,14 @@ export interface GlassState {
   autoOpened: string[];
   // Windows tucked into an edge panel: out of the tiling flow, on every desktop, shown on hover.
   tucked?: Partial<Record<Edge, string[]>>;
+  // Edges whose panel stays open; the layout makes room for them (like a docked sidebar).
+  tuckKeep?: Edge[];
 }
 
 export type Action =
   | { type: 'window.open'; id: string }
   | { type: 'window.close'; id: string }
   | { type: 'window.move'; id: string; index: number }
-  | { type: 'window.pin'; id: string; index?: number }
-  | { type: 'window.unpin'; id: string }
   | { type: 'window.opacity'; id: string; value: number | null }
   | { type: 'desktop.layout'; desktop: number; layout: LayoutName }
   | { type: 'instance.create'; appType: string; id?: string; title?: string; open?: boolean }
@@ -85,7 +83,8 @@ export type Action =
   | { type: 'ui.viewDesktop'; index: number }
   | { type: 'app.hook'; payload: unknown }
   | { type: 'window.tuck'; id: string; edge: Edge }
-  | { type: 'window.untuck'; id: string };
+  | { type: 'window.untuck'; id: string }
+  | { type: 'tuck.keep'; edge: Edge; keep: boolean };
 
 export interface Envelope {
   op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'quit';

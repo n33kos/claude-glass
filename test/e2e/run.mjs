@@ -205,24 +205,6 @@ try {
     await cli(env, 'window', 'close', 'html-2');
   }
 
-  // Pin: click the pin on the window in slot 1, open a new window, the pinned one stays put.
-  {
-    const ids = () => cli(env, 'view', '--json').then((j) => JSON.parse(j).desktops.flatMap((d) => d.windows.map((w) => w.id)));
-    const target = (await ids())[1];
-    await page.locator(`[data-window="${target}"] .titlebar`).hover();
-    await page.locator(`[data-window="${target}"] .pin`).click();
-    await sleep(300);
-    await cli(env, 'new', 'markdown', '--id', 'pin-test', '--title', 'New window');
-    await sleep(600);
-    const now = await ids();
-    check(now[0] === 'pin-test' && now[1] === target, `pinned window keeps slot 1 when a new window opens (${now.slice(0, 3).join(', ')})`);
-    await page.screenshot({ path: join(shots, '06e-pinned.png') });
-    await cli(env, 'window', 'close', 'pin-test');
-    await page.locator(`[data-window="${target}"] .pin`).click();
-    await sleep(300);
-    check(!(await cli(env, 'view')).includes('[pinned]'), 'clicking the pin again unpins');
-  }
-
   // Settings via dock
   await page.locator('.dock-item[title="Settings"]').click();
   await sleep(700);
@@ -262,6 +244,13 @@ try {
     const shownBottom = await page.locator('.dock').evaluate((e) => e.getBoundingClientRect().bottom);
     await page.screenshot({ path: join(shots, '07c-dock-revealed.png') });
     check(shownBottom <= vp.height, 'hovering the bottom edge reveals the dock');
+    // Focus landing on a hidden dock button must not scroll the whole glass up.
+    await page.mouse.move(vp.width / 2, vp.height / 2);
+    await sleep(700);
+    await page.locator('.dock-item').first().evaluate((b) => b.focus());
+    await sleep(300);
+    const shift = await page.evaluate(() => ({ top: document.querySelector('.topbar').getBoundingClientRect().top, scroll: document.scrollingElement.scrollTop + document.querySelector('.glass').scrollTop }));
+    check(shift.top === 0 && shift.scroll === 0, `a focused hidden dock doesn't push the glass up (topbar at ${shift.top})`);
     await page.mouse.move(vp.width / 2, vp.height / 2);
     await cli(env, 'settings', 'set', 'dockAutoHide', 'false');
     await sleep(500);
@@ -456,10 +445,10 @@ try {
 
   // History mode (experiment): no move-to-front button, no drag reorder.
   {
-    await cli(env, 'settings', 'set', 'windowMode', 'history');
+    await cli(env, 'settings', 'set', 'session.windowMode', 'history');
     await sleep(500);
     check((await page.locator('.light.front').count()) === 0, 'history mode hides move-to-front');
-    await cli(env, 'settings', 'set', 'windowMode', 'live');
+    await cli(env, 'settings', 'set', 'session.windowMode', 'live');
     await sleep(300);
   }
 
@@ -530,6 +519,20 @@ try {
     await sleep(600);
     check((await page.locator('.edge-panel.right.open .window').count()) === 2, 'hovering the tab slides the panel out, two windows split it');
     await page.screenshot({ path: join(shots, '12-edge-tuck.png') });
+    // Keep it open: the panel stays when the pointer leaves, and the layout makes room for it.
+    await page.locator('.edge-panel.right .edge-keep').click();
+    await page.mouse.move(stage.x + stage.width / 3, stage.y + stage.height / 2, { steps: 4 });
+    await sleep(700);
+    const panelLeft = (await page.locator('.edge-panel.right').boundingBox()).x;
+    const rightmost = await page.locator('.strip > .window').evaluateAll((els, vw) => Math.max(...els.map((e) => e.getBoundingClientRect()).filter((r) => r.left >= 0 && r.right <= vw + 1).map((r) => r.right)), (await page.evaluate(() => innerWidth)));
+    check((await page.locator('.edge-panel.right.open.kept').count()) === 1 && rightmost <= panelLeft, `a kept-open panel stays and the layout makes room (windows end at ${Math.round(rightmost)}, panel starts ${Math.round(panelLeft)})`);
+    await page.screenshot({ path: join(shots, '12b-edge-kept.png') });
+    await page.locator('.edge-panel.right .edge-keep').click();
+    await page.mouse.move(stage.x + stage.width / 3, stage.y + stage.height / 3, { steps: 3 });
+    await sleep(700);
+    check((await page.locator('.edge-panel.right.open').count()) === 0, 'un-keeping hides the panel again');
+    await page.locator('.edge-tab.right').hover();
+    await sleep(500);
     await page.locator(`.edge-panel.right [data-window="${first}"] .untuck`).click();
     await cli(env, 'window', 'untuck', 'terminal');
     await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2);

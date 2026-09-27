@@ -57,14 +57,14 @@ export class GlassCore {
 
   dispatch(action: Action): unknown {
     // History mode: each page has its own browser window; a highlight goes to the newest page.
-    if (action.type === 'app.command' && action.id === 'browser' && action.command === 'highlight' && this.config.windowMode === 'history') {
+    if (action.type === 'app.command' && action.id === 'browser' && action.command === 'highlight' && this.state.settings.windowMode === 'history') {
       const pages = Object.values(this.state.instances)
         .filter((i) => i.type === 'browser' && (this.state.appState[i.id] as { history?: { kind: string }[] })?.history?.some((h) => h.kind === 'page'))
         .sort((a, b) => b.createdAt - a.createdAt);
       if (pages[0]) action = { ...action, id: pages[0].id };
     }
     this.assertEnabled(action);
-    if (action.type === 'window.move' && this.config.windowMode === 'history') {
+    if (action.type === 'window.move' && this.state.settings.windowMode === 'history') {
       throw new Error('the user has history mode on: windows stay in time order (newest first), so they can\'t be moved.');
     }
     if (action.type === 'desktop.layout' && this.config.nestedView) {
@@ -79,7 +79,7 @@ export class GlassCore {
     this.commit(applyHook(this.state, payload, {
       ingestFile: (p) => this.ingestFile(p),
       disabled: new Set(this.config.disabledApps ?? []),
-      windowMode: this.config.windowMode,
+      windowMode: this.state.settings.windowMode,
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
     }));
   }
@@ -119,7 +119,7 @@ export class GlassCore {
     return {
       session: { id: s.session.id, title: s.session.title, cwd: s.session.cwd, activity: s.session.activity, ended: !!s.session.endedAt },
       userViewingDesktop: s.ui.viewingDesktop,
-      desktops: pages.map((p) => ({ desktop: p.index, layout: p.layout, windows: p.windows.map((id, slot) => ({ index: p.start + slot, ...meta(id), ...(s.pinned?.[id] != null ? { pinned: true } : {}) })) })),
+      desktops: pages.map((p) => ({ desktop: p.index, layout: p.layout, windows: p.windows.map((id, slot) => ({ index: p.start + slot, ...meta(id) })) })),
       ...(s.tucked && Object.keys(s.tucked).length ? { tucked: Object.fromEntries(Object.entries(s.tucked).map(([e, ids]) => [e, (ids ?? []).map(meta)])) } : {}),
       closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
     };
@@ -142,7 +142,7 @@ export class GlassCore {
         case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action) };
         case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
-        case 'guide': return { ok: true, result: guideFor(this.config) };
+        case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
         case 'mods': return { ok: true, result: this.mods };
         case 'state': {
           const id = env.id as string | undefined;
