@@ -536,6 +536,43 @@ try {
     check(!v.tucked && v.desktops[0].windows.some((w) => w.id === first), 'untuck puts windows back in the layout');
   }
 
+  // Dock: drag an icon along the dock to reorder windows, or onto an edge to tuck it.
+  {
+    await sleep(500);
+    const ids = await page.locator('.dock-item[data-dock-id]').evaluateAll((els) => els.map((e) => e.dataset.dockId));
+    const order = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows.map((w) => w.id));
+    const mover = order[2], anchor = order[0];
+    const from = await page.locator(`.dock-item[data-dock-id="${mover}"] .tile`).boundingBox();
+    const to = await page.locator(`.dock-item[data-dock-id="${anchor}"] .tile`).boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + 4, to.y + to.height / 2, { steps: 8 });
+    await sleep(150);
+    await page.mouse.up();
+    await sleep(500);
+    const after = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    check(after === mover, `dragging a dock icon before the first reorders windows (${mover} → first, got ${after})`);
+    const stage = await page.locator('.stage').boundingBox();
+    const from2 = await page.locator(`.dock-item[data-dock-id="${mover}"] .tile`).boundingBox();
+    await page.mouse.move(from2.x + from2.width / 2, from2.y + from2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(stage.x + 6, stage.y + stage.height / 2, { steps: 10 });
+    await sleep(150);
+    await page.mouse.up();
+    await sleep(500);
+    const v = JSON.parse(await cli(env, 'view', '--json'));
+    check(v.tucked?.left?.[0]?.id === mover, `dragging a dock icon onto an edge tucks it (${JSON.stringify(v.tucked)})`);
+    await cli(env, 'window', 'untuck', mover);
+    // Crowd the dock: icons shrink to fit, and the dock never runs off the window.
+    const made = [];
+    for (let i = 0; i < 16; i++) made.push((await cli(env, 'new', 'markdown', '--title', `Crowd ${i}`, '--no-open')).trim());
+    await sleep(500);
+    const fit = await page.evaluate(() => ({ dock: document.querySelector('.dock').getBoundingClientRect().width, win: innerWidth, tile: document.querySelector('.dock-item .tile').getBoundingClientRect().width }));
+    check(fit.dock <= fit.win && fit.tile < 38, `a crowded dock shrinks its icons and stays on screen (${Math.round(fit.tile)}px icons, dock ${Math.round(fit.dock)} of ${fit.win})`);
+    await page.screenshot({ path: join(shots, '13-dock.png') });
+    for (const id of made) await cli(env, 'window', 'close', id);
+  }
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);

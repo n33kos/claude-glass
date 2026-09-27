@@ -47,6 +47,14 @@ export function App() {
   const [view, setViewRaw] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [peek, setPeek] = useState<Edge | null>(null); // edge panel slid out (hover or dock)
+  // Dragging a dock icon: along the dock reorders windows; onto an edge's Tuck strip tucks it.
+  const [dockDrag, setDockDrag] = useState<{ id: string; px: number; py: number; tuck: Edge | null; before: string | null } | null>(null);
+  const tuckAtPoint = (cx: number, cy: number): Edge | null => {
+    const st = stageRef.current?.getBoundingClientRect();
+    if (!st) return null;
+    return cx - st.left < TUCK_ZONE && cy > st.top && cy < st.bottom ? 'left' : st.right - cx < TUCK_ZONE && cy > st.top && cy < st.bottom ? 'right'
+      : cy >= st.top && cy - st.top < TUCK_ZONE ? 'top' : cy <= st.bottom && st.bottom - cy < TUCK_ZONE ? 'bottom' : null;
+  };
   // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
   const [focusId, setFocusId] = useState<string | null>(null);
   const nestedPage = pages.find((p) => p.layout === 'nested');
@@ -176,6 +184,46 @@ export function App() {
 
   useEffect(() => { if (!drag && view > pages.length - 1) setViewRaw(pages.length - 1); }, [drag, pages.length, view]);
 
+  // Dock icon drags (started by the Dock once the pointer moves a few px).
+  useEffect(() => {
+    if (!dockDrag) return;
+    const id = dockDrag.id;
+    // The dock icon the pointer is before (null = after the last), for a reorder drop.
+    const beforeAt = (cx: number, cy: number): string | null | undefined => {
+      const dock = document.querySelector('.dock')?.getBoundingClientRect();
+      if (!dock || cy < dock.top - 24 || cy > dock.bottom + 24) return undefined; // not over the dock
+      for (const el of document.querySelectorAll<HTMLElement>('.dock-item[data-dock-id]')) {
+        const r = el.getBoundingClientRect();
+        if (cx < r.left + r.width / 2) return el.dataset.dockId!;
+      }
+      return null;
+    };
+    const move = (e: PointerEvent) => {
+      const b = beforeAt(e.clientX, e.clientY);
+      setDockDrag((d) => d && { ...d, px: e.clientX, py: e.clientY, tuck: tuckAtPoint(e.clientX, e.clientY), before: b === undefined ? null : b });
+      document.querySelectorAll('.dock-item.drop-before, .dock.drop-end').forEach((el) => el.classList.remove('drop-before', 'drop-end'));
+      if (b) document.querySelector(`.dock-item[data-dock-id="${CSS.escape(b)}"]`)?.classList.add('drop-before');
+      else if (b === null) document.querySelector('.dock')?.classList.add('drop-end');
+    };
+    const up = (e: PointerEvent) => {
+      document.querySelectorAll('.dock-item.drop-before, .dock.drop-end').forEach((el) => el.classList.remove('drop-before', 'drop-end'));
+      const tuck = tuckAtPoint(e.clientX, e.clientY);
+      const b = beforeAt(e.clientX, e.clientY);
+      setDockDrag(null);
+      if (tuck) return void dispatch({ type: 'window.tuck', id, edge: tuck });
+      if (b === undefined || config.windowMode === 'history' || config.dockOrder === 'fixed' || b === id) return;
+      // Reorder: the window lands where its icon was dropped among the open windows.
+      const open = state.order.filter((x) => x !== id);
+      const idx = b === null ? open.length : Math.max(0, open.indexOf(b));
+      const target = b !== null && idx === -1 ? open.length : idx;
+      void (state.order.includes(id) ? Promise.resolve() : dispatch({ type: 'window.open', id }))
+        .then(() => dispatch({ type: 'window.move', id, index: target }));
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  }, [dockDrag?.id, state.order, config.windowMode, config.dockOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const s = state.session;
   const waiting = s.endedAt ? undefined : s.waiting;
   const presence = s.endedAt ? 'ended' : waiting ? 'waiting' : s.activity;
@@ -247,12 +295,13 @@ export function App() {
             </div>
           )}
         </div>
-        {drag && EDGES.map((e) => <div key={e} className={`tuck-zone ${e}${drag.tuck === e ? ' on' : ''}`}><span>Tuck</span></div>)}
+        {(drag || dockDrag) && EDGES.map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Tuck</span></div>)}
         <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} />
       </main>
 
       {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
-      <Dock pages={pages} viewing={v} onReveal={(id) => {
+      {dockDrag && <div className="dock-ghost" style={{ left: dockDrag.px, top: dockDrag.py }}><span className={`tile tile-${state.instances[dockDrag.id]?.type}`}>{apps[state.instances[dockDrag.id]?.type]?.icon ?? '▢'}</span></div>}
+      <Dock pages={pages} viewing={v} width={size.W} dragging={dockDrag} onDragStart={(id, x, y) => setDockDrag({ id, px: x, py: y, tuck: null, before: null })} onReveal={(id) => {
         const edge = EDGES.find((e) => state.tucked?.[e]?.includes(id));
         if (edge) return setPeek(edge);
         const p = placed.find((x) => x.id === id);
@@ -359,8 +408,26 @@ function LayoutGlyph({ name }: { name: LayoutName }) {
   );
 }
 
-function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: number; onReveal: (id: string) => void }) {
+function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
+  pages: DesktopPage[]; viewing: number; onReveal: (id: string) => void; width: number;
+  onDragStart: (id: string, x: number, y: number) => void; dragging: { id: string } | null;
+}) {
   const { state, config } = useSnapshot();
+  // Press + move a few px = drag (reorder along the dock, or onto an edge to tuck); else a click.
+  const press = useRef<{ id: string; x: number; y: number; started: boolean } | null>(null);
+  const onPointerDown = (id: string, e: React.PointerEvent) => {
+    press.current = { id, x: e.clientX, y: e.clientY, started: false };
+    const move = (ev: PointerEvent) => {
+      const p = press.current;
+      if (!p || p.started || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) < 6) return;
+      p.started = true;
+      onDragStart(p.id, ev.clientX, ev.clientY);
+    };
+    const up = () => { window.removeEventListener('pointermove', move); setTimeout(() => { press.current = null; }, 0); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+  };
+  const clickable = (fn: () => void) => () => { if (!press.current?.started) fn(); };
   const open = new Set(pages.flatMap((p) => p.windows));
   const pageOf = new Map(pages.flatMap((p) => p.windows.map((id) => [id, p.index] as const)));
   // Apps on desktops you aren't looking at are dimmed, so the dock reads like a strip of screens.
@@ -376,14 +443,18 @@ function Dock({ pages, viewing, onReveal }: { pages: DesktopPage[]; viewing: num
   const items = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type))
     .sort(config.dockOrder === 'fixed' ? fixed : byWindows);
   const settingsOpen = open.has('settings');
+  // Crowded dock: icons shrink to fit the window (38px → 26px); past that the dock scrolls.
+  const tileSize = Math.max(26, Math.min(38, Math.floor((width - 80) / (items.length + 1) - 5)));
+  const crowded = (items.length + 1) * (tileSize + 5) + 60 > width;
   return (
     <footer className="dock-wrap">
-      <div className="dock">
+      <div className={`dock${crowded ? ' crowded' : ''}${dragging ? ' dragging' : ''}`} style={{ ['--tile' as any]: `${tileSize}px` }}>
         {items.map((m, i) => (
           <Fragment key={m.id}>
             {config.dockOrder !== 'fixed' && i > 0 && group(items[i - 1].id) !== group(m.id) && <span className="dock-sep screen" />}
-            <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}`} title={m.title}
-              onClick={() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id)))}>
+            <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}${dragging?.id === m.id ? ' lifted' : ''}`} title={m.title} data-dock-id={m.id}
+              onPointerDown={(e) => onPointerDown(m.id, e)}
+              onClick={clickable(() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id))))}>
               <span className={`tile tile-${m.type}`}>{apps[m.type]?.icon ?? '▢'}</span>
               <span className="label">{m.title}</span>
               {open.has(m.id) && <i className="running" />}

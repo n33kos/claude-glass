@@ -148,7 +148,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 }
 .dock-item { position: relative; display: flex; flex-direction: column; align-items: center; }
 .dock-item .tile {
-  width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; font-size: 17px; font-weight: 600;
+  width: var(--tile, 38px); height: var(--tile, 38px); border-radius: 8px; display: grid; place-items: center; font-size: calc(var(--tile, 38px) * .45); font-weight: 600;
   background: linear-gradient(180deg, #3a4157, #252a3a); border: 1px solid rgba(255, 255, 255, 0.12);
   transition: transform .15s ease-out, filter .15s, opacity .25s;
 }
@@ -261,3 +261,15 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 /* While any window is dragged, app frames ignore the pointer (they'd swallow the drag). */
 .stage.dragging-any iframe { pointer-events: none; }
+
+/* Dock: crowded docks scroll with faded ends; dragging icons reorders or tucks. */
+.dock.crowded { max-width: calc(100vw - 32px); overflow-x: auto; scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+.dock.crowded::-webkit-scrollbar { display: none; }
+.dock-item { touch-action: none; }
+.dock-item.lifted .tile { opacity: .3; }
+.dock-item.drop-before::before, .dock.drop-end::after { content: ''; align-self: stretch; width: 3px; margin: 0 -1px; border-radius: 2px; background: var(--sky); }
+.dock-item.drop-before::before { position: absolute; left: -5px; top: 0; bottom: 6px; }
+.dock-ghost { position: fixed; z-index: 1000; pointer-events: none; transform: translate(-50%, -60%) scale(1.1); filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)); }
+.dock-ghost .tile { width: 42px; height: 42px; border-radius: 9px; display: grid; place-items: center; font-size: 19px; font-weight: 600;
+  background: linear-gradient(180deg, #3a4157, #252a3a); border: 1px solid rgba(255, 255, 255, 0.2); }
