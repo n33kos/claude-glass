@@ -80,10 +80,30 @@ const HISTORY_MODE = `
 The user has history mode on: every edit, plan, image, search and page opens in its own new window,
 newest first, so the glass reads as a timeline. Windows stay in time order; \`window move\` is refused.`;
 
+/**
+ * An app guide for the current settings: `<!-- when key=value -->` starts a block kept only when
+ * the setting matches; the next `when` or `<!-- end -->` closes it. Text outside blocks always stays.
+ */
+export function guideForSettings(text: string, settings: Record<string, string>): string {
+  let keep = true;
+  const out: string[] = [];
+  for (const line of text.split('\n')) {
+    const when = line.match(/^\s*<!--\s*when\s+([A-Za-z.]+)\s*=\s*([^\s>]+)\s*-->\s*$/);
+    if (when) { keep = settings[when[1]] === when[2]; continue; }
+    if (/^\s*<!--\s*end\s*-->\s*$/.test(line)) { keep = true; continue; }
+    if (keep) out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView'>> & { windowMode?: 'live' | 'history' }): string {
-  const apps = Object.values(APPS).filter((a) => a.guide && !config.disabledApps?.includes(a.type));
+  const settings = { windowMode: config.windowMode ?? 'live', nestedView: String(!!config.nestedView) };
+  const apps = Object.values(APPS)
+    .filter((a) => a.guide && !config.disabledApps?.includes(a.type))
+    .map((a) => ({ a, text: guideForSettings(a.guide!, settings) }))
+    .filter((g) => g.text);
   const appGuides = apps.length
-    ? '\n\n# Installed apps\n' + apps.map((a) => `\n## ${a.title} (\`${a.type}\`)\n${a.guide}`).join('\n')
+    ? '\n\n# Installed apps\n' + apps.map(({ a, text }) => `\n## ${a.title} (\`${a.type}\`)\n${text}`).join('\n')
     : '';
   const layout = config.nestedView ? NESTED_VIEW : config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '';
   const history = config.windowMode === 'history' ? HISTORY_MODE : '';

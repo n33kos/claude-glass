@@ -111,6 +111,16 @@ Appended to the instructions Claude gets when the glass opens (up to 1,500 chara
 when to use your app and which commands to run. This is how you shape Claude's behavior with
 your app.
 
+Parts that only apply in one mode go in a block; the rest is always included:
+
+    <!-- when windowMode=live -->
+    Reuse one window: `claude-glass show pic.png --id images`.
+    <!-- when windowMode=history -->
+    Each image opens its own window; that's expected.
+    <!-- end -->
+
+Keys: `windowMode` (`live` | `history`), `nestedView` (`true` | `false`).
+
 ## Permissions
 
 By default a view has no network, no microphone and no storage. An app that needs them says so

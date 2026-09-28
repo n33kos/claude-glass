@@ -10,7 +10,10 @@ export interface ImageItem {
 export interface ImageState {
   images: ImageItem[];
   index: number; // currently shown; -1 = latest
+  view?: 'single' | 'grid'; // grid: the most recent images at once (absent = single)
 }
+
+export const GRID_MAX = 12;
 
 export const image: AppDef<ImageState> = {
   type: 'image',
@@ -21,6 +24,7 @@ export const image: AppDef<ImageState> = {
   commands: {
     add: { usage: 'add --file <path> [--caption <text>]', help: 'Show an image (it is copied into the session)' },
     select: { usage: 'select --index <n>', help: 'Show image n (0-based, -1 = latest)', view: true },
+    view: { usage: 'view --mode single|grid', help: 'One image at a time, or a grid of the most recent', view: true },
     clear: { usage: 'clear', help: 'Remove all images' },
   },
   init: () => ({ images: [], index: -1 }),
@@ -28,11 +32,17 @@ export const image: AppDef<ImageState> = {
     switch (cmd) {
       case 'add':
         return {
+          ...s,
           images: capTail([...s.images, { file: str(a, 'file'), name: String(a.name ?? str(a, 'file').split('/').pop()), caption: a.caption ? String(a.caption) : undefined, at: Date.now() }], 200),
           index: -1,
         };
       case 'select':
-        return { ...s, index: Number(a.index ?? -1) };
+        return { ...s, index: Number(a.index ?? -1), view: a.single ? 'single' : s.view };
+      case 'view': {
+        const mode = String(a.mode ?? '');
+        if (mode !== 'single' && mode !== 'grid') throw new Error('image: view --mode single|grid');
+        return { ...s, view: mode };
+      }
       case 'clear':
         return image.init();
       default:

@@ -105,6 +105,9 @@ export function attachBuiltinViews(dir: string): void {
   if (!existsSync(dir)) return;
   for (const name of readdirSync(dir)) {
     const app = APPS[name];
-    if (app?.source === 'builtin' && existsSync(join(dir, name, 'view.html'))) registerApp({ ...app, dir: join(dir, name) });
+    if (app?.source !== 'builtin' || !existsSync(join(dir, name, 'view.html'))) continue;
+    const guidePath = join(dir, name, 'guide.md');
+    const guide = existsSync(guidePath) ? readFileSync(guidePath, 'utf8').trim().slice(0, GUIDE_MAX) : app.guide;
+    registerApp({ ...app, dir: join(dir, name), guide });
   }
 }

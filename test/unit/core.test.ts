@@ -9,8 +9,8 @@ import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
 import { DEFAULT_PALETTES, lightColors, moodOf, parsePalettes } from '../../src/core/colors';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
-import { guideFor } from '../../src/core/guide';
-import { loadMods } from '../../src/core/mods';
+import { guideFor, guideForSettings } from '../../src/core/guide';
+import { attachBuiltinViews, loadMods } from '../../src/core/mods';
 import { APPS } from '../../src/apps/registry';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
@@ -370,6 +370,31 @@ describe('history mode (experiment)', () => {
     const kept = Object.keys(s.instances).filter((id) => id.startsWith('changes-'));
     expect(kept.sort()).toEqual(['changes-tooluE3', 'changes-tooluE4', 'changes-tooluE5', 'changes-tooluP0']);
     expect(s.order).not.toContain('changes-tooluE1');
+  });
+});
+
+describe('app guides by setting', () => {
+  it('keeps when-blocks only for matching settings; text outside blocks always', () => {
+    const g = 'Always.\n<!-- when windowMode=live -->\nReuse one window.\n<!-- when windowMode=history -->\nOne per action.\n<!-- end -->\nTail.';
+    expect(guideForSettings(g, { windowMode: 'live' })).toBe('Always.\nReuse one window.\nTail.');
+    expect(guideForSettings(g, { windowMode: 'history' })).toBe('Always.\nOne per action.\nTail.');
+  });
+  it('the images guide asks to reuse one window only in live mode', () => {
+    attachBuiltinViews(join(__dirname, '../../dist/apps')); // built-ins read their guide.md from the build
+    expect(guideFor({ defaultLayout: 'grid', windowMode: 'live' })).toContain('--id images');
+    expect(guideFor({ defaultLayout: 'grid', windowMode: 'history' })).not.toContain('--id images');
+  });
+  it('images: grid view is a saved view option; opening a tile goes back to single', () => {
+    const img = APPS.image;
+    let s = img.command(img.init(), 'add', { file: '/a.png' }) as any;
+    s = img.command(s, 'add', { file: '/b.png' });
+    s = img.command(s, 'view', { mode: 'grid' });
+    expect(s.view).toBe('grid');
+    s = img.command(s, 'add', { file: '/c.png' });
+    expect(s.view).toBe('grid');
+    s = img.command(s, 'select', { index: 0, single: true });
+    expect(s).toMatchObject({ view: 'single', index: 0 });
+    expect(() => img.command(s, 'view', { mode: 'mosaic' })).toThrow();
   });
 });
 

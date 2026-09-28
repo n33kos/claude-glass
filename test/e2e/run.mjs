@@ -155,6 +155,23 @@ try {
   await sleep(150);
   check(await page.locator('.lightbox').count() === 0, 'Esc closes the lightbox');
 
+  // Image grid: several images in one viewer, shown together; a tile opens that one alone.
+  {
+    const gid = (await cli(env, 'show', join(shots, '01-empty.png'), '--id', 'shots', '--caption', 'one')).split(' ')[0];
+    for (const c of ['two', 'three']) await cli(env, 'show', join(shots, '06b-image.png'), '--id', gid, '--caption', c);
+    await cli(env, 'app', gid, 'view', '--mode', 'grid');
+    await sleep(900);
+    const grid = appFrame(page, gid);
+    const tiles = await grid.locator('.img-tile').count();
+    check(tiles === 3, `image grid shows the recent images together (${tiles} tiles)`);
+    await page.locator(`[data-window="${gid}"]`).screenshot({ path: join(shots, '06h-image-grid.png') });
+    await grid.locator('.img-tile').last().click();
+    await sleep(400);
+    const single = JSON.parse(await cli(env, 'state', gid)).state;
+    check(single.view === 'single' && single.index === 0, 'clicking a grid tile opens that image alone');
+    await cli(env, 'window', 'delete', gid);
+  }
+
   // Reordering windows must not reload app frames (they'd flicker and lose scroll).
   {
     const mark = () => appFrame(page, 'terminal').locator('body').evaluate((b) => (b.dataset.mark ??= String(Math.random())));

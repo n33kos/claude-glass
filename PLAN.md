@@ -365,12 +365,12 @@ Queue, in order:
     The launcher now starts the packaged app through LaunchServices (`open -n -a … --env … --args`).
     Later: prune profiles of glasses long gone.
 
-23. [ ] **Images grid**: the images app gets a view option (in the app, saved with the window) to
-    show a grid of recent images instead of one at a time. Guide: in live mode reuse one images
-    window (`show --id images`) rather than a new one per image; history mode keeps one per action.
-    Needs guide text that depends on settings per app (today only the core guide varies with
-    settings: nested view, history mode, "Claude decides"; an app's `guide.md` is static). Idea:
-    `guide.md` sections tagged by setting, or a `guide(settings)` export in `core.js`.
+23. [x] **Images grid (2026-09-27)**: the images app's corner button (or `view --mode grid|single`,
+    saved with the window) shows the 12 most recent images as a grid, newest first; a tile opens
+    that image alone. App guides can now depend on settings: `<!-- when windowMode=live -->` …
+    `<!-- end -->` blocks in `guide.md` (`guideForSettings`; keys `windowMode`, `nestedView`). The
+    images guide asks Claude to reuse one viewer (`show … --id images`) in live mode only. Fixed on
+    the way: built-in apps' `guide.md` was never read (only custom apps' was).
 
 24. [ ] **App settings**: apps declare their own settings in the manifest (a small schema: key,
     type bool/enum/number/color, default, label, help); Settings renders them per app, the CLI
