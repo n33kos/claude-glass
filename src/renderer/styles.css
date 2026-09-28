@@ -209,6 +209,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .s-sub { margin-left: 22px; padding-top: 8px; padding-bottom: 8px; }
 div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom: 8px; }
 .s-num { width: 70px; }
+.s-preset > span:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.s-preset-desc { font-size: 12.5px; color: var(--ink-dim); }
 .s-dim { color: var(--ink-dim); font-size: 13px; }
 .s-dot {display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
 .swatches { display: flex; gap: 8px; }

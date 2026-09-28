@@ -108,6 +108,7 @@ const HELP = `claude-glass — Claude's monitor for this Claude Code session
 
 ${GUIDE.split('\n').slice(8).join('\n')}
 
+Presets: preset list | preset save <name> [--description D] | preset apply <name> | preset delete <name> | preset default <name|none> | open --preset <name>
 Other: open | close | status [--all] | state [id] | health | settings [set <key> <value>] | --session ID | --json
 Apps:  apps (list) | apps new <type> | apps copy <type>   (custom apps live in ~/.claude/claude-glass/apps)`;
 
@@ -128,6 +129,10 @@ async function main(argv: string[]) {
       const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
       console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
+      if (typeof flags.preset === 'string') {
+        const p = await call(sid, { op: 'preset', action: 'apply', name: flags.preset });
+        console.log(`Preset "${p.applied}" applied.${p.skipped.length ? ` Skipped (app not installed): ${p.skipped.join(', ')}` : ''}\n`);
+      }
       console.log(await call(sid, { op: 'guide' }).catch(() => guideFor(loadConfig())));
       return;
     }
@@ -147,6 +152,26 @@ async function main(argv: string[]) {
       rows.sort((a, b) => Number(b.running) - Number(a.running) || b.updated - a.updated);
       const shown = flags.all ? rows : rows.slice(0, 15);
       out(shown, shown.length ? shown.map((r) => `${r.running ? '● open  ' : '○ closed'}  ${r.id}  ${r.title}  ${new Date(r.updated).toLocaleString()}  ${r.cwd}`).join('\n') : 'No glass windows yet.');
+      return;
+    }
+    case 'preset': case 'presets': {
+      // Saved frames: sidebars, layouts, this glass's settings and the look settings.
+      const sid = sessionId(flags);
+      const [sub = 'list', ...words] = rest;
+      const name = words.join(' ') || undefined;
+      const description = typeof flags.description === 'string' ? flags.description : undefined;
+      const r = await call(sid, { op: 'preset', action: sub, name, description });
+      if (sub === 'list') {
+        const rows = r.presets.map((p: any) => {
+          const sides = Object.entries(p.sidebars ?? {}).map(([e, sb]: [string, any]) => `${e}: ${sb.windows.map((w: any) => w.id).join('+')}`).join(', ');
+          return `  ${p.name}${p.name === r.default ? ' (default)' : ''}${p.description ? ` — ${p.description}` : ''}${sides ? `\n      sidebars ${sides}` : ''}`;
+        });
+        out(r, rows.length ? ['Presets (claude-glass preset apply <name>):', ...rows].join('\n')
+          : 'No presets yet. Arrange the glass, then: claude-glass preset save <name> --description "what it\'s for"');
+      } else if (sub === 'apply') out(r, `Preset "${r.applied}" applied.${r.skipped.length ? ` Skipped (app not installed): ${r.skipped.join(', ')}` : ''}`);
+      else if (sub === 'save') out(r, `Saved preset "${r.name}".`);
+      else if (sub === 'default') out(r, r.default ? `New glasses start with "${r.default}".` : 'No default preset.');
+      else out(r ?? { ok: true }, 'ok');
       return;
     }
     case 'health': {

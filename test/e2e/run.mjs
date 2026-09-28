@@ -265,6 +265,16 @@ try {
   await page.locator('.s-color').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07c-settings-look.png') });
+  // Presets: save this glass from the form; it lists with Apply / Make default.
+  await page.locator('input[placeholder="Preset name"]').fill('Focus');
+  await page.locator('input[placeholder^="What it\'s for"]').fill('Terminal along the bottom, conversation on the left');
+  await page.locator('button', { hasText: 'Save this glass' }).click();
+  await sleep(400);
+  check((await page.locator('.s-preset').count()) === 1 && (await cli(env, 'preset', 'list')).includes('Focus — Terminal along the bottom'), 'Settings saves the glass as a preset');
+  await page.locator('.s-preset').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await sleep(150);
+  await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07f-settings-presets.png') });
+  await cli(env, 'preset', 'delete', 'Focus');
   await page.locator('.s-num').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07e-settings-app-setting.png') });

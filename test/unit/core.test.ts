@@ -9,6 +9,8 @@ import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
 import { DEFAULT_PALETTES, lightColors, moodOf, parsePalettes } from '../../src/core/colors';
 import { healthReport } from '../../src/core/health';
+import { capturePreset, presetActions } from '../../src/core/presets';
+import { DEFAULT_CONFIG } from '../../src/core/config';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor, guideForSettings } from '../../src/core/guide';
 import { attachBuiltinViews, loadMods } from '../../src/core/mods';
@@ -447,6 +449,30 @@ describe('app permissions', () => {
     expect(() => parsePermissions({ network: ['*'] })).toThrow();
     expect(() => parsePermissions({ network: ['file:///etc'] })).toThrow(/origin/);
     expect(() => parsePermissions({ network: ['https://*.example.com'] })).toThrow();
+  });
+});
+
+describe('presets', () => {
+  it('capture a frame, and turn it back into reducer actions on another glass', () => {
+    let a = fresh();
+    a = reduce(a, { type: 'window.tuck', id: 'terminal', edge: 'bottom' }).state;
+    a = reduce(a, { type: 'tuck.keep', edge: 'bottom', keep: true }).state;
+    a = reduce(a, { type: 'tuck.size', edge: 'bottom', size: 300 }).state;
+    a = reduce(a, { type: 'settings.set', key: 'windowMode', value: 'history' }).state;
+    const p = capturePreset(a, { ...DEFAULT_CONFIG, nestedView: true }, 'frame', 'terminal along the bottom');
+    expect(p.sidebars?.bottom).toMatchObject({ windows: [{ id: 'terminal', type: 'terminal' }], open: true, size: 300 });
+    expect(p.look?.nestedView).toBe(true);
+    // A glass with the conversation pinned left instead: that goes back to the layout.
+    let b = reduce(fresh(), { type: 'window.tuck', id: 'conversation', edge: 'left' }).state;
+    const { actions, skipped } = presetActions(b, { ...p, sidebars: { ...p.sidebars, right: { windows: [{ id: 'vmux', type: 'vmux' }] } } }, (t) => t !== 'vmux');
+    for (const act of actions) b = reduce(b, act).state;
+    expect(b.tucked?.bottom).toEqual(['terminal']);
+    expect(b.tucked?.left ?? []).toEqual([]);
+    expect(b.order).toContain('conversation');
+    expect(b.tuckKeep).toContain('bottom');
+    expect(b.tuckSize?.bottom).toBe(300);
+    expect(b.settings.windowMode).toBe('history');
+    expect(skipped).toEqual(['vmux (vmux)']);
   });
 });
 

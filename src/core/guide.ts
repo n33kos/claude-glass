@@ -28,6 +28,9 @@ those edits never reach "changes"), write plans to plan files, and Read images y
   claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
   claude-glass catalog                       all apps and commands
   claude-glass background --colors "#hex,…" | reset   optional: tint this glass's light yourself
+  claude-glass preset list | apply <name>    the user's saved frames (sidebars, layouts, settings), each
+                                             with a description; apply one when the user asks, or pick
+                                             the one whose description fits when they ask you to set up
 
 Treat the glass as a live feed of your focus. Hook updates (and \`app\` commands) never move
 windows, so directing attention is your job:

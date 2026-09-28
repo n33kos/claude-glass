@@ -289,6 +289,27 @@ describe('settings from the CLI', () => {
   });
 });
 
+describe('presets from the CLI', () => {
+  it('save, list, apply, default for new glasses, delete', async () => {
+    core.dispatch({ type: 'window.tuck', id: 'terminal', edge: 'bottom' });
+    core.dispatch({ type: 'tuck.keep', edge: 'bottom', keep: true });
+    expect(await cli('preset', 'save', 'Voice frame', '--description', 'terminal along the bottom')).toContain('Saved preset "Voice frame"');
+    core.dispatch({ type: 'window.untuck', id: 'terminal' });
+    expect(await cli('preset', 'list')).toMatch(/Voice frame — terminal along the bottom\n\s+sidebars bottom: terminal/);
+    expect(await cli('preset', 'apply', 'Voice frame')).toContain('applied');
+    expect(core.state.tucked?.bottom).toEqual(['terminal']);
+    await cli('preset', 'default', 'Voice frame');
+    // A brand-new glass starts from the default preset.
+    const fresh = new GlassCore('preset-fresh', '/tmp/proj');
+    expect(fresh.state.tucked?.bottom).toEqual(['terminal']);
+    expect(fresh.state.tuckKeep).toContain('bottom');
+    await cli('preset', 'delete', 'Voice frame');
+    expect(core.config.defaultPreset).toBe('');
+    expect(await cli('preset', 'list')).toContain('No presets yet');
+    core.dispatch({ type: 'window.untuck', id: 'terminal' });
+  });
+});
+
 describe('file copies', () => {
   it('prunes copies no window refers to, keeping recent ones', async () => {
     const dir = join(home, 'sessions', SID, 'files');

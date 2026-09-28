@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { settingValues, type SettingSpec } from '../types';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
 import { DEFAULT_PALETTES, MOODS, type Mood } from '../../core/colors';
@@ -110,6 +110,8 @@ export function SettingsView({ glass, config }: ViewProps) {
         </label>
       )}
 
+      <Presets />
+
       <h3>All sessions</h3>
 
       <h4>Sessions</h4>
@@ -201,6 +203,54 @@ export function SettingsView({ glass, config }: ViewProps) {
       <p className="s-note">New or changed custom apps load when the glass restarts.</p>
       <p className="s-foot">Session {glass.session.id}</p>
     </div>
+  );
+}
+
+/**
+ * Presets: saved frames (sidebars, layouts, this glass's settings, the look). Apply one here, save
+ * the current glass as one, and pick the one every new glass starts with.
+ */
+function Presets() {
+  const [list, setList] = useState<{ presets: { name: string; description: string; sidebars?: Record<string, { windows: { id: string }[] }> }[]; default: string | null }>({ presets: [], default: null });
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [note, setNote] = useState('');
+  const run = async (action: string, n?: string, d?: string) => {
+    const r = await window.glass.preset(action, n, d);
+    if (!r.ok) { setNote(r.error ?? 'failed'); return null; }
+    const l = await window.glass.preset('list');
+    if (l.ok) setList(l.result);
+    return r.result;
+  };
+  useEffect(() => { void run('list'); }, []);
+  return (
+    <>
+      <h4>Presets</h4>
+      <p className="s-note">A preset is a saved frame: which apps sit in which sidebars (sizes, splits, kept open), the desktop layouts, this glass's settings and the look. Claude can apply them too (<code>claude-glass preset</code>).</p>
+      {list.presets.map((p) => (
+        <div key={p.name} className="s-row s-preset">
+          <span>
+            <b>{p.name}</b>{list.default === p.name && <span className="s-dim"> · default for new glasses</span>}
+            {p.description && <span className="s-preset-desc">{p.description}</span>}
+            {p.sidebars && Object.keys(p.sidebars).length > 0 && (
+              <span className="s-preset-desc s-dim">{Object.entries(p.sidebars).map(([e, sb]) => `${e}: ${sb.windows.map((w) => w.id).join(' + ')}`).join(' · ')}</span>
+            )}
+          </span>
+          <span className="s-inline">
+            <button className="s-btn" onClick={() => run('apply', p.name).then((r) => r && setNote(`Applied "${p.name}"${r.skipped.length ? `; skipped ${r.skipped.join(', ')}` : ''}`))}>Apply</button>
+            <button className="s-link" onClick={() => run('default', list.default === p.name ? 'none' : p.name)}>{list.default === p.name ? 'Unset default' : 'Make default'}</button>
+            <button className="s-link" onClick={() => run('save', p.name).then((r) => r && setNote(`Updated "${p.name}" from this glass`))}>Update</button>
+            <button className="s-link" onClick={() => run('delete', p.name)}>Delete</button>
+          </span>
+        </div>
+      ))}
+      <form className="s-row s-inline" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void run('save', name.trim(), desc.trim()).then((r) => { if (r) { setNote(`Saved "${name.trim()}"`); setName(''); setDesc(''); } }); }}>
+        <input type="text" placeholder="Preset name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 160 }} />
+        <input type="text" placeholder="What it's for (Claude reads this)" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ flex: 1 }} />
+        <button type="submit" className="s-btn">Save this glass</button>
+      </form>
+      {note && <p className="s-note">{note}</p>}
+    </>
   );
 }
 

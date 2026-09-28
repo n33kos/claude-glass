@@ -15,6 +15,7 @@ declare global {
       webAspect(aspect: number): void;
       webInput(input: unknown): void;
       resetAppData(type: string): Promise<boolean>;
+      preset(action: string, name?: string, description?: string): Promise<{ ok: boolean; result?: any; error?: string }>;
       lastFrame(id: string): Promise<Partial<Record<'cdp' | 'web', string>> | null>;
       onFrame(fn: (f: { id: string; source: 'cdp' | 'web'; data: string }) => void): () => void;
     };

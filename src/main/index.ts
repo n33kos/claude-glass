@@ -269,6 +269,7 @@ async function boot() {
     if (input && (input.type === 'wheel' || input.type === 'click')) webFeeds.get(String(input.id))?.input(input);
   });
   // Settings → "Reset data": forget what an app and the pages it embeds stored (storage + cookies).
+  ipcMain.handle('glass:preset', (_e, action: string, name?: string, description?: string) => core.handle({ op: 'preset', action, name, description }));
   ipcMain.handle('glass:resetAppData', async (_e, type: string) => {
     const p = APPS[type]?.permissions;
     if (!p) return false;

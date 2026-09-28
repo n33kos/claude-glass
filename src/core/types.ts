@@ -56,6 +56,7 @@ export interface GlobalConfig {
   scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
   nestedView: boolean; // one screen: newest window big, older ones spiral into smaller panes
   nestedStyle: 'spiral' | 'carousel'; // how the nested view arranges windows around the focused one
+  defaultPreset: string; // preset applied to every brand-new glass ('' = none)
   selectToInteract: boolean; // click a window to use it; the wheel over the others walks desktops
   appSettings: Record<string, Record<string, unknown>>; // per app type: values for the settings its manifest declares
   toolReminders: boolean; // remind Claude to use Read/Edit/Write when a Bash command did file I/O (scripts/tool-reminder.sh)
@@ -105,7 +106,7 @@ export type Action =
   | { type: 'tuck.size'; edge: Edge; size: number };
 
 export interface Envelope {
-  op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'quit';
+  op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

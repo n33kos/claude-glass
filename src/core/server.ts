@@ -7,6 +7,7 @@ import { APPS, isInternal } from '../apps/registry';
 import { coerceSetting, settingValues } from '../apps/types';
 import { coerceConfigValue, loadConfig, saveConfig, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
+import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
 import { applyHook } from './hooks';
 import { loadMods, type ModReport } from './mods';
 import { computeDesktops, desktopsFor, edgeSize, effectiveLayout, EDGES, LAYOUTS, nestedSlots } from './layout';
@@ -29,10 +30,15 @@ export class GlassCore {
     mkdirSync(sessionDir(sessionId), { recursive: true });
     this.config = loadConfig();
     this.mods = loadMods();
-    this.state = loadState(sessionId) ?? initialState({ id: sessionId, cwd });
+    const saved = loadState(sessionId);
+    this.state = saved ?? initialState({ id: sessionId, cwd });
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
     // Reopened glass: fresh start time is not interesting, but "ended" must be cleared.
     this.state = reduce(this.state, { type: 'session.update', patch: { endedAt: undefined, activity: 'idle' } }).state;
+    // A brand-new glass starts from the default preset, if the user picked one.
+    if (!saved && this.config.defaultPreset) {
+      try { this.applyPreset(loadPreset(this.config.defaultPreset)); } catch {}
+    }
   }
 
   subscribe(fn: Listener): () => void {
@@ -186,6 +192,45 @@ export class GlassCore {
     }));
   }
 
+  /** Presets: list, save the current glass, apply one, delete one, or pick the default for new glasses. */
+  preset(action: string, name?: string, description?: string): unknown {
+    const need = () => { if (!name) throw new Error(`preset ${action} needs a name`); return name; };
+    switch (action) {
+      case 'list': return { presets: listPresets(), default: this.config.defaultPreset || null };
+      case 'save': {
+        const n = need();
+        const prev = listPresets().find((p) => p.name === n);
+        return savePreset(capturePreset(this.state, this.config, n, description ?? prev?.description ?? ''));
+      }
+      case 'apply': return this.applyPreset(loadPreset(need()));
+      case 'delete':
+        deletePreset(need());
+        if (this.config.defaultPreset === name) this.setConfig('defaultPreset', '');
+        return null;
+      case 'default':
+        if (name && name !== 'none') loadPreset(name); // must exist
+        this.setConfig('defaultPreset', name && name !== 'none' ? name : '');
+        return { default: this.config.defaultPreset || null };
+      default: throw new Error(`unknown preset action "${action}" (list, save, apply, delete, default)`);
+    }
+  }
+
+  /** Put a preset's frame on this glass: its look settings (global), then its sidebars, layouts and session settings. */
+  applyPreset(p: Preset): { applied: string; skipped: string[] } {
+    for (const [k, v] of Object.entries(p.look ?? {})) {
+      if (!(LOOK_KEYS as readonly string[]).includes(k)) continue;
+      try { this.setConfig(k, v); } catch {} // a value from an older version that no longer fits
+    }
+    const { actions, skipped } = presetActions(this.state, p, (type) => !!APPS[type] && !this.config.disabledApps?.includes(type));
+    let s = this.state;
+    for (const a of actions) {
+      if (a.type === 'desktop.layout' && this.config.nestedView) continue; // no desktops in the nested view
+      try { s = reduce(s, a).state; } catch {}
+    }
+    this.commit(s);
+    return { applied: p.name, skipped };
+  }
+
   handle(env: Envelope): Reply {
     try {
       switch (env.op) {
@@ -206,6 +251,7 @@ export class GlassCore {
           if (env.key !== undefined) return { ok: true, result: this.setConfig(String(env.key), env.value) };
           return { ok: true, result: this.config };
         }
+        case 'preset': return { ok: true, result: this.preset(String(env.action ?? 'list'), env.name as string | undefined, env.description as string | undefined) };
         case 'quit': setTimeout(() => this.onQuit(), 20); return { ok: true, result: null };
         default: throw new Error(`unknown op "${(env as any).op}"`);
       }

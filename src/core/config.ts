@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   nestedStyle: 'spiral',
   toolReminders: true,
   selectToInteract: true,
+  defaultPreset: '',
   appSettings: {},
 };
 
@@ -77,6 +78,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
     case 'defaultLayout': if (!isDefaultLayout(value)) throw new Error(`unknown layout ${value}`); return value;
     case 'background': return String(value);
+    case 'defaultPreset': return value === 'none' || value == null ? '' : String(value);
     case 'backgroundColors': return parseColors(value);
     default: throw new Error(`unknown global setting "${key}"`);
   }
@@ -100,6 +102,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   disabledApps: 'comma-separated app types the user turned off (change only if asked)',
   autoStart: 'true|false: open a glass when a Claude session starts',
   scope: 'session|folder: one glass per session, or one per project folder',
+  defaultPreset: 'a preset name (or none): the frame every new glass starts with (claude-glass preset)',
   selectToInteract: 'true|false: click a window to use it (scroll over the others walks desktops); false = every window live',
   appSettings: 'apps\' own settings: set one with app.<type>.<key> <value> (listed below)',
   toolReminders: 'true|false: remind Claude to use Read/Edit/Write when a Bash command reads or writes files (change only if asked)',
