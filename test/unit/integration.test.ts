@@ -1,11 +1,11 @@
 // Core server in plain Node, driven by the real built CLI and the bash hook forwarder.
 // Requires `npm run build` first (dist/cli.js).
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { folderGlassId } from '../../src/core/binding';
+import { bindSession, cleanupRuntime, folderGlassId } from '../../src/core/binding';
 import { readMod } from '../../src/core/mods';
 import { GlassCore } from '../../src/core/server';
 
@@ -133,6 +133,35 @@ describe('hook forwarder', () => {
     await wait(400);
     const saved = JSON.parse(readFileSync(join(home, 'sessions', SID, 'state.json'), 'utf8'));
     expect(saved.instances['markdown-1'].title).toBe('Notes'); // the title given on `new`
+  });
+});
+
+describe('clean lifecycle', () => {
+  it('clears what dead glasses leave behind, and nothing live', async () => {
+    // A glass killed outright (no chance to remove its socket).
+    const dead = join(runtime, 'aaaaaaaaaaaa.sock');
+    const child = spawn(process.execPath, ['-e', 'require("net").createServer().listen(process.argv[1]); setInterval(() => {}, 1000)', dead]);
+    for (let i = 0; i < 50 && !existsSync(dead); i++) await wait(50);
+    child.kill('SIGKILL');
+    await wait(150);
+    expect(lstatSync(dead).isSocket()).toBe(true);
+    symlinkSync('aaaaaaaaaaaa.sock', join(runtime, 'sess-to-dead.sock'));
+    symlinkSync('nowhere.sock', join(runtime, 'sess-dangling.sock'));
+    symlinkSync(`${SID}.sock`, join(runtime, 'sess-to-live.sock'));
+    const removed = await cleanupRuntime();
+    expect(removed.sort()).toEqual(['aaaaaaaaaaaa.sock', 'sess-dangling.sock', 'sess-to-dead.sock']);
+    expect(existsSync(join(runtime, 'sess-to-live.sock'))).toBe(true);
+    expect(lstatSync(join(runtime, `${SID}.sock`)).isSocket()).toBe(true);
+    unlinkSync(join(runtime, 'sess-to-live.sock'));
+  });
+
+  it('never turns a glass socket into a link', () => {
+    // A running glass's own id, even in folder scope from another folder: left alone.
+    expect(bindSession(SID, '/somewhere/else', 'folder')).toBe(SID);
+    expect(lstatSync(join(runtime, `${SID}.sock`)).isSocket()).toBe(true);
+    // A folder glass id passed as a session: it's a glass, not a session, so no link is made.
+    expect(bindSession('0123456789ab', '/somewhere/else', 'folder')).toBe('0123456789ab');
+    expect(existsSync(join(runtime, '0123456789ab.sock'))).toBe(false);
   });
 });
 

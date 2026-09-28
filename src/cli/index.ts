@@ -1,7 +1,7 @@
 // claude-glass CLI. Thin client over the per-session Unix socket.
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
-import { bindSession, glassIdFor, isBound } from '../core/binding';
+import { bindSession, cleanupRuntime, glassIdFor, isBound, isOwnSocket } from '../core/binding';
 import { loadConfig, SETTINGS_HELP } from '../core/config';
 import { appsDir, filesDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { healthReport } from '../core/health';
@@ -126,6 +126,7 @@ async function main(argv: string[]) {
     case 'open': {
       const cid = claudeSessionId(flags);
       const cwd = typeof flags.cwd === 'string' ? flags.cwd : process.cwd();
+      await cleanupRuntime();
       // SessionStart normally binds (with the real project dir); this covers sessions it missed.
       const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
@@ -139,16 +140,23 @@ async function main(argv: string[]) {
     }
     case 'close': {
       const sid = sessionId(flags);
-      await call(sid, { op: 'quit' });
-      console.log('Claude Glass closed.');
+      try {
+        await call(sid, { op: 'quit' });
+        console.log('Claude Glass closed.');
+      } catch {
+        // Not running (or died without cleaning up): clear its leftovers instead of erroring.
+        await cleanupRuntime();
+        console.log('Claude Glass was not running.');
+      }
       return;
     }
     case 'status': {
+      await cleanupRuntime();
       const dir = sessionsDir();
       const ids = existsSync(dir) ? readdirSync(dir).filter((d) => existsSync(statePath(d))) : [];
       const rows = await Promise.all(ids.map(async (id) => {
         const s = loadState(id);
-        return { id, title: s?.session.title ?? '?', cwd: s?.session.cwd ?? '', running: await isLive(socketPath(id), 300), updated: statSync(statePath(id)).mtimeMs };
+        return { id, title: s?.session.title ?? '?', cwd: s?.session.cwd ?? '', running: isOwnSocket(id) && (await isLive(socketPath(id), 300)), updated: statSync(statePath(id)).mtimeMs };
       }));
       rows.sort((a, b) => Number(b.running) - Number(a.running) || b.updated - a.updated);
       const shown = flags.all ? rows : rows.slice(0, 15);
@@ -356,6 +364,7 @@ async function main(argv: string[]) {
       if (!p.session_id) return;
       const config = loadConfig();
       const projectDir = process.env.CLAUDE_PROJECT_DIR || p.cwd || process.cwd();
+      await cleanupRuntime();
       const sid = bindSession(assertSessionId(p.session_id), projectDir, config.scope);
       const live = await isLive(socketPath(sid), 300);
       let open = live;
