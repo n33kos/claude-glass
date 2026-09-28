@@ -1,6 +1,6 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
 import { app, BrowserWindow, ipcMain, Menu, protocol, session } from 'electron';
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { extname, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
 import { appInfo, NO_PERMISSIONS, type AppPermissions } from '../apps/types';
@@ -26,12 +26,29 @@ if (!sessionId) {
 }
 
 app.setName('Claude Glass');
-// A glass home other than the real one (tests, demos): keep Chromium's profile there too, so a
-// test run never shares the user's live profile (cookies, storage) with their open glasses, and
-// never shows up in the dock.
+// Every glass is its own process, so each gets its own Chromium profile: two processes must never
+// share one (Chromium doesn't support it; cookies and storage can corrupt). A glass home other than
+// the real one (tests, demos) keeps its profile there and stays out of the dock.
 if (process.env.CLAUDE_GLASS_HOME) {
-  app.setPath('userData', join(process.env.CLAUDE_GLASS_HOME, 'electron'));
+  app.setPath('userData', join(process.env.CLAUDE_GLASS_HOME, 'electron', sessionId));
   if (process.platform === 'darwin') app.dock?.hide();
+} else {
+  const shared = app.getPath('userData'); // ~/Library/Application Support/Claude Glass
+  const own = join(shared, 'glasses', sessionId);
+  if (!existsSync(own)) seedProfile(shared, own);
+  app.setPath('userData', own);
+}
+
+/**
+ * A new glass starts with what apps stored before (e.g. a pairing an embedded page keeps in its
+ * storage and cookies), copied from the old shared profile, so moving to per-glass profiles
+ * doesn't sign anything out. Caches aren't copied. Best effort: a new glass may start empty.
+ */
+function seedProfile(from: string, to: string) {
+  mkdirSync(to, { recursive: true });
+  for (const part of ['Cookies', 'Cookies-journal', 'Local Storage', 'IndexedDB', 'WebStorage', 'Session Storage']) {
+    try { if (existsSync(join(from, part))) cpSync(join(from, part), join(to, part), { recursive: true }); } catch {}
+  }
 }
 // Developer aid: CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open → inspect the real glass over CDP.
 if (process.env.CLAUDE_GLASS_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.CLAUDE_GLASS_DEBUG_PORT);

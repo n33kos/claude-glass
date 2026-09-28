@@ -356,10 +356,12 @@ Queue, in order:
     restarted) while the glass ran next to Alchemy (Electron, WebGL). Found: backdrop blur on every
     window, the top bar and the dock re-ran each frame over the live wallpaper (glass GPU process
     ~41% of a core → ~19% without; drift itself is cheap). Blur removed from always-on surfaces.
-    Tests now keep their own Chromium profile and stay out of the dock. Open: every glass process
-    shares one Chromium profile (`userData`) at the same time, which Chromium doesn't support
-    (cookie/storage corruption risk); the fix is one app process hosting every glass window
-    (single-instance lock; a second `open` adds a window with its own core and socket).
+    Tests now keep their own Chromium profile and stay out of the dock. Every glass process shared
+    one Chromium profile at once, which Chromium doesn't support (cookie/storage corruption risk);
+    now each glass keeps its own profile (`userData/glasses/<glass id>`), seeded once from the old
+    shared profile's cookies and storage so pairings survive. Separate processes stay the design.
+    Open: the dock icon went missing after a stray Electron tile was removed (app registers as a
+    normal foreground app; cause unknown). Later: prune profiles of glasses long gone.
 
 21. [ ] **Selectable panes** (after 20): scrolling anywhere over the glass walks desktops/the
     spiral; a click selects a window (outlined), and only a selected window takes wheel and pointer
