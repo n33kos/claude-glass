@@ -265,6 +265,17 @@ try {
   await page.locator('.s-color').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07c-settings-look.png') });
+  // ⌘V works in text fields: the Edit menu carries the paste role (macOS routes the keys through it),
+  // and pasting into a field puts the clipboard there.
+  {
+    const roles = await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find((i) => i.label === 'Edit').submenu.items.map((i) => i.role));
+    await app.evaluate(({ clipboard }) => clipboard.writeText('pasted text'));
+    await page.locator('input[placeholder="Preset name"]').focus();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('renderer/index.html')).webContents.paste());
+    const pasted = await page.locator('input[placeholder="Preset name"]').inputValue();
+    check(roles.includes('paste') && roles.includes('cut') && pasted === 'pasted text', `the Edit menu has paste, and pasting fills a field ("${pasted}")`);
+    await page.locator('input[placeholder="Preset name"]').fill('');
+  }
   // Presets: save this glass from the form; it lists with Apply / Make default.
   await page.locator('input[placeholder="Preset name"]').fill('Focus');
   await page.locator('input[placeholder^="What it\'s for"]').fill('Terminal along the bottom, conversation on the left');
