@@ -3,8 +3,8 @@ import { renderMarkdown } from '../../renderer/markdown';
 import type { AppViewProps } from '../../sdk/react';
 import type { MarkdownState } from './index';
 
-// Following links: a link to another markdown file opens it here (the host reads it, if it's in the
-// project or next to the document), with Back and a way home to what Claude showed; #section links
+// Following links: a link to another local markdown file opens it here (the host reads it), with
+// Back and a way home to what Claude showed; #section links
 // scroll; web links open in the user's browser. Navigation is the viewer's own (view-only): when
 // Claude changes the content, the viewer goes home to it.
 interface Page { path: string; text: string }

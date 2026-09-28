@@ -10,7 +10,7 @@ const MAX = 500_000;
 
 export const markdown: AppDef<MarkdownState> = {
   type: 'markdown',
-  title: 'Notes',
+  title: 'Markdown',
   icon: '¶',
   singleton: false,
   description: 'Rendered markdown: plans, notes, summaries, tables. Plans land in the "plan" instance automatically.',

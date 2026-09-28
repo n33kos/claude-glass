@@ -269,16 +269,13 @@ async function boot() {
     if (input && (input.type === 'wheel' || input.type === 'click')) webFeeds.get(String(input.id))?.input(input);
   });
   // Settings → "Reset data": forget what an app and the pages it embeds stored (storage + cookies).
-  // The markdown viewer following a link to another markdown file. Only markdown/text files, and
-  // only inside the session's project folder or the folder of the document it was showing (from
-  // the glass's own state, not from the frame), so this can't turn into a file browser.
-  ipcMain.handle('glass:readDoc', (_e, id: string, path: string) => {
+  // The markdown viewer following a link to another markdown file: any local markdown/text file
+  // the user can read (only those, so it stays a viewer). macOS may ask once before the glass reads
+  // from protected folders (Documents, Desktop, Downloads, iCloud Drive).
+  ipcMain.handle('glass:readDoc', (_e, _id: string, path: string) => {
     try {
       const target = resolve(String(path));
       if (!/\.(md|markdown|mdx|txt)$/i.test(target)) throw new Error('only markdown files open here');
-      const source = (core.state.appState[id] as { source?: string } | undefined)?.source;
-      const roots = [core.state.session.cwd, source && resolve(source, '..')].filter(Boolean).map((r) => resolve(r as string));
-      if (!roots.some((r) => target === r || target.startsWith(r + sep))) throw new Error('outside the project folder');
       if (statSync(target).size > 2_000_000) throw new Error('too large');
       return { ok: true, result: { path: target, text: readFileSync(target, 'utf8') } };
     } catch (e: any) {

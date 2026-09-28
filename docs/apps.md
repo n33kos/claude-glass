@@ -103,8 +103,8 @@ the window's glass shows through.
 Images the glass stored (e.g. from `claude-glass show`) are at `glass-file://f<absolute path>`.
 
 `glass.ask(service, args)` is a host service that answers (a Promise). Today: `read-doc`
-`{ path }` → `{ path, text }`, for the markdown viewer following links (markdown files in the
-project or next to the document only). `glass.host('open-link', { url })` opens an http(s) or
+`{ path }` → `{ path, text }`, for the markdown viewer following links (local markdown and text
+files only). `glass.host('open-link', { url })` opens an http(s) or
 mailto link in the user's browser; a frame can't navigate itself.
 
 The built-in apps are written in React with `src/sdk/react.tsx` (`mount(View)`), which wraps

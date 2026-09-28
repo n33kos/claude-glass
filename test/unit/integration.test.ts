@@ -132,7 +132,7 @@ describe('hook forwarder', () => {
   it('persists state to disk', async () => {
     await wait(400);
     const saved = JSON.parse(readFileSync(join(home, 'sessions', SID, 'state.json'), 'utf8'));
-    expect(saved.instances['markdown-1'].title).toBe('Notes');
+    expect(saved.instances['markdown-1'].title).toBe('Notes'); // the title given on `new`
   });
 });
 

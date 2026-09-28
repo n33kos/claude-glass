@@ -62,7 +62,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
   }
 
   // Services that answer. 'read-doc' is the markdown viewer following a link to another markdown
-  // file; main checks the path (markdown files in the project, or next to the document shown).
+  // file; main reads it (local markdown/text files only).
   async function answer(reqId: number, service: string, args: Record<string, unknown>) {
     let reply: { ok: boolean; result?: unknown; error?: string };
     if (service === 'read-doc' && app.type === 'markdown' && typeof args.path === 'string') reply = await window.glass.readDoc(id, args.path);
