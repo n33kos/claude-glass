@@ -1,7 +1,7 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session, shell } from 'electron';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { basename, extname, join, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
 import { appInfo, NO_PERMISSIONS, type AppPermissions } from '../apps/types';
 import { filesDir, sessionDir, socketPath } from '../core/paths';
@@ -285,6 +285,12 @@ async function boot() {
   // Web links in app views open in the user's browser (the frames themselves can't navigate).
   ipcMain.on('glass:openLink', (_e, url: string) => {
     if (/^(https?:|mailto:)/i.test(String(url))) void shell.openExternal(String(url));
+  });
+  // Show an image in Finder/Explorer: the first of the given paths that still exists (the original,
+  // then the glass's copy). Only reveals; never opens or runs anything.
+  ipcMain.on('glass:revealFile', (_e, paths: unknown) => {
+    const p = (Array.isArray(paths) ? paths : []).find((x) => typeof x === 'string' && isAbsolute(x) && existsSync(x));
+    if (p) shell.showItemInFolder(p);
   });
   ipcMain.handle('glass:preset',(_e, action: string, name?: string, description?: string) => core.handle({ op: 'preset', action, name, description }));
   ipcMain.handle('glass:resetAppData', async (_e, type: string) => {

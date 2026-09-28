@@ -59,6 +59,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
     else if (service === 'aspect' && typeof args.value === 'number') window.glass.webAspect(args.value);
     else if (service === 'page-input' && app.type === 'browser') window.glass.webInput({ ...args, id });
     else if (service === 'open-link' && typeof args.url === 'string') window.glass.openLink(args.url);
+    else if (service === 'reveal' && app.type === 'image' && Array.isArray(args.paths)) window.glass.revealFile(args.paths.filter((p): p is string => typeof p === 'string'));
   }
 
   // Services that answer. 'read-doc' is the markdown viewer following a link to another markdown

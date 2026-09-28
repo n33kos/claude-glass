@@ -14,6 +14,7 @@ declare global {
       onFullscreen(fn: (on: boolean) => void): () => void;
       readDoc(id: string, path: string): Promise<{ ok: boolean; result?: { path: string; text: string }; error?: string }>;
       openLink(url: string): void;
+      revealFile(paths: string[]): void;
       webAspect(aspect: number): void;
       webInput(input: unknown): void;
       resetAppData(type: string): Promise<boolean>;

@@ -4,7 +4,8 @@ import { GRID_MAX, type ImageState } from './index';
 
 // A copy sized for how wide it's shown (the glass serves a cached thumbnail); the lightbox gets
 // the original. Widths round up in the host, so resizing a window doesn't make a new copy each px.
-const sized = (file: string, px: number) => `${fileUrl(file)}?w=${Math.round(px * (window.devicePixelRatio || 1))}`;
+const FOLDER_APP = /Win/i.test(navigator.platform) ? 'Explorer' : /Mac/i.test(navigator.platform) ? 'Finder' : 'folder';
+const sized =(file: string, px: number) => `${fileUrl(file)}?w=${Math.round(px * (window.devicePixelRatio || 1))}`;
 
 export default function ImageView({ state, run, host, settings, width }: AppViewProps<ImageState>) {
   const n = state.images.length;
@@ -51,6 +52,8 @@ export default function ImageView({ state, run, host, settings, width }: AppView
           <span className="img-name">{img.caption ?? img.name}</span>
           {n > 1 && <span className="img-count">{idx + 1} / {n}</span>}
           {n > 1 && <button disabled={idx === n - 1} onClick={() => go(idx + 1)} aria-label="Next image">›</button>}
+          <button className="img-reveal" title={`Show in ${FOLDER_APP}`} aria-label={`Show in ${FOLDER_APP}`}
+            onClick={() => host('reveal', { paths: [img.source, img.file].filter(Boolean) })}>{`Show in ${FOLDER_APP}`}</button>
         </figcaption>
       </figure>
     </div>

@@ -191,7 +191,7 @@ function applyToolSideEffects(
 
   if (tool === 'Read' && path && IMAGE_RE.test(path)) {
     const stored = ctx.ingestFile(path);
-    if (stored) s = autoWindow(s, ctx, { id: 'images', appType: 'image', title: 'Images', command: 'add', args: { file: stored, name: path.split('/').pop() }, autoOpen: auto.images });
+    if (stored) s = autoWindow(s, ctx, { id: 'images', appType: 'image', title: 'Images', command: 'add', args: { file: stored, name: path.split('/').pop(), source: path }, autoOpen: auto.images });
   }
   return s;
 }

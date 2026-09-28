@@ -3,6 +3,7 @@ import { type AppDef, type Args, capTail, str, unknownCommand } from '../types';
 export interface ImageItem {
   file: string; // absolute path of the copy inside the session files dir
   name: string; // original file name
+  source?: string; // where the original was, for "Show in Finder"
   caption?: string;
   at: number;
 }
@@ -36,7 +37,7 @@ export const image: AppDef<ImageState> = {
       case 'add':
         return {
           ...s,
-          images: capTail([...s.images, { file: str(a, 'file'), name: String(a.name ?? str(a, 'file').split('/').pop()), caption: a.caption ? String(a.caption) : undefined, at: Date.now() }], 200),
+          images: capTail([...s.images, { file: str(a, 'file'), name: String(a.name ?? str(a, 'file').split('/').pop()), ...(a.source ? { source: String(a.source) } : {}), caption: a.caption ? String(a.caption) : undefined, at: Date.now() }], 200),
           index: -1,
         };
       case 'select':

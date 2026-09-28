@@ -70,7 +70,7 @@ starts** in Settings (the gear in the dock), or `claude-glass settings set autoS
 | Terminal | every tool call with its output, filterable by tool; a lock on the one waiting for you |
 | Changes | a diff of every edit; flip through a file's revisions |
 | Plan | plan files and plan mode |
-| Images | images Claude reads; one at a time or a grid of recent ones |
+| Images | images Claude reads; one at a time or a grid of recent ones; "Show in Finder" reveals the original |
 | Browser | Claude's web searches (results) and the pages it fetches, rendered, with back/forward and the passage Claude says it relied on highlighted; a browser Claude drives (Playwright, Chrome with a DevTools port) streams in live, watch-only (copy the address or open it in your own browser with ↗) |
 | Tasks | Claude's own to-do list, live, with progress and what it's doing now |
 | Agents | the subagents Claude starts: their task, whether they're still running, and what each reported |

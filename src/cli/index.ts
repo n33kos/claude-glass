@@ -65,6 +65,7 @@ function commandArgs(appType: string, command: string, flags: Parsed['flags'], s
     if (appType === 'image' || (appType === 'browser' && command === 'frame')) {
       args.file = ingest(sid, path);
       args.name = basename(path);
+      if (appType === 'image') args.source = resolve(path);
     } else if (args.text === undefined) {
       args.text = readFileSync(path, 'utf8');
       args.source = path;
