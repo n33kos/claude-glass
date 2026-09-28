@@ -12,7 +12,8 @@ const PAD = 12;
 const GAP = 12;
 
 interface Rect { x: number; y: number; w: number; h: number }
-interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean }
+// scale < 1: the window is laid out at rect/scale and shrunk, a zoomed-out copy (watch view tiles).
+interface Placed { id: string; page: number; index: number; rect: Rect; hidden?: boolean; far?: boolean; scale?: number }
 interface Drag {
   id: string; px: number; py: number; ox: number; oy: number; // pointer, and its offset inside the window
   target: number | null; // layout slot it would land in
@@ -73,11 +74,46 @@ function pinTargetCenter(edge: Edge, W: number, H: number, side: { l: number; r:
 
 type Inset = { l: number; r: number; t: number; b: number };
 
+const WATCH_RING = 4; // tiles per side in the watch view (a 2×2 grid); farther windows slide off the edge
+
+/**
+ * The watch view, in an iw×ih box: window k (distance from the focus; negative = newer) sits in the
+ * middle at k = 0; k = ±1..4 fill a 2×2 grid on the right (older) or left (newer), the near column
+ * larger than the far one; farther windows wait just past the stage edge, hidden. Tiles carry a
+ * scale so they read as zoomed-out copies of the window rather than a squashed layout.
+ */
+function watchRect(k: number, iw: number, ih: number): { rect: Rect; scale: number; hidden: boolean } {
+  const cw = iw * 0.56, ch = ih * 0.9;
+  const cx = (iw - cw) / 2, cy = (ih - ch) / 2;
+  if (k === 0) return { rect: { x: cx, y: cy, w: cw, h: ch }, scale: 1, hidden: false };
+  const side = cx - GAP * 2; // room beside the middle window
+  const d = Math.abs(k), right = k > 0;
+  const nearW = side * 0.56, farW = side - nearW - GAP;
+  const col = d <= 2 ? 0 : 1, row = (d - 1) % 2;
+  const w = d > WATCH_RING ? farW * 0.8 : col === 0 ? nearW : farW;
+  const h = w * (ch / cw); // same shape as the middle window
+  const offset = col === 0 ? GAP * 2 : GAP * 3 + nearW; // from the middle window outward
+  const y = ih / 2 + (row === 0 ? -h - GAP / 2 : GAP / 2);
+  const x = d > WATCH_RING
+    ? (right ? iw + GAP * 4 : -w - GAP * 4) // parked past the edge, ready to slide in
+    : right ? cx + cw + offset : cx - offset - w;
+  return { rect: { x, y, w, h }, scale: w / cw, hidden: d > WATCH_RING };
+}
+
 /** Tile the desktops into the stage, minus room for any edge panels kept open. */
-function place(pages: DesktopPage[], W: number, H: number, focus: number, ins: Inset): Placed[] {
+function place(pages: DesktopPage[], W: number, H: number, focus: number, ins: Inset, watch = false): Placed[] {
   const out: Placed[] = [];
   const iw = W - PAD * 2 - ins.l - ins.r, ih = H - PAD * 2 - ins.t - ins.b;
   for (const p of pages) {
+    if (p.layout === 'nested' && watch) {
+      const f = Math.min(focus, Math.max(0, p.windows.length - 1));
+      p.windows.forEach((id, i) => {
+        const k = i - f;
+        const { rect, scale, hidden } = watchRect(k, iw, ih);
+        out.push({ id, page: p.index, index: p.start + i, rect: { ...rect, x: p.index * W + PAD + ins.l + rect.x, y: PAD + ins.t + rect.y }, hidden, far: Math.abs(k) > WATCH_RING + 2, scale });
+      });
+      continue;
+    }
     // Nested: windows before the focus are scrolled past (hidden, parked in the big pane);
     // windows past the spiral's depth are parked in its smallest pane.
     const nested = p.layout === 'nested';
@@ -177,6 +213,8 @@ export function App() {
       if (e.key === 'Escape') selectWindow(null);
       if (!(e.ctrlKey || e.metaKey)) return;
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && pages[v]?.layout === 'nested') stepFocus(e.key === 'ArrowDown' ? 1 : -1);
+      // Watch view: ⌘←/⌘→ move along the row (there are no desktops to switch).
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && pages[v]?.layout === 'nested' && config.nestedStyle === 'watch') { stepFocus(e.key === 'ArrowRight' ? 1 : -1); return; }
       if (e.key === 'ArrowRight') setView(Math.min(v + 1, pages.length - 1));
       if (e.key === 'ArrowLeft') setView(v - 1);
     };
@@ -185,11 +223,12 @@ export function App() {
       const target = e.target as HTMLElement;
       // Horizontal swipe anywhere; vertical scroll (mouse wheels) only outside windows, if enabled.
       const horizontal = Math.abs(e.deltaX) >= Math.abs(e.deltaY) * 1.5;
-      // Nested desktop: vertical scroll outside the content (gaps, bars, title bars) walks the spiral.
-      if (!horizontal && pages[v]?.layout === 'nested' && !target.closest?.('.body, .layout-menu, .question-card, .lightbox, .edge-panel')) {
+      // Nested view: scrolling outside the content (gaps, bars, title bars, shields) walks the
+      // spiral, or in the watch style moves along the row (a sideways swipe works too).
+      if (pages[v]?.layout === 'nested' && !target.closest?.('.body, .layout-menu, .question-card, .lightbox, .edge-panel')) {
         const now = Date.now();
         if (now < cool) return;
-        acc += e.deltaY;
+        acc += horizontal ? e.deltaX : e.deltaY;
         if (Math.abs(acc) > 60) { stepFocus(Math.sign(acc)); acc = 0; cool = now + 350; }
         return;
       }
@@ -216,7 +255,7 @@ export function App() {
     window.addEventListener('wheel', onWheel, { passive: true });
     window.addEventListener('pointerdown', onDown, true);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); window.removeEventListener('pointerdown', onDown, true); };
-  }, [v, pages, setView, config.wheelDesktops, focus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [v, pages, setView, config.wheelDesktops, config.nestedStyle, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge panels kept open take their space from the layout.
   const kept = state.tuckKeep ?? [];
@@ -224,7 +263,8 @@ export function App() {
     const room = (e: Edge) => (kept.includes(e) && state.tucked?.[e]?.length ? edgeSize(e, size.W, size.H, state.tuckSize) + GAP : 0);
     return { l: room('left'), r: room('right'), t: room('top'), b: room('bottom') };
   }, [size.W, size.H, kept.join(), state.tucked, state.tuckSize]); // eslint-disable-line react-hooks/exhaustive-deps
-  const placed = useMemo(() => place(pages, size.W, size.H, focus, inset), [pages, size, focus, inset]);
+  const watch = config.nestedStyle === 'watch';
+  const placed = useMemo(() => place(pages, size.W, size.H, focus, inset, watch), [pages, size, focus, inset, watch]);
   const opacityFor = (m: InstanceMeta) => m.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
 
   // ---- drag to reorder -------------------------------------------------------------
@@ -387,8 +427,13 @@ export function App() {
             const dragging = drag?.id === p.id;
             const style: React.CSSProperties = dragging
               ? { width: p.rect.w, height: p.rect.h, transform: `translate(${drag.px - (stageRef.current?.getBoundingClientRect().left ?? 0) - drag.ox + v * size.W}px, ${drag.py - (stageRef.current?.getBoundingClientRect().top ?? 0) - drag.oy}px) scale(.97)` }
-              : { width: p.rect.w, height: p.rect.h, transform: `translate(${p.rect.x}px, ${p.rect.y}px)`,
-                  ...(p.hidden ? { opacity: 0, pointerEvents: 'none' as const } : {}) };
+              : p.scale
+                // Watch view: laid out at the middle window's size and shrunk from its top-left
+                // corner, so tiles read as zoomed-out copies and grow smoothly into the middle.
+                ? { width: p.rect.w / p.scale, height: p.rect.h / p.scale, transformOrigin: '0 0', transform: `translate(${p.rect.x}px, ${p.rect.y}px) scale(${p.scale})`,
+                    ...(p.hidden ? { opacity: 0, pointerEvents: 'none' as const } : {}) }
+                : { width: p.rect.w, height: p.rect.h, transform: `translate(${p.rect.x}px, ${p.rect.y}px)`,
+                    ...(p.hidden ? { opacity: 0, pointerEvents: 'none' as const } : {}) };
             return (
               <WindowFrame
                 key={p.id}
@@ -399,10 +444,11 @@ export function App() {
                 opacity={opacityFor(meta)}
                 page={pages[p.page]}
                 onDragStart={(e) => onDragStart(p.id, e)}
+                onTileClick={p.scale && p.scale < 1 ? () => setFocusId(p.index === 0 ? null : p.id) : undefined}
               >
                 {/* Virtualization: only windows near what's on screen mount their app view. */}
                 {dragging || (!p.far && Math.abs(p.page - v) <= 1)
-                  ? <AppBody id={p.id} meta={meta} w={p.rect.w} h={p.rect.h} />
+                  ? <AppBody id={p.id} meta={meta} w={p.rect.w / (p.scale ?? 1)} h={p.rect.h / (p.scale ?? 1)} />
                   : <div className="app-parked" />}
               </WindowFrame>
             );
@@ -413,7 +459,7 @@ export function App() {
             if (!slot || (!drag.from && slot.id === drag.id)) return null;
             return <div className="drop-ghost" style={{ width: slot.rect.w, height: slot.rect.h, transform: `translate(${slot.rect.x}px, ${slot.rect.y}px)` }} />;
           })()}
-          {nestedPage && (() => {
+          {nestedPage && !watch && (() => {
             const newer = focus, older = Math.max(0, nestedPage.windows.length - focus - 6);
             const left = nestedPage.index * size.W;
             return (<>
@@ -511,6 +557,7 @@ const useSelected = () => useSyncExternalStore((fn) => { selectListeners.add(fn)
 function WindowFrame(props: {
   meta: InstanceMeta; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
   page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Edge;
+  onTileClick?: () => void; // watch view side tile: a click brings it to the middle instead of selecting
 }) {
   const { meta, page, tucked } = props;
   const [menu, setMenu] = useState(false);
@@ -545,7 +592,9 @@ function WindowFrame(props: {
         )}
       </div>
       <div className="body">{props.children}</div>
-      {shielded && <div className="body-shield" title="Click to use this window" onPointerDown={() => selectWindow(meta.id)} />}
+      {props.onTileClick
+        ? <div className="body-shield" title="Bring to the middle" onPointerDown={props.onTileClick} />
+        : shielded && <div className="body-shield" title="Click to use this window" onPointerDown={() => selectWindow(meta.id)} />}
     </section>
   );
 }

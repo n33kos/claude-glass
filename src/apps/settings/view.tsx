@@ -124,6 +124,15 @@ export function SettingsView({ glass, config }: ViewProps) {
 
       <h4>Windows &amp; layout</h4>
       <Toggle label="Nested view: newest window big, older ones spiral smaller (scroll to walk back)" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />
+      {config.nestedView && (
+        <label className="s-row s-sub">
+          <span>Arrangement</span>
+          <select value={config.nestedStyle ?? 'spiral'} onChange={(e) => setConfig('nestedStyle', e.target.value)}>
+            <option value="spiral">Spiral: each older window half the size</option>
+            <option value="watch">Watch: one in the middle, neighbors as tiles either side</option>
+          </select>
+        </label>
+      )}
       <label className="s-row">
         <span>Layout for new desktops</span>
         <select value={config.defaultLayout} disabled={config.nestedView} onChange={(e) => setConfig('defaultLayout', e.target.value)}>

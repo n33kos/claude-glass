@@ -394,11 +394,14 @@ Queue, in order:
     view-only UI state (a tiny store in App.tsx), never reducer state. Risk: the extra click may
     frustrate; judge in use, the setting turns it off.
 
-22. [ ] **"Watch" view** (after 20; a third visualization beside desktops and the nested spiral):
-    one focused window in the middle; windows before and after it shrink into small tiles in a grid
-    on either side (like the Apple Watch app grid), smaller the farther away, fading off the
-    edges. Scrolling moves through the sequence: the next tile grows into the center as the current
-    one shrinks back into the grid. Depth (scale) gives far windows room instead of cramming them.
+22. [x] **"Watch" view (2026-09-27, first cut)**: a style of the nested view (global
+    `nestedStyle: spiral | watch`, Settings → Nested view → Arrangement). The focused window sits in
+    the middle; the next four older windows fill a 2×2 grid on the right (near column larger), the
+    four newer ones on the left; farther ones wait just past the edges, hidden, and slide in.
+    Tiles are the real window laid out at full size and scaled down (`Placed.scale`), so they read
+    as zoomed-out copies and grow smoothly into the middle. Scroll (either direction) or ⌘←/⌘→
+    walks the row; clicking a tile brings it to the middle. Ideas: more depth rings, a subtle
+    perspective/blur on far tiles.
 
 26. [x] **Resizable windows inside a sidebar (2026-09-27)**: drag the gap between two windows in a
     sidebar (`.edge-split`) to change their shares; `tuck.split` stores normalized shares per

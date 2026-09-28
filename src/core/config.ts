@@ -21,6 +21,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   wheelDesktops: true,
   disabledApps: [],
   nestedView: false,
+  nestedStyle: 'spiral',
   toolReminders: true,
   selectToInteract: true,
   appSettings: {},
@@ -67,6 +68,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
       return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];
     }
     case 'scope': if (value !== 'session' && value !== 'folder') throw new Error(`scope must be session or folder`); return value;
+    case 'nestedStyle': if (value !== 'spiral' && value !== 'watch') throw new Error('nestedStyle must be spiral or watch'); return value;
     case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
     case 'defaultLayout': if (!isDefaultLayout(value)) throw new Error(`unknown layout ${value}`); return value;
@@ -79,6 +81,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
 /** What each global setting does, for `claude-glass settings` (Claude reads this). */
 export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   nestedView: 'true|false: one screen, newest window big, older ones spiral smaller',
+  nestedStyle: 'spiral|watch: nested view arrangement (watch: focused window centered, neighbors as small tiles either side)',
   defaultLayout: 'claude|full|split|main-left|main-left-nest|columns|grid: layout for new desktops',
   windowOpacity: '0.2..1: window glass opacity',
   background: 'aurora|dune|tide|graphite or an absolute image path',
