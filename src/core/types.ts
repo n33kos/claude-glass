@@ -55,6 +55,7 @@ export interface GlobalConfig {
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
   scope: 'session' | 'folder'; // one glass per session, or one per project folder shared by its sessions
   nestedView: boolean; // one screen: newest window big, older ones spiral into smaller panes
+  appSettings: Record<string, Record<string, unknown>>; // per app type: values for the settings its manifest declares
   toolReminders: boolean; // remind Claude to use Read/Edit/Write when a Bash command did file I/O (scripts/tool-reminder.sh)
 }
 

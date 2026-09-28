@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
+import { settingValues, type SettingSpec } from '../types';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
 import { DEFAULT_PALETTES, MOODS, type Mood } from '../../core/colors';
 import { BACKGROUNDS, PRESETS } from '../../renderer/backgrounds';
@@ -171,11 +172,14 @@ export function SettingsView({ glass, config }: ViewProps) {
         const mod = mods.find((m) => m.ok && m.type === a.type);
         const on = !config.disabledApps.includes(a.type);
         return (
-          <Toggle key={a.type} on={on}
-            onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
-            label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
-              {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
-                {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
+          <Fragment key={a.type}>
+            <Toggle on={on}
+              onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
+              label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
+                {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
+                  {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
+            {on && a.settings && <AppSettings type={a.type} specs={a.settings} stored={config.appSettings?.[a.type]} />}
+          </Fragment>
         );
       })}
       {mods.filter((m) => !m.ok).map((m) => (
@@ -187,6 +191,35 @@ export function SettingsView({ glass, config }: ViewProps) {
       <p className="s-note">New or changed custom apps load when the glass restarts.</p>
       <p className="s-foot">Session {glass.session.id}</p>
     </div>
+  );
+}
+
+/** An app's own settings, rendered from its manifest; each change is `app.<type>.<key>`. */
+function AppSettings({ type, specs, stored }: { type: string; specs: Record<string, SettingSpec>; stored?: Record<string, unknown> }) {
+  const values = settingValues({ settings: specs }, stored);
+  const set = (key: string, v: unknown) => setConfig(`app.${type}.${key}`, v);
+  return (
+    <>
+      {Object.entries(specs).map(([key, s]) => {
+        const v = values[key];
+        const label = <span title={s.help}>{s.label}</span>;
+        if (s.type === 'bool') return <div key={key} className="s-sub"><Toggle label={label} on={v === true} onChange={(x) => set(key, x)} /></div>;
+        return (
+          <label key={key} className="s-row s-sub">
+            {label}
+            {s.type === 'enum' ? (
+              <select value={String(v)} onChange={(e) => set(key, e.target.value)}>{s.options.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+            ) : s.type === 'number' ? (
+              <input type="number" className="s-num" value={Number(v)} min={s.min} max={s.max} onChange={(e) => e.target.value !== '' && set(key, Number(e.target.value))} />
+            ) : s.type === 'color' ? (
+              <input type="color" className="s-color" value={String(v)} onChange={(e) => set(key, e.target.value)} />
+            ) : (
+              <input type="text" defaultValue={String(v)} onBlur={(e) => set(key, e.target.value)} />
+            )}
+          </label>
+        );
+      })}
+    </>
   );
 }
 

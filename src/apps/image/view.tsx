@@ -2,7 +2,7 @@ import type { AppViewProps } from '../../sdk/react';
 import { fileUrl } from '../../renderer/viewTypes';
 import { GRID_MAX, type ImageState } from './index';
 
-export default function ImageView({ state, run, host }: AppViewProps<ImageState>) {
+export default function ImageView({ state, run, host, settings }: AppViewProps<ImageState>) {
   const n = state.images.length;
   if (!n) return <div className="img-empty">Images Claude looks at or shows you appear here.</div>;
   const grid = state.view === 'grid' && n > 1;
@@ -15,7 +15,7 @@ export default function ImageView({ state, run, host }: AppViewProps<ImageState>
 
   if (grid) {
     // Newest first; click one to open it on its own.
-    const recent = state.images.map((img, i) => ({ img, i })).slice(-GRID_MAX).reverse();
+    const recent = state.images.map((img, i) => ({ img, i })).slice(-(Number(settings?.gridSize) || GRID_MAX)).reverse();
     return (
       <div className="imagegrid">
         {toggle}

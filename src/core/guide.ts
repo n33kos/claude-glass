@@ -1,6 +1,7 @@
 // Printed by `claude-glass open` and injected by SessionStart when the glass is live.
 // Keep it short: it lands in Claude's context.
 import { APPS } from '../apps/registry';
+import { settingValues, type AppDef } from '../apps/types';
 import type { GlobalConfig } from './types';
 
 export const GUIDE = `# Claude Glass is open for this session
@@ -88,7 +89,7 @@ export function guideForSettings(text: string, settings: Record<string, string>)
   let keep = true;
   const out: string[] = [];
   for (const line of text.split('\n')) {
-    const when = line.match(/^\s*<!--\s*when\s+([A-Za-z.]+)\s*=\s*([^\s>]+)\s*-->\s*$/);
+    const when = line.match(/^\s*<!--\s*when\s+([A-Za-z0-9.]+)\s*=\s*([^\s>]+)\s*-->\s*$/);
     if (when) { keep = settings[when[1]] === when[2]; continue; }
     if (/^\s*<!--\s*end\s*-->\s*$/.test(line)) { keep = true; continue; }
     if (keep) out.push(line);
@@ -96,11 +97,13 @@ export function guideForSettings(text: string, settings: Record<string, string>)
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView'>> & { windowMode?: 'live' | 'history' }): string {
+export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView' | 'appSettings'>> & { windowMode?: 'live' | 'history' }): string {
   const settings = { windowMode: config.windowMode ?? 'live', nestedView: String(!!config.nestedView) };
+  // Each app's guide also sees its own settings by key (`<!-- when grid=true -->`).
+  const own = (a: AppDef) => Object.fromEntries(Object.entries(settingValues(a, config.appSettings?.[a.type])).map(([k, v]) => [k, String(v)]));
   const apps = Object.values(APPS)
     .filter((a) => a.guide && !config.disabledApps?.includes(a.type))
-    .map((a) => ({ a, text: guideForSettings(a.guide!, settings) }))
+    .map((a) => ({ a, text: guideForSettings(a.guide!, { ...own(a), ...settings }) }))
     .filter((g) => g.text);
   const appGuides = apps.length
     ? '\n\n# Installed apps\n' + apps.map(({ a, text }) => `\n## ${a.title} (\`${a.type}\`)\n${text}`).join('\n')

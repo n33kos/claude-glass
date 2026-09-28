@@ -263,6 +263,16 @@ describe('settings from the CLI', () => {
     expect(core.config.windowOpacity).toBe(0.5);
     expect(await cli('open')).toContain('claude-glass settings set <key> <value>');
   });
+  it("apps' own settings: listed, set by app.<type>.<key>, validated against the manifest", async () => {
+    expect(await cli('settings')).toMatch(/app\.image\.gridSize\s+12/);
+    await cli('settings', 'set', 'app.image.gridSize', '4');
+    expect(core.config.appSettings.image).toEqual({ gridSize: 4 });
+    const bad = await run(join(root, 'bin/claude-glass'), ['settings', 'set', 'app.image.gridSize', '400']);
+    expect(bad.stderr).toContain('between');
+    const none = await run(join(root, 'bin/claude-glass'), ['settings', 'set', 'app.image.nope', '1']);
+    expect(none.stderr).toContain('gridSize');
+    await cli('settings', 'set', 'app.image.gridSize', '12');
+  });
   it('background colors: the user sets their own; Claude signals per session, validated', async () => {
     await cli('settings', 'set', 'backgroundColors', '#112233,445566');
     expect(core.config.backgroundColors).toEqual(['#112233', '#445566']);

@@ -4,6 +4,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync,
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
+import { coerceSetting, settingValues } from '../apps/types';
 import { coerceConfigValue, loadConfig, saveConfig, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
 import { applyHook } from './hooks';
@@ -98,6 +99,18 @@ export class GlassCore {
   }
 
   setConfig(key: string, value: unknown): GlobalConfig {
+    // app.<type>.<key>: one of an app's own settings, validated against its manifest.
+    const appKey = key.match(/^app\.([a-z][a-z0-9-]*)\.([A-Za-z0-9]+)$/);
+    if (appKey) {
+      const [, type, name] = appKey;
+      const spec = APPS[type]?.settings?.[name];
+      if (!spec) throw new Error(`no setting "${name}" for app "${type}"${APPS[type]?.settings ? ` (settings: ${Object.keys(APPS[type].settings!).join(', ')})` : ''}`);
+      const all = this.config.appSettings ?? {};
+      this.config = { ...this.config, appSettings: { ...all, [type]: { ...all[type], [name]: coerceSetting(spec, value, name) } } };
+      saveConfig(this.config);
+      for (const fn of this.listeners) fn(this.state, this.config);
+      return this.config;
+    }
     const v = coerceConfigValue(key as keyof GlobalConfig, value);
     this.config = { ...this.config, [key]: v };
     saveConfig(this.config);
@@ -144,6 +157,7 @@ export class GlassCore {
       source: a.source,
       ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage) ? { permissions: a.permissions } : {}),
       commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
+      ...(a.settings ? { settings: Object.fromEntries(Object.entries(a.settings).map(([k, s]) => [k, { ...s, value: settingValues(a, this.config.appSettings?.[a.type])[k] }])) } : {}),
     }));
   }
 

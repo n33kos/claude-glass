@@ -372,10 +372,12 @@ Queue, in order:
     images guide asks Claude to reuse one viewer (`show … --id images`) in live mode only. Fixed on
     the way: built-in apps' `guide.md` was never read (only custom apps' was).
 
-24. [ ] **App settings**: apps declare their own settings in the manifest (a small schema: key,
-    type bool/enum/number/color, default, label, help); Settings renders them per app, the CLI
-    lists/sets them (`claude-glass settings set app.<type>.<key> …`), apps read them through the
-    SDK, and guide text can depend on them (see 23).
+24. [x] **App settings (2026-09-27)**: manifests declare `settings` (key → type bool|enum|number|
+    color|text, label, default, help, min/max/options; `parseSettingSpecs`). Values are global
+    (`appSettings.<type>`), set with `claude-glass settings set app.<type>.<key> <value>` (validated
+    by `coerceSetting`), listed by `claude-glass settings`, shown under each app in Settings → Apps,
+    passed to views as `props.settings` (defaults filled in), and usable in `guide.md` when-blocks by
+    key. Example: images `gridSize`. Docs in `docs/apps.md`.
 
 25. [x] **State palettes (2026-09-27)**: global `stateColors` (default on) + `statePalettes`
     recolor the wallpaper light from session state the hooks already track (`moodOf`): working

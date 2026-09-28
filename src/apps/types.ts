@@ -26,6 +26,7 @@ export interface AppDef<S = any> {
   internal?: string[]; // commands only hooks/the view use; hidden from Claude's catalog
   viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
   guide?: string; // instructions for Claude, appended to the glass guide
+  settings?: Record<string, SettingSpec>; // the app's own user settings (Settings → Apps, CLI, view props)
   permissions?: AppPermissions;
   source?: 'builtin' | 'user';
   dir?: string; // mod folder: its view.html is served into a sandboxed frame
@@ -79,6 +80,71 @@ export function parsePermissions(raw: unknown): AppPermissions {
   return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true };
 }
 
+/**
+ * One app setting, declared in the manifest's "settings": the user changes it in Settings → Apps or
+ * with `claude-glass settings set app.<type>.<key> <value>`; the view gets the values as props, and
+ * guide.md can depend on them (`<!-- when <key>=<value> -->`).
+ */
+export type SettingSpec =
+  | { type: 'bool'; label: string; help?: string; default: boolean }
+  | { type: 'enum'; label: string; help?: string; default: string; options: string[] }
+  | { type: 'number'; label: string; help?: string; default: number; min?: number; max?: number }
+  | { type: 'color'; label: string; help?: string; default: string }
+  | { type: 'text'; label: string; help?: string; default: string };
+
+const SETTING_KEY = /^[a-zA-Z][a-zA-Z0-9]{0,31}$/;
+
+/** Validate a manifest's settings block. */
+export function parseSettingSpecs(raw: unknown): Record<string, SettingSpec> | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new Error('settings must be an object');
+  const out: Record<string, SettingSpec> = {};
+  for (const [key, s] of Object.entries(raw as Record<string, any>)) {
+    if (!SETTING_KEY.test(key)) throw new Error(`settings: key "${key}" must be letters and digits`);
+    if (!s || typeof s.label !== 'string') throw new Error(`settings.${key} needs a label`);
+    const spec = { ...s, help: s.help === undefined ? undefined : String(s.help) } as SettingSpec;
+    if (spec.type === 'enum' && (!Array.isArray(spec.options) || !spec.options.length)) throw new Error(`settings.${key}: enum needs options`);
+    if (!['bool', 'enum', 'number', 'color', 'text'].includes(spec.type)) throw new Error(`settings.${key}: type must be bool, enum, number, color or text`);
+    coerceSetting(spec, spec.default, key); // the default must be valid too
+    out[key] = spec;
+  }
+  return out;
+}
+
+/** A value for one setting (strings from the CLI are converted); throws when it doesn't fit. */
+export function coerceSetting(spec: SettingSpec, value: unknown, key = 'setting'): unknown {
+  switch (spec.type) {
+    case 'bool':
+      if (value === true || value === 'true') return true;
+      if (value === false || value === 'false') return false;
+      throw new Error(`${key} must be true or false`);
+    case 'enum':
+      if (spec.options.includes(String(value))) return String(value);
+      throw new Error(`${key} must be one of ${spec.options.join(', ')}`);
+    case 'number': {
+      const n = Number(value);
+      if (!Number.isFinite(n)) throw new Error(`${key} must be a number`);
+      if ((spec.min != null && n < spec.min) || (spec.max != null && n > spec.max)) throw new Error(`${key} must be between ${spec.min ?? '-∞'} and ${spec.max ?? '∞'}`);
+      return n;
+    }
+    case 'color': {
+      const c = String(value).toLowerCase();
+      if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/.test(c)) throw new Error(`${key} must be a hex color`);
+      return c;
+    }
+    case 'text': return String(value ?? '').slice(0, 500);
+  }
+}
+
+/** An app's settings with defaults filled in (stored values that no longer fit are ignored). */
+export function settingValues(app: Pick<AppDef, 'settings'>, stored: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, spec] of Object.entries(app.settings ?? {})) {
+    try { out[key] = stored && key in stored ? coerceSetting(spec, stored[key], key) : spec.default; } catch { out[key] = spec.default; }
+  }
+  return out;
+}
+
 /** What the renderer needs to know about an app. */
 export interface AppInfo {
   type: string;
@@ -89,10 +155,11 @@ export interface AppInfo {
   frame: boolean; // view is a mod-style frame (glass-app://<type>/view.html)
   viewCommands: string[];
   permissions: AppPermissions;
+  settings?: Record<string, SettingSpec>;
 }
 
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS };
+  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings };
 }

@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   disabledApps: [],
   nestedView: false,
   toolReminders: true,
+  appSettings: {},
 };
 
 export function loadConfig(): GlobalConfig {
@@ -90,5 +91,6 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   disabledApps: 'comma-separated app types the user turned off (change only if asked)',
   autoStart: 'true|false: open a glass when a Claude session starts',
   scope: 'session|folder: one glass per session, or one per project folder',
+  appSettings: 'apps\' own settings: set one with app.<type>.<key> <value> (listed below)',
   toolReminders: 'true|false: remind Claude to use Read/Edit/Write when a Bash command reads or writes files (change only if asked)',
 };

@@ -119,7 +119,26 @@ Parts that only apply in one mode go in a block; the rest is always included:
     Each image opens its own window; that's expected.
     <!-- end -->
 
-Keys: `windowMode` (`live` | `history`), `nestedView` (`true` | `false`).
+Keys: `windowMode` (`live` | `history`), `nestedView` (`true` | `false`), and your app's own
+settings by key (below).
+
+### Settings
+
+An app can declare its own settings in the manifest. They show under the app in Settings → Apps,
+Claude can list and set them (`claude-glass settings`, `claude-glass settings set
+app.<type>.<key> <value>`), your view gets the values (defaults filled in) as `settings` in its
+props, and `guide.md` blocks can depend on them.
+
+    "settings": {
+      "gridSize": { "type": "number", "label": "Images in the grid", "default": 12, "min": 2, "max": 40 },
+      "compact":  { "type": "bool", "label": "Compact rows", "default": false },
+      "theme":    { "type": "enum", "label": "Theme", "default": "dark", "options": ["dark", "light"] },
+      "accent":   { "type": "color", "label": "Accent", "default": "#6c5ce7" },
+      "greeting": { "type": "text", "label": "Greeting", "default": "Hi" }
+    }
+
+Keys are letters and digits. Values are validated against the type (and `min`/`max`/`options`);
+they're global (every glass), stored in the glass config under `appSettings.<type>`.
 
 ## Permissions
 

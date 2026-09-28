@@ -1,8 +1,8 @@
 // Hosts an app view in a sandboxed frame (glass-app://<type>/view.html) and speaks the SDK's
 // bridge v1 (src/sdk/glass-app.ts). The frame gets props; it can run its own view commands and
 // ask for host services. It can't reach Claude, other apps, or the shell's DOM.
-import { useEffect, useRef, useState } from 'react';
-import type { AppInfo } from '../apps/types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { settingValues, type AppInfo } from '../apps/types';
 import type { GlassState, InstanceMeta } from '../core/types';
 import { Lightbox } from './Lightbox';
 
@@ -15,15 +15,17 @@ interface Props {
   height: number;
   glass: GlassState;
   run: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+  stored?: Record<string, unknown>; // this app's saved settings (config.appSettings[type])
 }
 
-export function FrameView({ app, id, meta, state, width, height, glass, run }: Props) {
+export function FrameView({ app, id, meta, state, width, height, glass, run, stored }: Props) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   const session = { cwd: glass.session.cwd, activity: glass.session.activity, ended: !!glass.session.endedAt, waiting: glass.session.waiting ?? null };
-  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session };
+  const settings = useMemo(() => settingValues(app, stored), [app, stored]);
+  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings };
   const post = (msg: object) => ref.current?.contentWindow?.postMessage({ glass: 1, ...msg }, '*');
   const latest = useRef(props);
   latest.current = props;
@@ -57,7 +59,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run }: P
 
   // Props on ready and on every change (state slices keep identity when unchanged).
   useEffect(() => { if (ready) post({ kind: 'props', props }); },
-    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended]); // eslint-disable-line react-hooks/exhaustive-deps
+    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live frames for this instance (browser stream); the latest ones are replayed on 'ready'.
   useEffect(() => window.glass.onFrame((f) => { if (f.id === id) post({ kind: 'frame', source: f.source, data: f.data }); }), [id]); // eslint-disable-line react-hooks/exhaustive-deps

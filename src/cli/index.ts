@@ -295,7 +295,12 @@ async function main(argv: string[]) {
       } else {
         const c = loadConfig() as unknown as Record<string, unknown>;
         const rows = Object.entries(SETTINGS_HELP).map(([k, help]) => `  ${k.padEnd(18)} ${JSON.stringify(c[k]).padEnd(12)} ${help}`);
-        out({ global: c }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
+        // Apps' own settings, from the live glass (it knows which apps loaded).
+        const cat: any[] = await call(sessionId(flags), { op: 'catalog' }).catch(() => []);
+        const appRows = cat.flatMap((a) => Object.entries(a.settings ?? {}).map(([k, s]: [string, any]) =>
+          `  ${`app.${a.type}.${k}`.padEnd(26)} ${JSON.stringify(s.value).padEnd(8)} ${s.label}${s.type === 'enum' ? ` (${s.options.join('|')})` : s.type === 'number' && s.min != null ? ` (${s.min}..${s.max ?? ''})` : ''}`));
+        out({ global: c, apps: Object.fromEntries(cat.filter((a) => a.settings).map((a) => [a.type, a.settings])) }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
+          ...(appRows.length ? ['', 'App settings:', ...appRows] : []),
           '', 'This session: settings set session.windowMode live|history, session.historyLimit <n> (history windows kept; default 12), session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
       }
       return;

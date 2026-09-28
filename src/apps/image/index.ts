@@ -27,6 +27,9 @@ export const image: AppDef<ImageState> = {
     view: { usage: 'view --mode single|grid', help: 'One image at a time, or a grid of the most recent', view: true },
     clear: { usage: 'clear', help: 'Remove all images' },
   },
+  settings: {
+    gridSize: { type: 'number', label: 'Images in the grid view', help: 'How many recent images the grid shows', default: GRID_MAX, min: 2, max: 40 },
+  },
   init: () => ({ images: [], index: -1 }),
   command(s, cmd, a: Args) {
     switch (cmd) {

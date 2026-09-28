@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
-import { parsePermissions } from '../../src/apps/types';
+import { coerceSetting, parsePermissions, parseSettingSpecs, settingValues } from '../../src/apps/types';
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
@@ -395,6 +395,27 @@ describe('app guides by setting', () => {
     s = img.command(s, 'select', { index: 0, single: true });
     expect(s).toMatchObject({ view: 'single', index: 0 });
     expect(() => img.command(s, 'view', { mode: 'mosaic' })).toThrow();
+  });
+});
+
+describe('app settings', () => {
+  it('manifest specs are validated; values coerce and fall back to defaults', () => {
+    const specs = parseSettingSpecs({
+      gridSize: { type: 'number', label: 'Grid', default: 12, min: 2, max: 40 },
+      compact: { type: 'bool', label: 'Compact', default: false },
+      theme: { type: 'enum', label: 'Theme', default: 'dark', options: ['dark', 'light'] },
+    })!;
+    expect(coerceSetting(specs.gridSize, '8')).toBe(8);
+    expect(() => coerceSetting(specs.gridSize, '99')).toThrow(/between/);
+    expect(coerceSetting(specs.compact, 'true')).toBe(true);
+    expect(() => coerceSetting(specs.theme, 'neon')).toThrow(/one of/);
+    expect(settingValues({ settings: specs }, { gridSize: 4, theme: 'neon' })).toEqual({ gridSize: 4, compact: false, theme: 'dark' });
+    expect(() => parseSettingSpecs({ 'bad-key': { type: 'bool', label: 'x', default: true } })).toThrow(/letters/);
+    expect(() => parseSettingSpecs({ n: { type: 'number', label: 'x', default: 50, max: 10 } })).toThrow(/between/);
+    expect(() => parseSettingSpecs({ e: { type: 'enum', label: 'x', default: 'a' } })).toThrow(/options/);
+  });
+  it("an app's guide can depend on its own settings", () => {
+    expect(guideForSettings('A\n<!-- when compact=true -->\nB\n<!-- end -->', { compact: 'false' })).toBe('A');
   });
 });
 

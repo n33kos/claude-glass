@@ -165,6 +165,12 @@ try {
     const tiles = await grid.locator('.img-tile').count();
     check(tiles === 3, `image grid shows the recent images together (${tiles} tiles)`);
     await page.locator(`[data-window="${gid}"]`).screenshot({ path: join(shots, '06h-image-grid.png') });
+    await cli(env, 'settings', 'set', 'app.image.gridSize', '2');
+    await sleep(500);
+    const capped = await grid.locator('.img-tile').count();
+    check(capped === 2, `an app setting reaches its view: gridSize 2 shows ${capped} tiles`);
+    await cli(env, 'settings', 'set', 'app.image.gridSize', '12');
+    await sleep(500);
     await grid.locator('.img-tile').last().click();
     await sleep(400);
     const single = JSON.parse(await cli(env, 'state', gid)).state;
@@ -229,6 +235,9 @@ try {
   await page.locator('.s-color').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07c-settings-look.png') });
+  await page.locator('.s-num').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await sleep(150);
+  await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07e-settings-app-setting.png') });
   await page.locator('.settings').evaluate((el) => { el.scrollTop = el.scrollHeight; });
   await sleep(150);
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07d-settings-apps.png') });
