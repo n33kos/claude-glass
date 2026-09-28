@@ -227,6 +227,32 @@ const Fragment = ({ children }: { children: ReactNode }) => <>{children}</>;
 // ---- compare: columns side by side (stacked when narrow), filling the height ----
 function Compare({ b, columns }: { b: Box; columns: Item[] }) {
   const n = Math.max(columns.length, 1);
+  const most = Math.max(1, ...columns.map((c) => (c.points ?? []).length));
+  // Columns need room for the longest list; when the window is short (or the columns too thin),
+  // each option becomes a row with its points as chips, and type shrinks a little if still tight.
+  const colsFit = b.W / n >= b.s * 11 && b.H >= b.s * (5.5 + most * 3.2);
+  if (!colsFit && b.W >= b.s * 30) {
+    const rowH = (b.H - b.s * (n - 1)) / n;
+    const fs = clamp(rowH / (b.s * 4.2), 0.72, 1);
+    return (
+      <div className="dg-compare rows" style={{ gridAutoRows: '1fr', gap: b.s * 0.8, fontSize: `${fs}em` }}>
+        {columns.map((c, i) => {
+          const color = accent(c, i);
+          return (
+            <section key={i} className={`dg-col dg-row${c.tone === 'good' ? ' pick' : ''}`} style={acc(color, { animationDelay: `${i * 70}ms` })}>
+              <header style={{ width: clamp(b.W * 0.22, b.s * 8, b.s * 15) }}><b>{c.title}</b>{c.tone === 'good' && <span className="dg-ribbon">best fit</span>}{c.note && <small>{c.note}</small>}</header>
+              <div className="dg-chips">
+                {(c.points ?? []).map((p: any, j: number) => {
+                  const it = item(p), bad = it.tone === 'bad' || it.tone === 'warn';
+                  return <span key={j} className="dg-chip dg-point" style={it.tone ? acc(TONES[it.tone]) : undefined} title={it.note}><i>{bad ? '–' : '✓'}</i>{it.title}</span>;
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
   const stacked = b.W / n < b.s * 11;
   return (
     <div className={`dg-compare${stacked ? ' stacked' : ''}`} style={{ gridTemplateColumns: stacked ? '1fr' : `repeat(${n}, 1fr)` }}>

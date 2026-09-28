@@ -76,6 +76,17 @@
 .dg-col li i { flex: none; width: 1.35em; height: 1.35em; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .78em; font-weight: 800; color: #0b1020; background: var(--a); margin-top: .1em; }
 .dg-col li small { display: block; color: var(--ink-dim); font-size: .85em; }
 
+/* compare as rows (short windows): option on the left, its points as chips */
+.dg-compare.rows { grid-template-columns: 1fr; }
+.dg-row { flex-direction: row; align-items: stretch; }
+.dg-row header { flex: none; display: flex; flex-direction: column; justify-content: center; gap: .3em; border-bottom: 0; border-right: 1px solid color-mix(in srgb, var(--a) 25%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--a) 24%, transparent), transparent); }
+.dg-row header::before { right: auto; bottom: 0; width: 3px; height: auto; }
+.dg-row header { padding-right: 5.5em; overflow: hidden; }
+.dg-row .dg-ribbon { float: none; position: absolute; top: .7em; right: .7em; }
+.dg-row .dg-chips { padding: .6em 1em; overflow: hidden; }
+.dg-point { display: inline-flex; align-items: center; gap: .5em; white-space: normal; }
+.dg-point i { flex: none; width: 1.3em; height: 1.3em; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .75em; font-weight: 800; color: #0b1020; background: var(--a); }
 /* cycle */
 .dg-ring { fill: none; stroke: rgba(255, 255, 255, 0.06); stroke-width: 1.5; }
 .dg-center { position: absolute; transform: translate(-50%, -50%); text-align: center; font-weight: 700; letter-spacing: -0.01em; color: rgba(255, 255, 255, 0.85); line-height: 1.2; }

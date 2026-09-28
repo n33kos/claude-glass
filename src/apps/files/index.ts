@@ -7,7 +7,7 @@ export interface FilesState {
   cwd?: string;
   files: Record<string, FileStat>; // path relative to the project when inside it
   links: Record<string, number>; // "a\u0000b" (sorted) → times touched in the same prompt
-  view?: 'list' | 'map';
+  view?: 'list' | 'tree' | 'map';
   turn?: { id: string; paths: string[] }; // the prompt being worked on, for links
 }
 
@@ -22,15 +22,15 @@ export const files: AppDef<FilesState> = {
   title: 'Files',
   icon: '▤',
   singleton: true,
-  description: 'Every file Claude read or changed this session, as a list by folder or a map of what it worked on together. Fills itself.',
+  description: 'Every file Claude read or changed this session: most recent first, as a folder tree, or a map of what it worked on together. Fills itself.',
   commands: {
-    view: { usage: 'view --mode list|map', help: 'List by folder, or a map', view: true },
+    view: { usage: 'view --mode list|tree|map', help: 'Most recent first, a folder tree, or a map', view: true },
     clear: { usage: 'clear', help: 'Forget the session so far' },
   },
   init: () => ({ files: {}, links: {} }),
   command(s, cmd, a: Args) {
     if (cmd === 'view') {
-      if (a.mode !== 'list' && a.mode !== 'map') throw new Error('files: view --mode list|map');
+      if (a.mode !== 'list' && a.mode !== 'tree' && a.mode !== 'map') throw new Error('files: view --mode list|tree|map');
       return { ...s, view: a.mode };
     }
     if (cmd === 'clear') return { ...files.init(), view: s.view };

@@ -71,11 +71,11 @@ starts** in Settings (the gear in the dock), or `claude-glass settings set autoS
 | Changes | a diff of every edit; flip through a file's revisions |
 | Plan | plan files and plan mode |
 | Images | images Claude reads; one at a time or a grid of recent ones |
-| Browser | Claude's web searches (results) and the pages it fetches, rendered, with back/forward and the passage Claude says it relied on highlighted; a browser Claude drives (Playwright, Chrome with a DevTools port) streams in live |
+| Browser | Claude's web searches (results) and the pages it fetches, rendered, with back/forward and the passage Claude says it relied on highlighted; a browser Claude drives (Playwright, Chrome with a DevTools port) streams in live, watch-only (copy the address or open it in your own browser with ↗) |
 | Tasks | Claude's own to-do list, live, with progress and what it's doing now |
 | Agents | the subagents Claude starts: their task, whether they're still running, and what each reported |
 | Tests | results of the test runs Claude does (npm test, vitest, jest, pytest, go test, cargo test…): pass/fail, failing tests, recent runs |
-| Files | every file Claude read or changed, as a list by folder or a map of what it worked on together |
+| Files | every file Claude read or changed: most recent first, as a folder tree, or a map of what it worked on together |
 
 Claude can also draw **diagrams** from templates (flow, sequence, layers, timeline, compare, tree,
 cycle, stats): it picks one and fills it with JSON, so they look the same polished way every time.

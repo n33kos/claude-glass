@@ -47,8 +47,11 @@ export default function BrowserView({ state, run, host }: AppViewProps<BrowserSt
           <button disabled={at >= n - 1} onClick={() => go(at + 1)} aria-label="Forward" title="Forward">›</button>
         </span>
         <span className={`b-dot ${bar.dot}`} />
-        <span className="b-url" title={bar.url}>{bar.url}</span>
+        {/* Read-only but selectable, so the address can be copied (⌘C). */}
+        <input className="b-url" readOnly value={bar.url} title={bar.url} onFocus={(e) => e.currentTarget.select()} spellCheck={false} />
+        {bar.who && <span className={`b-who ${bar.who.kind}`} title={bar.who.tip}>{bar.who.label}</span>}
         <span className="b-meta">{bar.meta}</span>
+        {/^https?:/i.test(bar.url) && <button className="b-open" title="Open in your browser" aria-label="Open in your browser" onClick={() => host('open-link', { url: bar.url })}>↗</button>}
         {n > 0 && (
           <button className={`b-hist-btn${listOpen ? ' on' : ''}`} onClick={() => setListOpen((v) => !v)} title="History">
             {at < n ? `${at + 1} / ${n}` : `${n}`} ▾
@@ -103,15 +106,21 @@ function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
-function barFor(s: BrowserState): { dot: string; url: string; meta: string } {
+type Who = { kind: string; label: string; tip: string };
+// Two kinds of page, and they behave differently: Claude's own browser is watch-only (input would
+// reach Claude's work), while a page Claude fetched is the glass's own copy you can scroll and click.
+const CLAUDES: Who = { kind: 'claude', label: "Claude's browser", tip: "Live view of the browser Claude is driving. Watch only: your input never reaches it. Use ↗ to open this page yourself." };
+const COPY: Who = { kind: 'copy', label: 'Your copy', tip: "The glass's own copy of a page Claude read: scroll and click freely, Claude won't see it." };
+
+function barFor(s: BrowserState): { dot: string; url: string; meta: string; who?: Who } {
   switch (s.view) {
-    case 'cdp': return { dot: s.status, url: s.url || s.endpoint || '', meta: s.status === 'live' ? 'live' : 'reconnecting' };
+    case 'cdp': return { dot: s.status, url: s.url || s.endpoint || '', meta: s.status === 'live' ? 'live' : 'reconnecting', who: CLAUDES };
     case 'shot': return { dot: 'shot', url: s.shot?.url || s.shot?.title || 'screenshot', meta: `screenshot · ${timeAgo(s.shot?.at ?? s.updatedAt)}` };
     case 'web': {
       const w = currentWeb(s);
       if (!w) return { dot: 'off', url: '', meta: '' };
       if (w.kind === 'search') return { dot: w.results ? 'web' : 'busy', url: `Search: ${w.query}`, meta: w.results ? `${w.results.length} results` : 'searching…' };
-      return { dot: 'web', url: w.url, meta: w.title ? truncate(w.title, 40) : 'reading…' };
+      return { dot: 'web', url: w.url, meta: w.title ? truncate(w.title, 40) : 'reading…', who: COPY };
     }
     default: return { dot: 'off', url: 'no browser', meta: '' };
   }

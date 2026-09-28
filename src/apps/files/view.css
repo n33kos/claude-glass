@@ -8,13 +8,24 @@
 .fl-modes button { padding: 3px 10px; border-radius: 5px; font-size: 12px; color: var(--ink-dim); cursor: pointer; background: none; }
 .fl-modes button.on { background: rgba(255, 255, 255, 0.14); color: var(--ink); }
 .fl-list { flex: 1; overflow: auto; padding: 10px 14px 16px; }
-.fl-list h4 { margin: 12px 0 4px; font: 11.5px var(--mono); color: var(--ink-faint); font-weight: 400; }
-.fl-list section:first-child h4 { margin-top: 2px; }
 .fl-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 13px; }
 .fl-row:hover { background: rgba(255, 255, 255, 0.05); }
 .fl-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .fl-row.edited .fl-dot { background: var(--ok); } .fl-row.read .fl-dot { background: var(--sky); }
 .fl-name { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-name small { margin-left: 8px; color: var(--ink-faint); font-size: 11px; }
+.fl-row.recent { background: rgba(255, 214, 120, 0.07); }
+.fl-row.recent .fl-when { color: #ffd678; }
+.fl-row.recent .fl-dot { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 0 8px currentColor; }
+.fl-tree .fl-row { padding-top: 3px; padding-bottom: 3px; }
+.fl-dir { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; font: 12.5px var(--mono); color: var(--ink-dim); }
+.fl-dir:hover { background: rgba(255, 255, 255, 0.05); }
+.fl-dir.recent .fl-dirname { color: #ffd678; }
+.fl-caret { width: 12px; font-size: 10px; color: var(--ink-faint); transition: transform .15s; }
+.fl-caret.open { transform: rotate(90deg); }
+.fl-dirname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-dircount { display: flex; gap: 8px; font: 11px var(--sans); color: var(--ink-faint); white-space: nowrap; }
+.fl-dircount b { font-weight: 500; color: var(--ok); }
 .fl-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
 .fl-badge.e { background: rgba(62, 207, 142, 0.14); color: var(--ok); } .fl-badge.r { background: rgba(127, 200, 255, 0.12); color: var(--sky); }
 .fl-when { font-size: 11px; color: var(--ink-faint); min-width: 56px; text-align: right; }
