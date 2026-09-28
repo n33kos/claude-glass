@@ -13,8 +13,10 @@ export interface TestRun {
   ok: boolean;
   failures: string[]; // names of failing tests, as the runner printed them
   durationMs?: number;
+  files?: { name: string; ok: boolean; count?: number }[]; // per test file, when the runner lists them
+  output?: string; // the end of the run's output, for the expanded view
 }
-export interface TestsState { runs: TestRun[] }
+export interface TestsState { runs: TestRun[]; view?: 'summary' | 'details' }
 
 const RUNNERS: [string, RegExp][] = [
   ['vitest', /\bvitest\b/], ['jest', /\bjest\b/], ['pytest', /\bpytest\b|python\d? -m pytest/], ['go', /\bgo test\b/],
@@ -65,6 +67,18 @@ export function parseResults(raw: string): { passed: number; failed: number; ski
   return { passed, failed, skipped, failures, found };
 }
 
+/** Per-file results where the runner prints them: vitest "✓ file (12)" / "❯ file (12 | 1 failed)", jest "PASS file" / "FAIL file". */
+export function parseFiles(raw: string): { name: string; ok: boolean; count?: number }[] {
+  const out = raw.replace(ANSI, '');
+  const files = new Map<string, { name: string; ok: boolean; count?: number }>();
+  for (const m of out.matchAll(/^\s*(✓|❯|×|✗)\s+(\S+\.(?:test|spec)\.[cm]?[jt]sx?)\s+\((\d+)(?:\s*\|\s*(\d+) failed)?/gm)) {
+    files.set(m[2], { name: m[2], ok: m[1] === '✓' && !m[4], count: Number(m[3]) });
+  }
+  for (const m of out.matchAll(/^(PASS|FAIL)\s+(\S+)/gm)) if (/\.(test|spec)\.|_test\.|test_/.test(m[2])) files.set(m[2], { name: m[2], ok: m[1] === 'PASS' });
+  for (const m of out.matchAll(/^(\S+\.py)\s+([.FEsx]+)/gm)) files.set(m[1], { name: m[1], ok: !/[FE]/.test(m[2]), count: m[2].length });
+  return [...files.values()].slice(0, 200);
+}
+
 export const tests: AppDef<TestsState> = {
   type: 'tests',
   title: 'Tests',
@@ -73,11 +87,16 @@ export const tests: AppDef<TestsState> = {
   autoOpen: true,
   description: 'Results of the test runs Claude does (npm test, vitest, jest, pytest, go test, cargo test...). Fills itself.',
   commands: {
+    view: { usage: 'view --mode summary|details', help: 'The latest run at a glance, or every run with files, failures and output', view: true },
     clear: { usage: 'clear', help: 'Forget past runs' },
   },
   init: () => ({ runs: [] }),
-  command(s, cmd, _a: Args) {
-    if (cmd === 'clear') return tests.init();
+  command(s, cmd, a: Args) {
+    if (cmd === 'clear') return { ...tests.init(), view: s.view };
+    if (cmd === 'view') {
+      if (a.mode !== 'summary' && a.mode !== 'details') throw new Error('tests: view --mode summary|details');
+      return { ...s, view: a.mode };
+    }
     return unknownCommand('tests', cmd);
   },
   onHook(s, p) {
@@ -92,8 +111,12 @@ export const tests: AppDef<TestsState> = {
     // Nothing recognizable and no failure signal: probably not a real run (e.g. `npm test --help`).
     if (!res.found && ev !== 'PostToolUseFailure' && !r.interrupted && !/fail|error/i.test(output)) return s;
     const ok = res.found ? res.failed === 0 : ev !== 'PostToolUseFailure' && !/\bfail/i.test(output);
-    const run: TestRun = { at: Date.now(), command: command.slice(0, 300), runner, passed: res.passed, failed: res.failed, skipped: res.skipped, ok, failures: res.failures, durationMs: p.duration_ms };
-    return { runs: capTail([...s.runs, run], 30) };
+    const files = parseFiles(output);
+    const run: TestRun = {
+      at: Date.now(), command: command.slice(0, 300), runner, passed: res.passed, failed: res.failed, skipped: res.skipped, ok, failures: res.failures, durationMs: p.duration_ms,
+      ...(files.length ? { files } : {}), output: output.replace(ANSI, '').trim().slice(-6000),
+    };
+    return { ...s, runs: capTail([...s.runs, run], 30) };
   },
 };
 
