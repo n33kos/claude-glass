@@ -20,7 +20,9 @@ export function run(cmd, args, env, input = '') {
 }
 
 export const cli = (env, ...args) => run(join(root, 'bin/claude-glass'), args, env);
-export const hook = (env, payload) => run(join(root, 'scripts/hook-forward.sh'), [], env, JSON.stringify({ session_id: env.CLAUDE_CODE_SESSION_ID, cwd: root, ...payload }));
+// The project the seeded session "works in" (paths in the terminal/diffs show relative to it).
+export const project = (env) => env.SEED_PROJECT || root;
+export const hook = (env, payload) => run(join(root, 'scripts/hook-forward.sh'), [], env, JSON.stringify({ session_id: env.CLAUDE_CODE_SESSION_ID, cwd: project(env), ...payload }));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let n = 0;
@@ -37,7 +39,7 @@ async function say(env, text, id = `msg_${++n}`) {
 }
 
 export async function seed(env) {
-  const f = (p) => join(root, p);
+  const f = (p) => join(project(env), p);
   await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'The session list flickers when a glass reconnects. Can you find out why and fix it?' });
   await say(env, "I'll trace how the session list re-renders on reconnect. Starting with the socket client and the store.");
   await tool(env, 'Grep', { pattern: 'reconnect', path: f('src') }, { mode: 'files_with_matches', filenames: ['src/cli/client.ts', 'src/core/server.ts'], numFiles: 2 });

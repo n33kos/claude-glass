@@ -1,6 +1,6 @@
 # CLAUDE.md — working in claude-glass
 
-Read `PLAN.md` first (design record + milestone status), then `README.md`.
+Read `README.md` first (what it is, how the pieces fit, settings), then `docs/apps.md` (the app format).
 
 ## North star: a window into Claude's desktop
 Claude Glass is a one-way window into what Claude is doing. Claude shows; the user watches.
@@ -32,14 +32,15 @@ Tiling, dragging, desktops, and settings are conveniences for *viewing*, not way
   `export default`) + `view.tsx` (`export default`, `AppViewProps`) + `view.css`; register the
   core in `src/apps/registry.ts` and add the type to `FRAME_APPS` in `scripts/build.mjs`, which
   compiles it into a mod folder in `dist/apps/<type>`. Views run in sandboxed frames and talk
-  over the bridge (`src/sdk`). Only Settings is native. Update the app table in PLAN.md.
+  over the bridge (`src/sdk`). Only Settings is native. Mention a new app in the README.
 - Hooks must never block Claude: forwarding hooks are `async: true`; `scripts/hook-forward.sh`
   exits immediately when no socket exists.
 - Tests: use `CLAUDE_GLASS_HOME` and `CLAUDE_GLASS_RUNTIME` pointed at temp dirs. Never touch
   the real `~/.claude/claude-glass` in tests.
 - After any UI change, run `npm run e2e` and actually Read the screenshots in `test/screenshots/`.
 - Don't install the plugin into the user's global Claude config; test with `--plugin-dir`.
-- Commit at each milestone (local git only, never push). Update PLAN.md "Status" when you do.
+- Keep the README current when behavior, settings or commands change. Regenerate its media with
+  `node scripts/readme-media.mjs` when the look changes.
 
 ## Gotchas
 - macOS Unix socket paths max 104 bytes → sockets live in `/tmp/claude-glass-<uid>/`.

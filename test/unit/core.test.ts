@@ -327,7 +327,7 @@ describe('browser highlight and browsing', () => {
   });
 });
 
-describe('nested layout (experiment)', () => {
+describe('nested layout', () => {
   it('spirals: each pane is half of what is left, capped at 6, filling the screen', () => {
     const s = nestedSlots(8);
     expect(s).toHaveLength(6);
@@ -345,7 +345,7 @@ describe('nested layout (experiment)', () => {
   });
 });
 
-describe('history mode (experiment)', () => {
+describe('history mode', () => {
   const hctx: HookContext = { ...ctx, windowMode: 'history' };
   const edit = fixtures.find((p) => p.hook_event_name === 'PostToolUse' && p.tool_name === 'Edit');
   const editAs = (id: string) => ({ ...edit, tool_use_id: id });
@@ -461,7 +461,7 @@ describe('sidebar splits', () => {
   });
 });
 
-describe('edge tucking (experiment)', () => {
+describe('edge sidebars', () => {
   it('tucking takes a window out of the flow; untuck puts it back first', () => {
     let s = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
     s = reduce(s, { type: 'window.tuck', id: 'notes', edge: 'left' }).state;

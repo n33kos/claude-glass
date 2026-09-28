@@ -14,9 +14,11 @@ const app = 'dist/Claude Glass.app';
 const stampPath = 'dist/.app-stamp.json'; // outside the bundle: files inside must stay signed
 const stamp = JSON.stringify({ electronVersion, icon: statSync('assets/icon.png').mtimeMs });
 
-if (existsSync(stampPath) && readFileSync(stampPath, 'utf8') === stamp) process.exit(0);
-
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'] });
+// Newer npm versions can skip install scripts, including the one that downloads Electron itself.
+if (!existsSync(src)) run(process.execPath, ['node_modules/electron/install.js']);
+
+if (existsSync(stampPath) && readFileSync(stampPath, 'utf8') === stamp && existsSync(app)) process.exit(0);
 rmSync(app, { recursive: true, force: true });
 mkdirSync('dist', { recursive: true });
 run('cp', ['-Rc', src, app]);

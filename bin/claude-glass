@@ -1,2 +1,21 @@
 #!/usr/bin/env node
+// The CLI runs from dist/, which a fresh install (plugin marketplace, git clone) doesn't have yet.
+// First use builds it: npm install + npm run build in the plugin folder, once. Hooks never wait for
+// that: without a build they do nothing, so Claude is never blocked.
+const { existsSync } = require('node:fs');
+const { join } = require('node:path');
+const { execSync } = require('node:child_process');
+
+const root = join(__dirname, '..');
+if (!existsSync(join(root, 'dist', 'cli.js'))) {
+  const cmd = process.argv[2];
+  if (cmd === 'hook' || cmd === 'session-start-hook') process.exit(0);
+  process.stderr.write('Claude Glass: first run, installing and building (a minute or two, once)…\n');
+  try {
+    execSync('npm install --no-audit --no-fund && npm run build', { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+  } catch {
+    process.stderr.write(`Claude Glass: the build failed. Run it yourself to see why:\n  cd "${root}" && npm install && npm run build\n`);
+    process.exit(1);
+  }
+}
 require('../dist/cli.js');

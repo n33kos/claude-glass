@@ -152,7 +152,7 @@ describe('folder scope', () => {
 
   it('uses the same id as Voice Multiplexer: sha256(dir)[:12]', () => {
     // `printf '%s' <dir> | shasum -a 256 | cut -c1-12`, the relay session id algorithm.
-    expect(folderGlassId('/Users/user/claude-glass')).toBe('20ca07fd5ec9');
+    expect(folderGlassId('/home/user/project')).toBe('9dad1e4e08b0');
     expect(folderGlassId('/tmp/proj/')).toBe(folderGlassId('/tmp/proj'));
   });
 
