@@ -1,5 +1,5 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session, shell } from 'electron';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
@@ -269,7 +269,27 @@ async function boot() {
     if (input && (input.type === 'wheel' || input.type === 'click')) webFeeds.get(String(input.id))?.input(input);
   });
   // Settings → "Reset data": forget what an app and the pages it embeds stored (storage + cookies).
-  ipcMain.handle('glass:preset', (_e, action: string, name?: string, description?: string) => core.handle({ op: 'preset', action, name, description }));
+  // The markdown viewer following a link to another markdown file. Only markdown/text files, and
+  // only inside the session's project folder or the folder of the document it was showing (from
+  // the glass's own state, not from the frame), so this can't turn into a file browser.
+  ipcMain.handle('glass:readDoc', (_e, id: string, path: string) => {
+    try {
+      const target = resolve(String(path));
+      if (!/\.(md|markdown|mdx|txt)$/i.test(target)) throw new Error('only markdown files open here');
+      const source = (core.state.appState[id] as { source?: string } | undefined)?.source;
+      const roots = [core.state.session.cwd, source && resolve(source, '..')].filter(Boolean).map((r) => resolve(r as string));
+      if (!roots.some((r) => target === r || target.startsWith(r + sep))) throw new Error('outside the project folder');
+      if (statSync(target).size > 2_000_000) throw new Error('too large');
+      return { ok: true, result: { path: target, text: readFileSync(target, 'utf8') } };
+    } catch (e: any) {
+      return { ok: false, error: e.code === 'ENOENT' ? 'file not found' : e.message };
+    }
+  });
+  // Web links in app views open in the user's browser (the frames themselves can't navigate).
+  ipcMain.on('glass:openLink', (_e, url: string) => {
+    if (/^(https?:|mailto:)/i.test(String(url))) void shell.openExternal(String(url));
+  });
+  ipcMain.handle('glass:preset',(_e, action: string, name?: string, description?: string) => core.handle({ op: 'preset', action, name, description }));
   ipcMain.handle('glass:resetAppData', async (_e, type: string) => {
     const p = APPS[type]?.permissions;
     if (!p) return false;

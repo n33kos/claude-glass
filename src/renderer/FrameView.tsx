@@ -45,7 +45,10 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
       else if (m.kind === 'run' && typeof m.command === 'string') {
         if (app.viewCommands.includes(m.command)) void run(m.command, m.args && typeof m.args === 'object' ? m.args : {});
         else console.warn(`app ${app.type}: view may not run "${m.command}" (not a view command)`);
-      } else if (m.kind === 'host') hostService(m.service, m.args ?? {});
+      } else if (m.kind === 'host') {
+        if (typeof m.id === 'number') void answer(m.id, m.service, m.args ?? {});
+        else hostService(m.service, m.args ?? {});
+      }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
@@ -55,6 +58,16 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
     if (service === 'lightbox' && typeof args.src === 'string') setLightbox({ src: args.src, alt: String(args.alt ?? '') });
     else if (service === 'aspect' && typeof args.value === 'number') window.glass.webAspect(args.value);
     else if (service === 'page-input' && app.type === 'browser') window.glass.webInput({ ...args, id });
+    else if (service === 'open-link' && typeof args.url === 'string') window.glass.openLink(args.url);
+  }
+
+  // Services that answer. 'read-doc' is the markdown viewer following a link to another markdown
+  // file; main checks the path (markdown files in the project, or next to the document shown).
+  async function answer(reqId: number, service: string, args: Record<string, unknown>) {
+    let reply: { ok: boolean; result?: unknown; error?: string };
+    if (service === 'read-doc' && app.type === 'markdown' && typeof args.path === 'string') reply = await window.glass.readDoc(id, args.path);
+    else reply = { ok: false, error: `no host service "${service}" for this app` };
+    post({ kind: 'reply', id: reqId, ...reply });
   }
 
   // Props on ready and on every change (state slices keep identity when unchanged).

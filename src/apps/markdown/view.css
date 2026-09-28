@@ -7,4 +7,12 @@
 .markdown .md h2 { font-size: 17px; margin: 1.4em 0 .5em; }
 .markdown .md h3 { font-size: 14.5px; margin: 1.2em 0 .4em; }
 .md-source { font: 11px var(--mono); color: var(--ink-faint); margin-bottom: 12px; }
+/* Following links: back / home bar, and a note when a link can't open here. */
+.md-nav { position: sticky; top: -18px; z-index: 1; display: flex; align-items: center; gap: 8px; margin: -18px -26px 12px; padding: 8px 26px; background: #161924; border-bottom: 1px solid var(--line); }
+.markdown .md :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 52px; } /* land below the nav bar */
+.md-nav button { padding: 3px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: var(--ink); font-size: 12px; cursor: pointer; }
+.md-nav button:hover { background: rgba(255, 255, 255, 0.16); }
+.md-nav .md-source { margin: 0 0 0 4px; }
+.md-note { margin-bottom: 12px; padding: 6px 10px; border-radius: 6px; background: rgba(242, 196, 107, 0.12); color: #f2c46b; font-size: 12px; }
+.markdown .md a { cursor: pointer; }
 .md-empty { color: var(--ink-faint); padding: 18px 4px; font-family: var(--sans); height: 100%; display: grid; place-items: center; text-align: center; padding: 20px; }

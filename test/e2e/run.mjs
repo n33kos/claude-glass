@@ -185,6 +185,28 @@ try {
   await sleep(150);
   check(await page.locator('.lightbox').count() === 0, 'Esc closes the lightbox');
 
+  // Markdown links: another markdown file opens in the viewer (Back returns), #section scrolls, a web
+  // link doesn't navigate the frame.
+  {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-md-'));
+    mkdirSync(join(dir, 'docs'));
+    writeFileSync(join(dir, 'index.md'), '# Index\n\nSee [the guide](docs/guide.md#setup), or [the web](https://example.com).\n');
+    writeFileSync(join(dir, 'docs/guide.md'), `# Guide\n\n${'Filler paragraph.\n\n'.repeat(40)}## Setup\n\nRun the thing. Back to [the index](../index.md).\n`);
+    await cli(env, 'show', join(dir, 'index.md'), '--id', 'docs');
+    await sleep(700);
+    const md = appFrame(page, 'docs');
+    // (Not clicking "the web": it would open the user's real browser.)
+    await md.locator('a', { hasText: 'the guide' }).click();
+    await md.locator('h2#setup').waitFor({ timeout: 3000 });
+    const inView = await md.locator('h2#setup').evaluate((h) => { const r = h.getBoundingClientRect(); return r.top >= -2 && r.top < innerHeight; });
+    check((await md.locator('.md-nav').count()) === 1 && inView, 'a markdown link opens the linked file in the viewer, scrolled to its #section');
+    await page.locator('[data-window="docs"]').screenshot({ path: join(shots, '06i-markdown-link.png') });
+    await md.locator('.md-nav button', { hasText: 'Back' }).click();
+    await sleep(200);
+    check((await md.locator('h1', { hasText: 'Index' }).count()) === 1 && (await md.locator('.md-nav').count()) === 0, 'Back returns to what Claude showed');
+    await cli(env, 'window', 'delete', 'docs');
+  }
+
   // Image grid: several images in one viewer, shown together; a tile opens that one alone.
   {
     const gid = (await cli(env, 'show', join(shots, '01-empty.png'), '--id', 'shots', '--caption', 'one')).split(' ')[0];

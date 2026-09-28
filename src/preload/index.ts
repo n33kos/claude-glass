@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('glass', {
   webInput: (input: unknown) => ipcRenderer.send('glass:webInput', input),
   resetAppData: (type: string) => ipcRenderer.invoke('glass:resetAppData', type),
   preset: (action: string, name?: string, description?: string) => ipcRenderer.invoke('glass:preset', action, name, description),
+  readDoc: (id: string, path: string) => ipcRenderer.invoke('glass:readDoc', id, path),
+  openLink: (url: string) => ipcRenderer.send('glass:openLink', url),
   lastFrame: (id: string) => ipcRenderer.invoke('glass:lastFrame', id),
   onFrame: (fn: (f: { id: string; source: 'cdp' | 'web'; data: string }) => void) => {
     const h = (_e: unknown, f: { id: string; source: 'cdp' | 'web'; data: string }) => fn(f);

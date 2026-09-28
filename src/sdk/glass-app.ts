@@ -40,8 +40,16 @@ window.addEventListener('message', (e) => {
   } else if (m.kind === 'frame') {
     lastFrames.set(m.source, m.data);
     for (const fn of frameListeners) fn({ source: m.source, data: m.data });
+  } else if (m.kind === 'reply' && pending.has(m.id)) {
+    const { resolve, reject } = pending.get(m.id)!;
+    pending.delete(m.id);
+    if (m.ok) resolve(m.result); else reject(new Error(m.error ?? 'failed'));
   }
 });
+
+// Host services that answer (glass.ask): one id per request, settled by the host's reply.
+const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+let nextId = 1;
 
 const glass = {
   version: 1,
@@ -56,6 +64,11 @@ const glass = {
   run(command: string, args: Record<string, unknown> = {}): void { post({ kind: 'run', command, args }); },
   /** Ask the glass for a host service: 'lightbox' { src, alt } | 'aspect' { value }. */
   host(service: string, args: Record<string, unknown> = {}): void { post({ kind: 'host', service, args }); },
+  /** A host service that answers: 'read-doc' { path } → { path, text } (markdown viewer only). */
+  ask<T = any>(service: string, args: Record<string, unknown> = {}): Promise<T> {
+    const id = nextId++;
+    return new Promise<T>((resolve, reject) => { pending.set(id, { resolve, reject }); post({ kind: 'host', service, args, id }); });
+  },
   /** Live frames some apps receive from the host (e.g. the browser stream). */
   onFrame(fn: FrameListener): () => void {
     frameListeners.add(fn);
