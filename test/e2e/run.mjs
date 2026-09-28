@@ -71,7 +71,35 @@ try {
     const viewing = JSON.parse(await cli(env, 'view', '--json')).userViewingDesktop;
     check(viewing === 1, `wheel over the top bar moves to the next desktop (viewing ${viewing + 1})`);
     await page.keyboard.press('Meta+ArrowLeft');
-    await sleep(500);
+    await sleep(800);
+    // Select to interact (on by default): the wheel over an unselected window walks desktops too;
+    // a click selects it (ringed) and then its content scrolls instead; Esc deselects.
+    const vw = await page.evaluate(() => innerWidth);
+    let first, fb;
+    for (const w of await page.locator('.strip .window').all()) { const b = await w.boundingBox(); if (b && b.x >= 0 && b.x + b.width <= vw) { first = w; fb = b; break; } }
+    await page.mouse.move(fb.x + fb.width / 2, fb.y + fb.height / 2);
+    await page.mouse.wheel(0, 120);
+    await sleep(800);
+    const overWindow = JSON.parse(await cli(env, 'view', '--json')).userViewingDesktop;
+    const probe = await page.evaluate(([x, y]) => { const el = document.elementFromPoint(x, y); return `${document.querySelectorAll('.body-shield').length} shields; at point: ${el?.className}`; }, [fb.x + fb.width / 2, fb.y + fb.height / 2]);
+    check(overWindow === 1, `wheel over an unselected window moves to the next desktop (viewing ${overWindow + 1}; ${probe})`);
+    await page.keyboard.press('Meta+ArrowLeft');
+    await sleep(800);
+    await page.mouse.click(fb.x + fb.width / 2, fb.y + fb.height / 2);
+    await sleep(200);
+    check((await first.evaluate((el) => el.classList.contains('selected'))) && (await first.locator('.body-shield').count()) === 0, 'clicking a window selects it (ringed, unshielded)');
+    await page.screenshot({ path: join(shots, '01b-selected.png') });
+    await page.mouse.move(fb.x + fb.width / 2, fb.y + fb.height / 2);
+    await page.mouse.wheel(0, 120);
+    await sleep(800);
+    const stay = JSON.parse(await cli(env, 'view', '--json')).userViewingDesktop;
+    check(stay === 0, `wheel over the selected window scrolls it, not the desktops (viewing ${stay + 1})`);
+    await page.keyboard.press('Escape');
+    await sleep(150);
+    check((await page.locator('.window.selected').count()) === 0, 'Esc deselects');
+    // The rest of the suite drives window content directly.
+    await cli(env, 'settings', 'set', 'selectToInteract', 'false');
+    await sleep(300);
     for (const w of JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows)) if (w.title.startsWith('Wheel')) await cli(env, 'window', 'close', w.id);
     await cli(env, 'layout', '1', 'grid');
     await sleep(300);

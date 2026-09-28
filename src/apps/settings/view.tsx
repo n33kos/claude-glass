@@ -132,6 +132,7 @@ export function SettingsView({ glass, config }: ViewProps) {
         </select>
       </label>
       <Toggle label="Remind Claude to read and edit with its own tools (so you see the work here)" on={config.toolReminders} onChange={(v) => setConfig('toolReminders', v)} />
+      <Toggle label="Click a window to use it (scrolling over the others switches desktops)" on={config.selectToInteract !== false} onChange={(v) => setConfig('selectToInteract', v)} />
       <Toggle label="Scroll outside windows to switch desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />
 
       <h4>Look</h4>

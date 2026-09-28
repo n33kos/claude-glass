@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { computeDesktops, desktopsFor, EDGES, edgeSize, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
@@ -161,6 +161,7 @@ export function App() {
   // Keyboard + horizontal swipe to change desktops.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') selectWindow(null);
       if (!(e.ctrlKey || e.metaKey)) return;
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && pages[v]?.layout === 'nested') stepFocus(e.key === 'ArrowDown' ? 1 : -1);
       if (e.key === 'ArrowRight') setView(Math.min(v + 1, pages.length - 1));
@@ -172,14 +173,16 @@ export function App() {
       // Horizontal swipe anywhere; vertical scroll (mouse wheels) only outside windows, if enabled.
       const horizontal = Math.abs(e.deltaX) >= Math.abs(e.deltaY) * 1.5;
       // Nested desktop: vertical scroll outside the content (gaps, bars, title bars) walks the spiral.
-      if (!horizontal && pages[v]?.layout === 'nested' && !target.closest?.('.body, .layout-menu, .question-card, .lightbox')) {
+      if (!horizontal && pages[v]?.layout === 'nested' && !target.closest?.('.body, .layout-menu, .question-card, .lightbox, .edge-panel')) {
         const now = Date.now();
         if (now < cool) return;
         acc += e.deltaY;
         if (Math.abs(acc) > 60) { stepFocus(Math.sign(acc)); acc = 0; cool = now + 350; }
         return;
       }
-      const vertical = !horizontal && config.wheelDesktops && !target.closest?.('.window, .layout-menu, .question-card, .lightbox');
+      // A shielded (unselected) layout window counts as outside: scrolling over it walks desktops.
+      const outside = !target.closest?.('.window, .layout-menu, .question-card, .lightbox') || !!target.closest?.('.strip .body-shield');
+      const vertical = !horizontal && config.wheelDesktops && outside;
       if (!horizontal && !vertical) return;
       if (target.closest?.('.scroll-x')) return;
       const now = Date.now();
@@ -190,9 +193,16 @@ export function App() {
         acc = 0; cool = now + 650;
       }
     };
+    // Clicking anywhere but the selected window deselects it (a shield's own handler then selects
+    // the window clicked). Clicks inside a frame never reach here, so using a window keeps it selected.
+    const onDown = (e: PointerEvent) => {
+      const win = (e.target as HTMLElement).closest?.('.window') as HTMLElement | null;
+      if (!win || win.dataset.window !== selectedId) selectWindow(null);
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('wheel', onWheel, { passive: true });
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); };
+    window.addEventListener('pointerdown', onDown, true);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); window.removeEventListener('pointerdown', onDown, true); };
   }, [v, pages, setView, config.wheelDesktops, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Edge panels kept open take their space from the layout.
@@ -473,6 +483,18 @@ function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number
   return <View id={id} meta={meta} state={appState} width={w} height={h - 36} run={run} glass={state} config={config} />;
 }
 
+// Select to interact: which window takes clicks and scrolling. The rest are shielded, so the wheel
+// anywhere over them walks desktops (or the spiral) instead of scrolling their content. View-only UI
+// state (like a hover), not glass state: it never reaches the reducer.
+let selectedId: string | null = null;
+const selectListeners = new Set<() => void>();
+function selectWindow(id: string | null) {
+  if (selectedId === id) return;
+  selectedId = id;
+  for (const fn of selectListeners) fn();
+}
+const useSelected = () => useSyncExternalStore((fn) => { selectListeners.add(fn); return () => { selectListeners.delete(fn); }; }, () => selectedId);
+
 function WindowFrame(props: {
   meta: InstanceMeta; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
   page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Edge;
@@ -480,10 +502,14 @@ function WindowFrame(props: {
   const { meta, page, tucked } = props;
   const [menu, setMenu] = useState(false);
   const app = apps[meta.type];
-  const history = useSnapshot().state.settings.windowMode === 'history';
+  const { state, config } = useSnapshot();
+  const history = state.settings.windowMode === 'history';
+  const selected = useSelected() === meta.id;
+  // Sidebar windows stay live: they aren't part of scrolling through desktops.
+  const shielded = config.selectToInteract !== false && !selected && !tucked;
   return (
     <section
-      className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}`}
+      className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}${selected && config.selectToInteract !== false ? ' selected' : ''}`}
       style={{ ...props.style, ['--glass' as any]: props.opacity }}
       data-window={meta.id}
     >
@@ -506,6 +532,7 @@ function WindowFrame(props: {
         )}
       </div>
       <div className="body">{props.children}</div>
+      {shielded && <div className="body-shield" title="Click to use this window" onPointerDown={() => selectWindow(meta.id)} />}
     </section>
   );
 }

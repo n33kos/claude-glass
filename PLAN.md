@@ -387,10 +387,12 @@ Queue, in order:
     one-off, then the state palette, then the user's own, then the preset's. The guide's signal
     paragraph is gone (context saved); one optional `background` line remains in the command list.
 
-21. [ ] **Selectable panes** (after 20): scrolling anywhere over the glass walks desktops/the
-    spiral; a click selects a window (outlined), and only a selected window takes wheel and pointer
-    input; clicking off (or Esc) deselects. Today you have to find the thin gaps between windows to
-    scroll. Risk: an extra click before every interaction may frustrate; try it and judge.
+21. [x] **Selectable panes (2026-09-27, trying it)**: global `selectToInteract` (default on). Layout
+    windows that aren't selected get a clear `.body-shield` over their body: the wheel over it walks
+    desktops (or the nested spiral), and a click selects the window (blue ring, shield gone, content
+    live). Clicking anywhere else or Esc deselects. Sidebar windows stay live. Selection is
+    view-only UI state (a tiny store in App.tsx), never reducer state. Risk: the extra click may
+    frustrate; judge in use, the setting turns it off.
 
 22. [ ] **"Watch" view** (after 20; a third visualization beside desktops and the nested spiral):
     one focused window in the middle; windows before and after it shrink into small tiles in a grid

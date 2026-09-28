@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   disabledApps: [],
   nestedView: false,
   toolReminders: true,
+  selectToInteract: true,
   appSettings: {},
 };
 
@@ -58,6 +59,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'wheelDesktops':
     case 'nestedView':
     case 'stateColors':
+    case 'selectToInteract':
     case 'toolReminders': return value === true || value === 'true';
     case 'statePalettes': return parsePalettes(value);
     case 'disabledApps': {
@@ -91,6 +93,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   disabledApps: 'comma-separated app types the user turned off (change only if asked)',
   autoStart: 'true|false: open a glass when a Claude session starts',
   scope: 'session|folder: one glass per session, or one per project folder',
+  selectToInteract: 'true|false: click a window to use it (scroll over the others walks desktops); false = every window live',
   appSettings: 'apps\' own settings: set one with app.<type>.<key> <value> (listed below)',
   toolReminders: 'true|false: remind Claude to use Read/Edit/Write when a Bash command reads or writes files (change only if asked)',
 };
