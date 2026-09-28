@@ -1,7 +1,7 @@
 // Core server in plain Node, driven by the real built CLI and the bash hook forwarder.
 // Requires `npm run build` first (dist/cli.js).
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -286,6 +286,24 @@ describe('settings from the CLI', () => {
     expect(await cli('open')).toContain('claude-glass background --colors');
     await cli('settings', 'set', 'backgroundColors', '');
     expect(core.config.backgroundColors).toEqual([]);
+  });
+});
+
+describe('file copies', () => {
+  it('prunes copies no window refers to, keeping recent ones', async () => {
+    const dir = join(home, 'sessions', SID, 'files');
+    mkdirSync(dir, { recursive: true });
+    const old = Date.now() / 1000 - 3600;
+    for (const n of ['orphan.png', 'kept.png', 'fresh.png']) writeFileSync(join(dir, n), 'x');
+    utimesSync(join(dir, 'orphan.png'), old, old);
+    utimesSync(join(dir, 'kept.png'), old, old);
+    core.dispatch({ type: 'instance.create', appType: 'image', id: 'prune-test' });
+    core.dispatch({ type: 'app.command', id: 'prune-test', command: 'add', args: { file: join(dir, 'kept.png') } });
+    core.pruneFiles();
+    const left = readdirSync(dir);
+    expect(left).not.toContain('orphan.png');
+    expect(left).toEqual(expect.arrayContaining(['fresh.png', 'kept.png']));
+    core.dispatch({ type: 'instance.delete', id: 'prune-test' });
   });
 });
 

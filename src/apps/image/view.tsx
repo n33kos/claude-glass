@@ -2,7 +2,11 @@ import type { AppViewProps } from '../../sdk/react';
 import { fileUrl } from '../../renderer/viewTypes';
 import { GRID_MAX, type ImageState } from './index';
 
-export default function ImageView({ state, run, host, settings }: AppViewProps<ImageState>) {
+// A copy sized for how wide it's shown (the glass serves a cached thumbnail); the lightbox gets
+// the original. Widths round up in the host, so resizing a window doesn't make a new copy each px.
+const sized = (file: string, px: number) => `${fileUrl(file)}?w=${Math.round(px * (window.devicePixelRatio || 1))}`;
+
+export default function ImageView({ state, run, host, settings, width }: AppViewProps<ImageState>) {
   const n = state.images.length;
   if (!n) return <div className="img-empty">Images Claude looks at or shows you appear here.</div>;
   const grid = state.view === 'grid' && n > 1;
@@ -23,7 +27,7 @@ export default function ImageView({ state, run, host, settings }: AppViewProps<I
           {recent.map(({ img, i }) => (
             <button key={i} className="img-tile" title={img.caption ?? img.name}
               onClick={() => run('select', { index: i === n - 1 ? -1 : i, single: true })}>
-              <img src={fileUrl(img.file)} alt={img.caption ?? img.name} draggable={false} />
+              <img src={sized(img.file, Math.min(width, 480))} alt={img.caption ?? img.name} draggable={false} loading="lazy" />
               <span>{img.caption ?? img.name}</span>
             </button>
           ))}
@@ -40,7 +44,7 @@ export default function ImageView({ state, run, host, settings }: AppViewProps<I
     <div className="imageview">
       {toggle}
       <figure>
-        <img src={src} alt={img.caption ?? img.name} draggable={false} className="img-zoomable"
+        <img src={sized(img.file, width)} alt={img.caption ?? img.name} draggable={false} className="img-zoomable"
           title="Click to enlarge" onClick={() => host('lightbox', { src, alt: img.caption ?? img.name })} />
         <figcaption>
           {n > 1 && <button disabled={idx === 0} onClick={() => go(idx - 1)} aria-label="Previous image">‹</button>}

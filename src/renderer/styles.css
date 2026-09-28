@@ -18,21 +18,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 
 .glass { position: relative; isolation: isolate; height: 100%; display: flex; flex-direction: column; }
 
-/* Wallpaper: base gradient + bokeh layers. Drift is transform/opacity only (compositor), each
-   blob on its own 19–29s period so the pattern never visibly repeats but motion is noticeable. */
+/* Wallpaper: base gradient + the light, painted on one small canvas scaled up (backgrounds.ts). */
 .wallpaper { position: absolute; inset: 0; z-index: -1; overflow: hidden; background-size: cover; }
-/* A blob's color is a registered <color> property, so recoloring (the user's colors, or Claude's
-   signal) eases over instead of snapping. */
-@property --bokeh { syntax: '<color>'; inherits: false; initial-value: transparent; }
-.bokeh { position: absolute; will-change: transform; background-image: radial-gradient(closest-side, var(--bokeh), transparent); transition: --bokeh 1.6s ease; }
-.drifting .bokeh-0 { animation: drift-a 19s ease-in-out infinite alternate; }
-.drifting .bokeh-1 { animation: drift-b 25s ease-in-out infinite alternate; }
-.drifting .bokeh-2 { animation: drift-c 22s ease-in-out infinite alternate; }
-.drifting .bokeh-3 { animation: drift-a 29s ease-in-out -9s infinite alternate-reverse; }
-@keyframes drift-a { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 50% { transform: translate(18%, 12%) scale(1.22); opacity: .7; } 100% { transform: translate(-12%, 20%) scale(.88); opacity: 1; } }
-@keyframes drift-b { 0% { transform: translate(0, 0) scale(1); opacity: .75; } 50% { transform: translate(-20%, 14%) scale(.85); opacity: 1; } 100% { transform: translate(-8%, -16%) scale(1.18); opacity: .8; } }
-@keyframes drift-c { 0% { transform: translate(0, 0) scale(1.1); opacity: 1; } 50% { transform: translate(14%, -18%) scale(.92); opacity: .72; } 100% { transform: translate(20%, 8%) scale(1.15); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .drifting .bokeh { animation: none; } }
+.wallpaper-light { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* ---- top bar ------------------------------------------------------------------ */
 .topbar {

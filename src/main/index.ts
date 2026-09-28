@@ -1,10 +1,11 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
-import { app, BrowserWindow, ipcMain, Menu, protocol, session } from 'electron';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
-import { extname, join, resolve, sep } from 'node:path';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session } from 'electron';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { basename, extname, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
 import { appInfo, NO_PERMISSIONS, type AppPermissions } from '../apps/types';
-import { filesDir, socketPath } from '../core/paths';
+import { filesDir, sessionDir, socketPath } from '../core/paths';
+import { startMetrics } from './metrics';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { computeDesktops, desktopsFor } from '../core/layout';
@@ -178,6 +179,27 @@ let core: GlassCore;
 let win: BrowserWindow | null = null;
 let quitting = false;
 
+/**
+ * A cached JPEG of `path` at least `want` px wide (widths round up to a few sizes so each image has
+ * at most a handful of copies), or null to serve the original: it's small already, or not a
+ * raster format worth shrinking (SVG, GIF), or can't be decoded. Kept in files/.thumbs, which the
+ * file pruning clears along with its source.
+ */
+const THUMB_WIDTHS = [320, 640, 960, 1440, 2048];
+function thumbnail(path: string, want: number): string | null {
+  if (!/\.(png|jpe?g|webp|bmp)$/i.test(path) || !path.startsWith(filesDir(sessionId!) + '/')) return null;
+  const width = THUMB_WIDTHS.find((x) => x >= want);
+  if (!width) return null;
+  const dir = join(filesDir(sessionId!), '.thumbs');
+  const out = join(dir, `${basename(path)}@${width}.jpg`);
+  if (existsSync(out)) return out;
+  const img = nativeImage.createFromPath(path);
+  if (img.isEmpty() || img.getSize().width <= width * 1.2) return null;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(out, img.resize({ width, quality: 'good' }).toJPEG(85));
+  return out;
+}
+
 async function boot() {
   lockPermissions();
   attachBuiltinViews(join(__dirname, 'apps'));
@@ -191,6 +213,10 @@ async function boot() {
     return;
   }
   core.onQuit = () => shutdown();
+  startMetrics(sessionDir(sessionId!), () => ({
+    windows: Object.keys(core.state.instances).length, open: core.state.order.length,
+    streams: streams.size, pages: webFeeds.size, frames: lastFrames.size,
+  }));
 
   // glass-file://f/<abs path> — only files inside this session's files dir, or the configured background.
   protocol.handle('glass-file', (req) => {
@@ -199,6 +225,10 @@ async function boot() {
     const allowed = path.startsWith(filesDir(sessionId!) + '/') || path === core.config.background;
     if (!allowed) return new Response('forbidden', { status: 403 });
     try {
+      // ?w=<px>: a downsized copy for views that show the image small (cached in files/.thumbs).
+      const w = Number(url.searchParams.get('w'));
+      const thumb = w > 0 ? thumbnail(path, w) : null;
+      if (thumb) return new Response(readFileSync(thumb), { headers: { 'content-type': 'image/jpeg' } });
       return new Response(readFileSync(path), { headers: { 'content-type': MIME[extname(path).toLowerCase()] ?? 'application/octet-stream' } });
     } catch {
       return new Response('not found', { status: 404 });
@@ -308,6 +338,9 @@ function sendFrame(id: string, source: Source, data: string) {
 
 function syncBrowserStreams() {
   const s = core.state;
+  // Forget frames of browser windows that are gone (history mode deletes them all the time).
+  for (const id of lastFrames.keys()) if (!s.instances[id]) lastFrames.delete(id);
+  for (const id of lastHomeSeq.keys()) if (!s.instances[id]) lastHomeSeq.delete(id);
   const want = new Map<string, string>();
   for (const [id, inst] of Object.entries(s.instances)) {
     const endpoint = (s.appState[id] as BrowserState | undefined)?.endpoint;

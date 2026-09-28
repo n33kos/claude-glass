@@ -1,6 +1,6 @@
 // GlassCore: owns one session's state, persistence, and the Unix socket. Plain Node — Electron
 // main wraps it, integration tests run it directly.
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
@@ -84,6 +84,31 @@ export class GlassCore {
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
     }));
   }
+
+  /**
+   * Delete copies in files/ that no window refers to anymore (images of deleted windows, ones
+   * that fell off a viewer's history). Files under 10 minutes old are kept: the CLI copies a file in
+   * before it tells the glass about it.
+   */
+  pruneFiles(): number {
+    const dir = filesDir(this.sessionId);
+    if (!existsSync(dir)) return 0;
+    const referenced = JSON.stringify(this.state.appState);
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    let removed = 0;
+    for (const name of readdirSync(dir)) {
+      if (name === '.thumbs' || referenced.includes(name)) continue;
+      const p = `${dir}/${name}`;
+      try { if (statSync(p).mtimeMs < cutoff) { unlinkSync(p); removed++; } } catch {}
+    }
+    // Thumbnails (<source>@<width>.jpg) go with their source.
+    const thumbs = `${dir}/.thumbs`;
+    if (existsSync(thumbs)) for (const name of readdirSync(thumbs)) {
+      if (!existsSync(`${dir}/${name.replace(/@\d+\.jpg$/, '')}`)) try { unlinkSync(`${thumbs}/${name}`); } catch {}
+    }
+    return removed;
+  }
+  private lastPrune = 0;
 
   ingestFile(path: string): string | null {
     try {
@@ -226,6 +251,8 @@ export class GlassCore {
 
   save() {
     writeJsonAtomic(statePath(this.sessionId), this.state);
+    // Unreferenced file copies go at most every half hour (and at the first save after opening).
+    if (Date.now() - this.lastPrune > 30 * 60 * 1000) { this.lastPrune = Date.now(); this.pruneFiles(); }
   }
 
   async close() {

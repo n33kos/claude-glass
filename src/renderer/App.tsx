@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { computeDesktops, desktopsFor, EDGES, edgeSize, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
-import { wallpaper } from './backgrounds';
+import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon } from './AppIcon';
 import { FrameView } from './FrameView';
 import { apps, dispatch, useSnapshot } from './store';
@@ -73,6 +73,10 @@ function pinTargetCenter(edge: Edge, W: number, H: number, side: { l: number; r:
 }
 
 type Inset = { l: number; r: number; t: number; b: number };
+
+// Windows scrolled past in the nested view: invisible and, with visibility hidden, not painted, so
+// they hold no GPU tiles (opacity alone still rasters them).
+const HIDDEN: React.CSSProperties = { opacity: 0, visibility: 'hidden', pointerEvents: 'none' };
 
 const ROWS = 3; // tile rows per column in the carousel
 const RING = ROWS * 2; // tiles per side (two columns); farther windows slide off the edge
@@ -437,9 +441,9 @@ export function App() {
                 // Watch view: laid out at the middle window's size and shrunk from its top-left
                 // corner, so tiles read as zoomed-out copies and grow smoothly into the middle.
                 ? { width: p.rect.w / p.scale, height: p.rect.h / p.scale, transformOrigin: '0 0', transform: `translate(${p.rect.x}px, ${p.rect.y}px) scale(${p.scale})`,
-                    ...(p.hidden ? { opacity: 0, pointerEvents: 'none' as const } : {}) }
+                    ...(p.hidden ? HIDDEN : {}) }
                 : { width: p.rect.w, height: p.rect.h, transform: `translate(${p.rect.x}px, ${p.rect.y}px)`,
-                    ...(p.hidden ? { opacity: 0, pointerEvents: 'none' as const } : {}) };
+                    ...(p.hidden ? HIDDEN : {}) };
             return (
               <WindowFrame
                 key={p.id}
@@ -507,9 +511,13 @@ export function App() {
 function Wallpaper({ bg, colors, animate }: { bg: string; colors: string[]; animate: boolean }) {
   const key = colors.join(',');
   const w = useMemo(() => wallpaper(bg, colors), [bg, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const painter = useRef<LightPainter | null>(null);
+  useEffect(() => { painter.current = paintLights(canvas.current!); return () => painter.current?.stop(); }, []);
+  useEffect(() => { painter.current?.set(w.blobs, animate); }, [w, animate]);
   return (
     <div className={`wallpaper${animate ? ' drifting' : ''}`} style={w.style} aria-hidden>
-      {w.blobs.map((b, i) => <div key={i} className={`bokeh bokeh-${i % 4}`} style={b.style} />)}
+      <canvas ref={canvas} className="wallpaper-light" />
     </div>
   );
 }

@@ -109,11 +109,13 @@ try {
   await sleep(1200);
   await page.screenshot({ path: join(shots, '02-seeded.png') });
   {
-    const pos = () => page.locator('.bokeh').first().evaluate((e) => getComputedStyle(e).transform);
-    const a = await pos();
+    // The light is one small canvas (a quarter size): its pixels change as it drifts.
+    const pixels = () => page.locator('.wallpaper canvas.wallpaper-light').evaluate((c) => c.toDataURL());
+    const size = await page.locator('.wallpaper canvas.wallpaper-light').evaluate((c) => [c.width, c.clientWidth]);
+    const a = await pixels();
     await sleep(1500);
-    const b = await pos();
-    check((await page.locator('.wallpaper.drifting .bokeh').count()) >= 2 && a !== b, 'background bokeh drifts');
+    const b = await pixels();
+    check(a !== b && size[0] <= size[1] / 3, `background light drifts on a small canvas (${size[0]}px drawn for ${size[1]}px shown)`);
   }
   const view = await cli(env, 'view');
   console.log(view);
@@ -790,12 +792,13 @@ try {
 
   // Background light: Claude's signal recolors the wallpaper blobs, easing over; reset restores.
   {
-    const blobColor = () => page.evaluate(() => getComputedStyle(document.querySelector('.bokeh')).getPropertyValue('--bokeh').trim());
+    // The first light's target color (the canvas eases to it over 1.6s).
+    const blobColor = () => page.evaluate(() => document.querySelector('canvas.wallpaper-light').dataset.colors.split(',')[0]);
     const before = await blobColor();
     await cli(env, 'background', '--colors', '#c0392b,#8e2a1e');
     await sleep(2000);
     const signal = await blobColor();
-    check(signal === 'rgb(192, 57, 43)', `Claude's background signal recolors the wallpaper light (${before} → ${signal})`);
+    check(signal === '#c0392b', `Claude's background signal recolors the wallpaper light (${before} → ${signal})`);
     await page.screenshot({ path: join(shots, '14-signal.png') });
     await cli(env, 'background', 'reset');
     await sleep(2000);
@@ -804,7 +807,7 @@ try {
     await hook(env, { hook_event_name: 'Stop' });
     await sleep(2000);
     const done = await blobColor();
-    check(done === 'rgb(39, 174, 96)', `state colors: the light turns green when Claude is done (${done})`);
+    check(done === '#27ae60', `state colors: the light turns green when Claude is done (${done})`);
     await page.screenshot({ path: join(shots, '14b-state-idle.png') });
     await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'next' });
     await sleep(2000);
