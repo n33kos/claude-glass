@@ -299,3 +299,7 @@ hooks/, skills/, scripts/, bin/   the Claude Code plugin
 
 - macOS only for now.
 - One-way by design: you can arrange and read, but nothing you do in the glass reaches Claude.
+
+## License
+
+MIT. Use it however you like.
