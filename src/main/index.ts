@@ -26,6 +26,13 @@ if (!sessionId) {
 }
 
 app.setName('Claude Glass');
+// A glass home other than the real one (tests, demos): keep Chromium's profile there too, so a
+// test run never shares the user's live profile (cookies, storage) with their open glasses, and
+// never shows up in the dock.
+if (process.env.CLAUDE_GLASS_HOME) {
+  app.setPath('userData', join(process.env.CLAUDE_GLASS_HOME, 'electron'));
+  if (process.platform === 'darwin') app.dock?.hide();
+}
 // Developer aid: CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open → inspect the real glass over CDP.
 if (process.env.CLAUDE_GLASS_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.CLAUDE_GLASS_DEBUG_PORT);
 protocol.registerSchemesAsPrivileged([

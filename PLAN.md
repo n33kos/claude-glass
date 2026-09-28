@@ -352,6 +352,26 @@ Queue, in order:
     so the glass can show the work. Never blocks. git and claude-glass commands are skipped
     (prose arguments). Global `toolReminders` (default on) turns it off.
 
+20. [ ] **Stability (2026-09-27, in progress)**: WindowServer watchdog hangs (system froze and
+    restarted) while the glass ran next to Alchemy (Electron, WebGL). Found: backdrop blur on every
+    window, the top bar and the dock re-ran each frame over the live wallpaper (glass GPU process
+    ~41% of a core → ~19% without; drift itself is cheap). Blur removed from always-on surfaces.
+    Tests now keep their own Chromium profile and stay out of the dock. Open: every glass process
+    shares one Chromium profile (`userData`) at the same time, which Chromium doesn't support
+    (cookie/storage corruption risk); the fix is one app process hosting every glass window
+    (single-instance lock; a second `open` adds a window with its own core and socket).
+
+21. [ ] **Selectable panes** (after 20): scrolling anywhere over the glass walks desktops/the
+    spiral; a click selects a window (outlined), and only a selected window takes wheel and pointer
+    input; clicking off (or Esc) deselects. Today you have to find the thin gaps between windows to
+    scroll. Risk: an extra click before every interaction may frustrate; try it and judge.
+
+22. [ ] **"Watch" view** (after 20; a third visualization beside desktops and the nested spiral):
+    one focused window in the middle; windows before and after it shrink into small tiles in a grid
+    on either side (like the Apple Watch app grid), smaller the farther away, fading off the
+    edges. Scrolling moves through the sequence: the next tile grows into the center as the current
+    one shrinks back into the grid. Depth (scale) gives far windows room instead of cramming them.
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
