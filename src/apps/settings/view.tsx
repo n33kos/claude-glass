@@ -129,7 +129,7 @@ export function SettingsView({ glass, config }: ViewProps) {
           <span>Arrangement</span>
           <select value={config.nestedStyle ?? 'spiral'} onChange={(e) => setConfig('nestedStyle', e.target.value)}>
             <option value="spiral">Spiral: each older window half the size</option>
-            <option value="watch">Watch: one in the middle, neighbors as tiles either side</option>
+            <option value="carousel">Carousel: one in the middle, neighbors as tiles either side</option>
           </select>
         </label>
       )}

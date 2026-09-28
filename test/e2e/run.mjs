@@ -495,24 +495,24 @@ try {
     await sleep(700);
     await page.screenshot({ path: join(shots, '11-nested-view.png') });
     check((await page.locator('.light.layout').count()) === 0 && (await page.locator('.pager button').count()) === 1, 'nested view: one page, layout buttons hidden');
-    // Watch style: the focused window in the middle, neighbors as smaller tiles either side;
-    // clicking a tile brings it to the middle.
+    // Carousel: the focused window in the middle, neighbors as smaller tiles either side (3 rows);
+    // with nothing newer, the middle window stretches left; clicking a tile brings it to the middle.
     const made = [];
-    for (let i = 0; i < 5; i++) made.push((await cli(env, 'new', 'markdown', '--title', `Watch ${i}`, '--text', `# Watch ${i}\n\nSome text to see at tile size.`)).trim().split(' ')[0]);
-    await cli(env, 'settings', 'set', 'nestedStyle', 'watch');
+    for (let i = 0; i < 8; i++) made.push((await cli(env, 'new', 'markdown', '--title', `Tile ${i}`)).trim().split(' ')[0]);
+    await cli(env, 'settings', 'set', 'nestedStyle', 'watch'); // the first name still works
     await sleep(900);
-    await page.screenshot({ path: join(shots, '11b-watch-view.png') });
+    await page.screenshot({ path: join(shots, '11b-carousel.png') });
     const order = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows.map((w) => w.id);
     const box = (id) => page.locator(`[data-window="${id}"]`).boundingBox();
-    const [mid, next] = [await box(order[0]), await box(order[1])];
+    const [mid, next, third] = [await box(order[0]), await box(order[1]), await box(order[3])];
     const W = await page.evaluate(() => innerWidth);
-    check(Math.abs(mid.x + mid.width / 2 - W / 2) < 40 && next.x > mid.x + mid.width && next.width < mid.width / 2,
-      `watch view: first window centered (${Math.round(mid.x)}+${Math.round(mid.width)}), the next a small tile to its right (${Math.round(next.x)}, ${Math.round(next.width)}w)`);
+    check(mid.x < 40 && next.x > mid.x + mid.width && next.width < mid.width / 3 && third.y > next.y + next.height,
+      `carousel: newest window fills the empty left side (x ${Math.round(mid.x)}), the next ones tiles on the right in 3 rows`);
     await page.mouse.click(next.x + next.width / 2, next.y + next.height / 2);
     await sleep(700);
     const moved = await box(order[1]);
-    check(Math.abs(moved.x + moved.width / 2 - W / 2) < 40, `watch view: clicking a tile brings it to the middle (${Math.round(moved.x)})`);
-    await page.screenshot({ path: join(shots, '11c-watch-focused.png') });
+    check(Math.abs(moved.x + moved.width / 2 - W / 2) < 40, `carousel: clicking a tile brings it to the middle (${Math.round(moved.x)})`);
+    await page.screenshot({ path: join(shots, '11c-carousel-focused.png') });
     await cli(env, 'settings', 'set', 'nestedStyle', 'spiral');
     for (const id of made) await cli(env, 'window', 'delete', id);
     await cli(env, 'settings', 'set', 'nestedView', 'false');
