@@ -43,6 +43,8 @@ export interface GlobalConfig {
   autoStart: boolean;
   background: string; // preset name or absolute image path
   backgroundColors: string[]; // the user's own wallpaper light colors (hex); empty = the preset's
+  stateColors: boolean; // recolor the light from session state (working/waiting/idle/ended)
+  statePalettes: Record<'working' | 'waiting' | 'idle' | 'ended', string[]>; // per state; empty = own colors
   defaultLayout: LayoutName | 'claude'; // claude: new desktops fit their window count; Claude picks layouts
   windowOpacity: number;
   dockAutoHide: boolean; // dock overlays and hides; windows get its space

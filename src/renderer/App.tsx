@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { computeDesktops, desktopsFor, EDGES, edgeSize, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
+import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { wallpaper } from './backgrounds';
 import { AppIcon } from './AppIcon';
 import { FrameView } from './FrameView';
@@ -331,7 +332,10 @@ export function App() {
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
     <div className={`glass${config.dockAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}>
-      <Wallpaper bg={config.background} colors={state.settings.backgroundColors ?? config.backgroundColors ?? []} animate={config.animateBackground} />
+      <Wallpaper bg={config.background} animate={config.animateBackground} colors={lightColors({
+        signal: state.settings.backgroundColors, stateColors: config.stateColors !== false,
+        palettes: config.statePalettes ?? DEFAULT_PALETTES, mood: moodOf(state.session), own: config.backgroundColors ?? [],
+      })} />
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>

@@ -212,7 +212,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .switch.on i { transform: translateX(15px); }
 .s-color { width: 30px; height: 30px; padding: 0; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
 .s-color::-webkit-color-swatch-wrapper { padding: 0; } .s-color::-webkit-color-swatch { border: none; border-radius: 50%; }
-.s-dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
+.s-sub { margin-left: 22px; padding-top: 8px; padding-bottom: 8px; }
+.s-dim { color: var(--ink-dim); font-size: 13px; }
+.s-dot {display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
 .swatches { display: flex; gap: 8px; }
 .swatches button { width: 54px; height: 34px; border-radius: 7px; border: 2px solid transparent; background-size: cover; cursor: pointer; }
 .swatches button.on { border-color: #fff; }

@@ -7,6 +7,7 @@ import { messageText, type ConversationState } from '../../src/apps/conversation
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
+import { DEFAULT_PALETTES, lightColors, moodOf, parsePalettes } from '../../src/core/colors';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor } from '../../src/core/guide';
 import { loadMods } from '../../src/core/mods';
@@ -369,6 +370,25 @@ describe('history mode (experiment)', () => {
     const kept = Object.keys(s.instances).filter((id) => id.startsWith('changes-'));
     expect(kept.sort()).toEqual(['changes-tooluE3', 'changes-tooluE4', 'changes-tooluE5', 'changes-tooluP0']);
     expect(s.order).not.toContain('changes-tooluE1');
+  });
+});
+
+describe('state colors', () => {
+  it('mood follows the session; Claude\'s signal wins, then the state palette, then the user\'s own', () => {
+    expect(moodOf({ activity: 'working' })).toBe('working');
+    expect(moodOf({ activity: 'working', waiting: { kind: 'question' } })).toBe('waiting');
+    expect(moodOf({ activity: 'idle' })).toBe('idle');
+    expect(moodOf({ activity: 'idle', endedAt: 1 })).toBe('ended');
+    const palettes = parsePalettes({ waiting: '#e0a030' });
+    expect(palettes.waiting).toEqual(['#e0a030']);
+    expect(palettes.idle).toEqual(DEFAULT_PALETTES.idle);
+    const base = { stateColors: true, palettes, own: ['#112233'] };
+    expect(lightColors({ ...base, mood: 'waiting' })).toEqual(['#e0a030']);
+    expect(lightColors({ ...base, mood: 'working' })).toEqual(['#112233']); // working: [] = own
+    expect(lightColors({ ...base, mood: 'waiting', signal: ['#c0392b'] })).toEqual(['#c0392b']);
+    expect(lightColors({ ...base, stateColors: false, mood: 'waiting' })).toEqual(['#112233']);
+    expect(() => parsePalettes({ angry: ['#f00'] })).toThrow(/unknown mood/);
+    expect(() => parsePalettes('{"idle":["url(x)"]}')).toThrow(/hex/);
   });
 });
 

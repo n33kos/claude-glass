@@ -726,6 +726,16 @@ try {
     await cli(env, 'background', 'reset');
     await sleep(2000);
     check((await blobColor()) === before, 'background reset brings back the usual light');
+    // State colors (on by default): done → green; a new prompt → back to the user's own light.
+    await hook(env, { hook_event_name: 'Stop' });
+    await sleep(2000);
+    const done = await blobColor();
+    check(done === 'rgb(39, 174, 96)', `state colors: the light turns green when Claude is done (${done})`);
+    await page.screenshot({ path: join(shots, '14b-state-idle.png') });
+    await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'next' });
+    await sleep(2000);
+    const working = await blobColor();
+    check(working !== done, `state colors: working goes back to the user's own light (${working})`);
   }
 
   // Session ended

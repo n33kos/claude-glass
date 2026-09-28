@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
+import { DEFAULT_PALETTES, MOODS, type Mood } from '../../core/colors';
 import { BACKGROUNDS, PRESETS } from '../../renderer/backgrounds';
 import { AppIcon } from '../../renderer/AppIcon';
 import { apps, dispatch, mods, setConfig } from '../../renderer/store';
@@ -30,6 +31,37 @@ function LightColors({ config }: { config: ViewProps['config'] }) {
         {own.length > 0 && <button className="s-link" onClick={() => setConfig('backgroundColors', [])}>Use preset</button>}
       </span>
     </label>
+  );
+}
+
+const MOOD_LABELS: Record<Mood, string> = { working: 'While Claude works', waiting: 'Waiting on you', idle: 'Done, your turn', ended: 'Session ended' };
+
+/** The light follows the session: a toggle, then per state its colors, or "your colors". */
+function StateColors({ config }: { config: ViewProps['config'] }) {
+  const on = config.stateColors !== false;
+  const palettes = config.statePalettes ?? DEFAULT_PALETTES;
+  const setMood = (m: Mood, colors: string[]) => setConfig('statePalettes', { ...palettes, [m]: colors });
+  return (
+    <>
+      <Toggle label="Light follows what Claude is doing" on={on} onChange={(v) => setConfig('stateColors', v)} />
+      {on && MOODS.map((m) => {
+        const p = palettes[m];
+        return (
+          <label key={m} className="s-row s-sub">
+            <span>{MOOD_LABELS[m]}</span>
+            <span className="s-inline">
+              {p.length ? p.map((c, i) => (
+                <input key={i} type="color" className="s-color" value={c} aria-label={`${MOOD_LABELS[m]} color ${i + 1}`}
+                  onChange={(e) => setMood(m, p.map((x, j) => (j === i ? e.target.value : x)))} />
+              )) : <span className="s-dim">your colors</span>}
+              {p.length
+                ? <button className="s-link" onClick={() => setMood(m, [])}>Use mine</button>
+                : <button className="s-link" onClick={() => setMood(m, DEFAULT_PALETTES[m].length ? DEFAULT_PALETTES[m] : ['#3a7bd5', '#6c5ce7'])}>Tint</button>}
+            </span>
+          </label>
+        );
+      })}
+    </>
   );
 }
 
@@ -119,6 +151,7 @@ export function SettingsView({ glass, config }: ViewProps) {
         </form>
       </div>
       <LightColors config={config} />
+      <StateColors config={config} />
       <Toggle label="Drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
       <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
 

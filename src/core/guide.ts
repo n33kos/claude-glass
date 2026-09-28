@@ -26,6 +26,7 @@ those edits never reach "changes"), write plans to plan files, and Read images y
   claude-glass window move <id> <index>      move to 0 to bring something to the user's attention
   claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
   claude-glass catalog                       all apps and commands
+  claude-glass background --colors "#hex,…" | reset   optional: tint this glass's light yourself
 
 Treat the glass as a live feed of your focus. Hook updates (and \`app\` commands) never move
 windows, so directing attention is your job:
@@ -45,12 +46,6 @@ If the user asks to change how the glass presents things (nested view, history m
 opacity, background...), \`claude-glass settings\` lists every setting and its values;
 \`claude-glass settings set <key> <value>\` changes one (e.g. \`settings set nestedView true\`).
 Only change settings when the user asks.
-
-The wallpaper's light is a quiet signal you may set yourself (this glass only; it eases over):
-  claude-glass background --colors "#c0392b,#8e2a1e"   up to 4 hex colors;  background reset
-Use it for state the user should feel at a glance, not for decoration: red while something is
-broken or tests fail, amber while you're blocked on the user, green once a long job lands, blue for
-a long quiet stretch of work. Reset when the state passes. Rarely: no more than a few per session.
 
 Browser: when you drive a browser, stream it here instead of opening a window. ALWAYS run it
 headless (the glass is the user's view of it; a second visible browser is just noise) with a

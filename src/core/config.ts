@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { parseColors } from './colors';
+import { DEFAULT_PALETTES, parseColors, parsePalettes } from './colors';
 import { isDefaultLayout } from './layout';
 import { configPath } from './paths';
 import type { GlobalConfig } from './types';
@@ -9,6 +9,8 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   autoStart: false,
   background: 'aurora',
   backgroundColors: [],
+  stateColors: true,
+  statePalettes: DEFAULT_PALETTES,
   defaultLayout: 'grid',
   windowOpacity: 0.78,
   dockAutoHide: false,
@@ -28,6 +30,7 @@ export function loadConfig(): GlobalConfig {
     const c = { ...DEFAULT_CONFIG, ...raw };
     if (!isDefaultLayout(c.defaultLayout)) c.defaultLayout = DEFAULT_CONFIG.defaultLayout;
     try { c.backgroundColors = parseColors(c.backgroundColors ?? []); } catch { c.backgroundColors = []; }
+    try { c.statePalettes = parsePalettes(c.statePalettes); } catch { c.statePalettes = DEFAULT_PALETTES; }
     return c;
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -53,7 +56,9 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'animateBackground':
     case 'wheelDesktops':
     case 'nestedView':
+    case 'stateColors':
     case 'toolReminders': return value === true || value === 'true';
+    case 'statePalettes': return parsePalettes(value);
     case 'disabledApps': {
       const list = Array.isArray(value) ? value : String(value ?? '').split(',');
       return [...new Set(list.map((v) => String(v).trim()).filter((v) => v && v !== 'settings'))];
@@ -74,6 +79,8 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   defaultLayout: 'claude|full|split|main-left|main-left-nest|columns|grid: layout for new desktops',
   windowOpacity: '0.2..1: window glass opacity',
   background: 'aurora|dune|tide|graphite or an absolute image path',
+  stateColors: 'true|false: the wallpaper light follows the session (working, waiting on you, done, ended)',
+  statePalettes: 'JSON {"waiting":["#e0a030"],...}: colors per state (working|waiting|idle|ended); [] = own colors',
   backgroundColors: 'up to 4 hex colors ("#2b6f8f,#7a3d8c"): the user\'s own wallpaper light; empty = the preset\'s (change only if asked)',
   animateBackground: 'true|false: drift the wallpaper light',
   waitingGlow: 'true|false: amber edge glow while Claude waits on the user',
