@@ -10,6 +10,11 @@ import { image } from './image';
 import { html } from './html';
 import { settings } from './settings';
 import { browser } from './browser';
+import { tasks } from './tasks';
+import { agents } from './agents';
+import { tests } from './tests';
+import { files } from './files';
+import { diagram } from './diagram';
 
 export const APPS: Record<string, AppDef> = {};
 
@@ -17,7 +22,7 @@ export function registerApp(app: AppDef): void {
   APPS[app.type] = app;
 }
 
-for (const app of [terminal, conversation, diff, markdown, image, html, browser, settings]) registerApp({ ...app, source: 'builtin' });
+for (const app of [terminal, conversation, diff, markdown, image, html, browser, tasks, agents, tests, files, diagram, settings]) registerApp({ ...app, source: 'builtin' });
 
 // Commands used only by hooks/UI; hidden from the catalog Claude sees.
 export const INTERNAL_COMMANDS = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go', 'web.found', 'web.away', 'web.home']);

@@ -1,0 +1,26 @@
+@import '../shared/markdown.css';
+
+/* Agents: subagent runs, newest first. */
+.ag-empty { height: 100%; display: grid; place-items: center; color: var(--ink-faint); font-family: var(--sans); padding: 20px; text-align: center; }
+.agents { height: 100%; overflow: auto; font-family: var(--sans); padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.ag-sum { font-size: 12px; color: var(--ink-dim); display: flex; align-items: center; gap: 6px; margin: 0 2px 2px; }
+.ag-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sky); box-shadow: 0 0 0 0 rgba(127, 200, 255, .6); animation: ag-pulse 1.6s ease-out infinite; }
+@keyframes ag-pulse { 0% { box-shadow: 0 0 0 0 rgba(127, 200, 255, .55); } 100% { box-shadow: 0 0 0 8px rgba(127, 200, 255, 0); } }
+.ag-run { border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, 0.03); overflow: hidden; }
+.ag-run.running { border-color: rgba(127, 200, 255, 0.35); }
+.ag-run.failed { border-color: rgba(255, 107, 107, 0.4); }
+.ag-run header { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; }
+.ag-run header:hover { background: rgba(255, 255, 255, 0.04); }
+.ag-state { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.ag-run.running .ag-state { border: 1.5px solid var(--sky); border-top-color: transparent; animation: ag-spin 1s linear infinite; }
+.ag-run.done .ag-state { background: var(--ok); color: #0d1a12; }
+.ag-run.failed .ag-state { background: var(--bad); color: #210a0a; }
+@keyframes ag-spin { to { transform: rotate(360deg); } }
+.ag-desc { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-type { font: 11px var(--mono); color: var(--ink-faint); white-space: nowrap; }
+.ag-time { font: 11px var(--mono); color: var(--ink-dim); min-width: 42px; text-align: right; }
+.ag-body { padding: 0 14px 12px 40px; }
+.ag-label { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 8px 0 4px; }
+.ag-prompt { margin: 0; font-size: 12.5px; color: var(--ink-dim); white-space: pre-wrap; max-height: 9em; overflow: auto; }
+.ag-result { font-size: 13px; line-height: 1.5; max-height: 22em; overflow: auto; }
+@media (prefers-reduced-motion: reduce) { .ag-dot, .ag-run.running .ag-state { animation: none; } }

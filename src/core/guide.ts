@@ -19,7 +19,7 @@ those edits never reach "changes"), write plans to plan files, and Read images y
   claude-glass view                          layout: display modes, desktops, each window's slot + position,
                                              pinned edge sidebars, closed apps
   claude-glass show <file> [--id ID] [--title T]   .md → markdown, image → image, .html → html. Opens at 0
-  claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff, browser
+  claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff, browser, diagram
   claude-glass app <id> <command> [--text T | --file F] [--key value]
       markdown: set|append   html: render   image: add --file F [--caption C]
       diff: add --path P --before-file A --after-file B     terminal: log --text T

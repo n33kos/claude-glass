@@ -1,0 +1,24 @@
+/* Tests: the latest run big, failures, then recent runs as bars. */
+.ts-empty { height: 100%; display: grid; place-items: center; color: var(--ink-faint); font-family: var(--sans); padding: 20px; text-align: center; }
+.tests { height: 100%; overflow: auto; font-family: var(--sans); padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+.ts-latest { border-radius: 12px; padding: 14px 16px; border: 1px solid var(--line); }
+.ts-latest.ok { background: linear-gradient(135deg, rgba(62, 207, 142, 0.14), rgba(62, 207, 142, 0.04)); border-color: rgba(62, 207, 142, 0.3); }
+.ts-latest.bad { background: linear-gradient(135deg, rgba(255, 107, 107, 0.16), rgba(255, 107, 107, 0.04)); border-color: rgba(255, 107, 107, 0.35); }
+.ts-verdict { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.ts-latest.ok .ts-verdict { color: var(--ok); } .ts-latest.bad .ts-verdict { color: var(--bad); }
+.ts-counts { display: flex; gap: 14px; margin-top: 4px; font-size: 13px; color: var(--ink-dim); }
+.ts-counts b { color: var(--ink); font-size: 15px; }
+.ts-counts .f b { color: var(--bad); }
+.ts-meta { margin-top: 8px; font-size: 11.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-meta code { font: 11px var(--mono); color: var(--ink-dim); }
+.ts-bar { display: flex; height: 6px; margin-top: 10px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.06); }
+.ts-bar .p { background: var(--ok); } .ts-bar .f { background: var(--bad); } .ts-bar .s { background: rgba(255, 255, 255, 0.25); }
+.tests h4 { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+.ts-fails ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.ts-fails li { font: 12px var(--mono); color: #ffb4b4; padding: 5px 8px; border-radius: 6px; background: rgba(255, 107, 107, 0.08); overflow-wrap: anywhere; }
+.ts-spark { display: flex; align-items: flex-end; gap: 4px; height: 56px; }
+.ts-col { flex: 1; max-width: 22px; height: 100%; display: flex; align-items: flex-end; }
+.ts-stack { width: 100%; display: flex; flex-direction: column; border-radius: 3px; overflow: hidden; min-height: 4px; }
+/* A run's bar is its verdict: green passed, red failed (the red part = the failures, the rest dimmed). */
+.ts-stack .p { background: var(--ok); opacity: .8; } .ts-stack .f { background: var(--bad); }
+.ts-stack.bad .p { background: rgba(255, 107, 107, 0.35); opacity: 1; }

@@ -8,7 +8,7 @@ const common = { bundle: true, sourcemap: 'inline', logLevel: 'warning', target:
 const require = createRequire(import.meta.url);
 
 // Built-in apps that ship in the mod format (docs/apps.md). Settings is the one native view.
-const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser'];
+const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser', 'tasks', 'agents', 'tests', 'files', 'diagram'];
 // Kept in sync with INTERNAL_COMMANDS in src/apps/registry.ts (hidden from Claude's catalog).
 const INTERNAL = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go', 'web.found', 'web.away', 'web.home']);
 
