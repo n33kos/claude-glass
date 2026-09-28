@@ -398,6 +398,13 @@ Queue, in order:
     edges. Scrolling moves through the sequence: the next tile grows into the center as the current
     one shrinks back into the grid. Depth (scale) gives far windows room instead of cramming them.
 
+26. [ ] **Resizable windows inside a sidebar**: drag the gap between two windows pinned to the same
+    sidebar to change their share of it (stored per sidebar, like `tuckSize`).
+
+27. [ ] **Top bar in macOS fullscreen**: the traffic-light buttons disappear in fullscreen, leaving
+    the title offset for nothing. At least shift the title left in fullscreen (Electron
+    `enter-full-screen`/`leave-full-screen` → a class); maybe hide the bar and reveal it on hover.
+
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,
   or `"icon": "icon.svg"` in the manifest) used in the dock and title bar instead of a glyph;
