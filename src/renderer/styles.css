@@ -42,6 +42,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .topbar button { -webkit-app-region: no-drag; }
+/* macOS fullscreen hides the traffic lights, so their inset goes too. */
+.fullscreen .topbar { padding-left: 16px; }
 .session { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .project { font-weight: 600; font-size: 13px; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .presence {

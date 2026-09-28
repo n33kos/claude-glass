@@ -792,6 +792,21 @@ try {
     check(working !== done, `state colors: working goes back to the user's own light (${working})`);
   }
 
+  // macOS fullscreen hides the traffic lights: the top bar drops their inset.
+  {
+    // The glass window, not one of the hidden windows that render fetched pages.
+    const setFull = (on) => app.evaluate(({ BrowserWindow }, on) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('renderer/index.html')).setFullScreen(on), on);
+    await setFull(true);
+    await sleep(1500);
+    const pad = await page.evaluate(() => getComputedStyle(document.querySelector('.topbar')).paddingLeft);
+    check(pad === '16px', `in fullscreen the top bar drops the traffic-light inset (padding ${pad})`);
+    await page.screenshot({ path: join(shots, '15-fullscreen.png') });
+    await setFull(false);
+    await sleep(1500);
+    const back = await page.evaluate(() => getComputedStyle(document.querySelector('.topbar')).paddingLeft);
+    check(back === '84px', `leaving fullscreen brings the inset back (padding ${back})`);
+  }
+
   // Session ended
   await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
   await sleep(300);

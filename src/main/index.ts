@@ -367,6 +367,9 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.on('closed', () => { win = null; shutdown(); });
+  // Fullscreen hides the traffic lights; the renderer drops their inset from the top bar.
+  win.on('enter-full-screen', () => win?.webContents.send('glass:fullscreen', true));
+  win.on('leave-full-screen', () => win?.webContents.send('glass:fullscreen', false));
 }
 
 function buildMenu() {

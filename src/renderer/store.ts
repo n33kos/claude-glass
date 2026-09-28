@@ -11,6 +11,7 @@ declare global {
       dispatch(action: Action): Promise<{ ok: boolean; result?: unknown; error?: string }>;
       setConfig(key: string, value: unknown): Promise<{ ok: boolean; error?: string }>;
       onPatch(fn: (p: any) => void): () => void;
+      onFullscreen(fn: (on: boolean) => void): () => void;
       webAspect(aspect: number): void;
       webInput(input: unknown): void;
       resetAppData(type: string): Promise<boolean>;

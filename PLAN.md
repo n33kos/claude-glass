@@ -403,9 +403,10 @@ Queue, in order:
 26. [ ] **Resizable windows inside a sidebar**: drag the gap between two windows pinned to the same
     sidebar to change their share of it (stored per sidebar, like `tuckSize`).
 
-27. [ ] **Top bar in macOS fullscreen**: the traffic-light buttons disappear in fullscreen, leaving
-    the title offset for nothing. At least shift the title left in fullscreen (Electron
-    `enter-full-screen`/`leave-full-screen` → a class); maybe hide the bar and reveal it on hover.
+27. [x] **Top bar in macOS fullscreen (2026-09-27)**: the window's `enter-full-screen` /
+    `leave-full-screen` events (`glass:fullscreen`) put a `fullscreen` class on the page, and the top
+    bar drops the traffic-light inset. (Comparing window and screen size fails on notched Macs.)
+    Hiding the bar entirely stays an option if the shifted bar still feels wasted.
 
 Other candidates:
 - [x] **Custom app icons** (2026-09-26): an app can ship an image icon (e.g. `icon.svg`/`icon.png` in its folder,

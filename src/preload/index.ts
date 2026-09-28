@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('glass', {
     ipcRenderer.on('glass:frame', h);
     return () => ipcRenderer.removeListener('glass:frame', h);
   },
+  onFullscreen: (fn: (on: boolean) => void) => {
+    const h = (_e: unknown, on: boolean) => fn(on);
+    ipcRenderer.on('glass:fullscreen', h);
+    return () => ipcRenderer.removeListener('glass:fullscreen', h);
+  },
   onPatch: (fn: (patch: unknown) => void) => {
     const h = (_e: unknown, p: unknown) => fn(p);
     ipcRenderer.on('glass:patch', h);
