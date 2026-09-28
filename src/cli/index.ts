@@ -3,7 +3,8 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import { basename, extname, join, resolve } from 'node:path';
 import { bindSession, glassIdFor, isBound } from '../core/binding';
 import { loadConfig, SETTINGS_HELP } from '../core/config';
-import { appsDir, filesDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
+import { appsDir, filesDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
+import { healthReport } from '../core/health';
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
 import { request } from './client';
@@ -107,7 +108,7 @@ const HELP = `claude-glass — Claude's monitor for this Claude Code session
 
 ${GUIDE.split('\n').slice(8).join('\n')}
 
-Other: open | close | status [--all] | state [id] | settings [set <key> <value>] | --session ID | --json
+Other: open | close | status [--all] | state [id] | health | settings [set <key> <value>] | --session ID | --json
 Apps:  apps (list) | apps new <type> | apps copy <type>   (custom apps live in ~/.claude/claude-glass/apps)`;
 
 async function main(argv: string[]) {
@@ -146,6 +147,13 @@ async function main(argv: string[]) {
       rows.sort((a, b) => Number(b.running) - Number(a.running) || b.updated - a.updated);
       const shown = flags.all ? rows : rows.slice(0, 15);
       out(shown, shown.length ? shown.map((r) => `${r.running ? '● open  ' : '○ closed'}  ${r.id}  ${r.title}  ${new Date(r.updated).toLocaleString()}  ${r.cwd}`).join('\n') : 'No glass windows yet.');
+      return;
+    }
+    case 'health': {
+      // The glass's health log: memory/CPU per process type over time, and any crashes.
+      const file = join(sessionDir(sessionId(flags)), 'metrics.ndjson');
+      if (!existsSync(file)) throw new Error('no health log for this glass yet (it starts when the glass opens)');
+      console.log(healthReport(readFileSync(file, 'utf8')));
       return;
     }
     case 'view': {

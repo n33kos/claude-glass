@@ -52,7 +52,12 @@ Ask Claude to "open the glass", run `/claude-glass:glass`, or from a shell insid
 claude-glass open      # this session's glass ($CLAUDE_CODE_SESSION_ID)
 claude-glass close
 claude-glass status    # every glass, open or closed
+claude-glass health    # this glass's memory and CPU since it opened, and any crashed processes
 ```
+
+Each glass keeps a small health log (`metrics.ndjson` in its session folder): a sample every five
+minutes of what its processes use, and a line whenever one crashes, so a slow leak or GPU trouble
+can be traced after the fact.
 
 To open one automatically for every session, turn on **Open Claude Glass when a Claude session
 starts** in Settings (the gear in the dock), or `claude-glass settings set autoStart true`.

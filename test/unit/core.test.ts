@@ -8,6 +8,7 @@ import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
 import { applyHook, type HookContext } from '../../src/core/hooks';
 import { DEFAULT_PALETTES, lightColors, moodOf, parsePalettes } from '../../src/core/colors';
+import { healthReport } from '../../src/core/health';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor, guideForSettings } from '../../src/core/guide';
 import { attachBuiltinViews, loadMods } from '../../src/core/mods';
@@ -446,6 +447,22 @@ describe('app permissions', () => {
     expect(() => parsePermissions({ network: ['*'] })).toThrow();
     expect(() => parsePermissions({ network: ['file:///etc'] })).toThrow(/origin/);
     expect(() => parsePermissions({ network: ['https://*.example.com'] })).toThrow();
+  });
+});
+
+describe('health report', () => {
+  it('summarizes the latest run: memory per process type, growth, crashes', () => {
+    const s = (min: number, gpu: number) => JSON.stringify({ t: 'x', kind: 'sample', uptimeMin: min, procs: { gpu: { n: 1, mb: gpu, cpu: 2 }, renderer: { n: 3, mb: 300, cpu: 1 } }, mainHeapMB: 20, sys: { freeMB: 900, load1: 1.5 }, windows: 7 });
+    const log = [
+      JSON.stringify({ t: 'x', kind: 'start' }), s(1, 999),
+      JSON.stringify({ t: 'y', kind: 'start' }), s(1, 180), s(60, 240),
+      JSON.stringify({ t: 'z', kind: 'child-gone', type: 'GPU', reason: 'crashed', exitCode: 5 }),
+    ].join('\n');
+    const r = healthReport(log);
+    expect(r).toMatch(/gpu ×1\s+240\s+\+60\s+240/);
+    expect(r).toContain('windows 7');
+    expect(r).toContain('GPU crashed (exit 5)');
+    expect(healthReport('')).toContain('No samples yet');
   });
 });
 
