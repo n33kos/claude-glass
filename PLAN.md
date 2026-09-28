@@ -360,8 +360,22 @@ Queue, in order:
     one Chromium profile at once, which Chromium doesn't support (cookie/storage corruption risk);
     now each glass keeps its own profile (`userData/glasses/<glass id>`), seeded once from the old
     shared profile's cookies and storage so pairings survive. Separate processes stay the design.
-    Open: the dock icon went missing after a stray Electron tile was removed (app registers as a
-    normal foreground app; cause unknown). Later: prune profiles of glasses long gone.
+    Missing dock icon / ⌘Tab: Claude runs inside tmux, outside the user's GUI session, so a glass
+    spawned as its child got windows but no dock tile or ⌘Tab (System Events couldn't see it).
+    The launcher now starts the packaged app through LaunchServices (`open -n -a … --env … --args`).
+    Later: prune profiles of glasses long gone.
+
+23. [ ] **Images grid**: the images app gets a view option (in the app, saved with the window) to
+    show a grid of recent images instead of one at a time. Guide: in live mode reuse one images
+    window (`show --id images`) rather than a new one per image; history mode keeps one per action.
+    Needs guide text that depends on settings per app (today only the core guide varies with
+    settings: nested view, history mode, "Claude decides"; an app's `guide.md` is static). Idea:
+    `guide.md` sections tagged by setting, or a `guide(settings)` export in `core.js`.
+
+24. [ ] **App settings**: apps declare their own settings in the manifest (a small schema: key,
+    type bool/enum/number/color, default, label, help); Settings renders them per app, the CLI
+    lists/sets them (`claude-glass settings set app.<type>.<key> …`), apps read them through the
+    SDK, and guide text can depend on them (see 23).
 
 21. [ ] **Selectable panes** (after 20): scrolling anywhere over the glass walks desktops/the
     spiral; a click selects a window (outlined), and only a selected window takes wheel and pointer
