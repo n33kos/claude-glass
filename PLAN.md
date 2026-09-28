@@ -352,7 +352,7 @@ Queue, in order:
     so the glass can show the work. Never blocks. git and claude-glass commands are skipped
     (prose arguments). Global `toolReminders` (default on) turns it off.
 
-20. [ ] **Stability (2026-09-27, in progress)**: WindowServer watchdog hangs (system froze and
+20. [x] **Stability (2026-09-27)**: WindowServer watchdog hangs (system froze and
     restarted) while the glass ran next to Alchemy (Electron, WebGL). Found: backdrop blur on every
     window, the top bar and the dock re-ran each frame over the live wallpaper (glass GPU process
     ~41% of a core → ~19% without; drift itself is cheap). Blur removed from always-on surfaces.
@@ -363,7 +363,7 @@ Queue, in order:
     Missing dock icon / ⌘Tab: Claude runs inside tmux, outside the user's GUI session, so a glass
     spawned as its child got windows but no dock tile or ⌘Tab (System Events couldn't see it).
     The launcher now starts the packaged app through LaunchServices (`open -n -a … --env … --args`).
-    Later: prune profiles of glasses long gone.
+    Profiles of glasses not running and not opened for 30 days are pruned when a glass starts.
 
 23. [x] **Images grid (2026-09-27)**: the images app's corner button (or `view --mode grid|single`,
     saved with the window) shows the 12 most recent images as a grid, newest first; a tile opens

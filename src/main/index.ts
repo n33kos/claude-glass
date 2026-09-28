@@ -1,10 +1,10 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
 import { app, BrowserWindow, ipcMain, Menu, protocol, session } from 'electron';
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { extname, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
 import { appInfo, NO_PERMISSIONS, type AppPermissions } from '../apps/types';
-import { filesDir } from '../core/paths';
+import { filesDir, socketPath } from '../core/paths';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { computeDesktops, desktopsFor } from '../core/layout';
@@ -36,7 +36,24 @@ if (process.env.CLAUDE_GLASS_HOME) {
   const shared = app.getPath('userData'); // ~/Library/Application Support/Claude Glass
   const own = join(shared, 'glasses', sessionId);
   if (!existsSync(own)) seedProfile(shared, own);
+  try { utimesSync(own, new Date(), new Date()); } catch {} // "last opened", for pruning
   app.setPath('userData', own);
+  pruneProfiles(join(shared, 'glasses'), sessionId);
+}
+
+/**
+ * Profiles of glasses that aren't running (no socket) and haven't been opened in 30 days go.
+ * A glass that comes back starts over from the seed, like a new one.
+ */
+function pruneProfiles(dir: string, keep: string) {
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  try {
+    for (const id of readdirSync(dir)) {
+      if (id === keep || existsSync(socketPath(id))) continue;
+      const p = join(dir, id);
+      if (statSync(p).mtimeMs < cutoff) rmSync(p, { recursive: true, force: true });
+    }
+  } catch {}
 }
 
 /**
