@@ -449,6 +449,18 @@ describe('app permissions', () => {
   });
 });
 
+describe('sidebar splits', () => {
+  it('shares are normalized, one per window; wrong counts are refused', () => {
+    let s = fresh();
+    s = reduce(s, { type: 'window.tuck', id: 'terminal', edge: 'right' }).state;
+    expect(() => reduce(s, { type: 'tuck.split', edge: 'right', shares: [1] })).toThrow(/positive shares/);
+    s = reduce(s, { type: 'window.tuck', id: 'conversation', edge: 'right' }).state;
+    s = reduce(s, { type: 'tuck.split', edge: 'right', shares: [3, 1] }).state;
+    expect(s.tuckSplit?.right).toEqual([0.75, 0.25]);
+    expect(() => reduce(s, { type: 'tuck.split', edge: 'right', shares: [1, 0] })).toThrow();
+  });
+});
+
 describe('edge tucking (experiment)', () => {
   it('tucking takes a window out of the flow; untuck puts it back first', () => {
     let s = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;

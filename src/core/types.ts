@@ -78,6 +78,9 @@ export interface GlassState {
   tuckKeep?: Edge[];
   // Sidebar sizes the user dragged (px: width for left/right, height for top/bottom).
   tuckSize?: Partial<Record<Edge, number>>;
+  // How a sidebar's windows share its length (fractions summing to 1, in sidebar order). Ignored
+  // once the sidebar's window count changes (they split evenly again).
+  tuckSplit?: Partial<Record<Edge, number[]>>;
 }
 
 export type Action =
@@ -97,6 +100,7 @@ export type Action =
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
   | { type: 'tuck.keep'; edge: Edge; keep: boolean }
+  | { type: 'tuck.split'; edge: Edge; shares: number[] } // one share per window in the sidebar
   | { type: 'tuck.size'; edge: Edge; size: number };
 
 export interface Envelope {

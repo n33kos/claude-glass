@@ -102,6 +102,15 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...s, tuckSize: { ...s.tuckSize, [a.edge]: Math.round(a.size) } } };
     }
 
+    case 'tuck.split': {
+      if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
+      const n = s.tucked?.[a.edge]?.length ?? 0;
+      const shares = Array.isArray(a.shares) ? a.shares.map(Number) : [];
+      if (shares.length !== n || n < 2 || shares.some((x) => !(x > 0))) throw new Error(`tuck.split needs ${n} positive shares for the ${a.edge} sidebar`);
+      const sum = shares.reduce((t, x) => t + x, 0);
+      return { state: { ...s, tuckSplit: { ...s.tuckSplit, [a.edge]: shares.map((x) => Math.round((x / sum) * 1000) / 1000) } } };
+    }
+
     case 'window.untuck': {
       requireInstance(s, a.id);
       const t = untuck(s, a.id);

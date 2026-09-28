@@ -33,12 +33,25 @@ function panelRect(edge: Edge, W: number, H: number, s: TuckState): Rect {
   return { x: PAD + side.l, y: edge === 'top' ? PAD : H - PAD - sz, w, h: sz };
 }
 
-/** n equal slots along a sidebar (stacked on left/right, side by side on top/bottom), panel-relative. */
-function panelSlots(edge: Edge, n: number, r: Rect): Rect[] {
+/**
+ * n slots along a sidebar (stacked on left/right, side by side on top/bottom), panel-relative:
+ * sized by `shares` when there's one per slot (the user dragged the gaps), else equal.
+ */
+function panelSlots(edge: Edge, n: number, r: Rect, shares?: number[]): Rect[] {
   const vertical = edge === 'left' || edge === 'right';
-  const each = ((vertical ? r.h : r.w) - GAP * (n - 1)) / n;
-  return Array.from({ length: n }, (_, i) => (vertical ? { x: 0, y: i * (each + GAP), w: r.w, h: each } : { x: i * (each + GAP), y: 0, w: each, h: r.h }));
+  const room = (vertical ? r.h : r.w) - GAP * (n - 1);
+  const parts = shares?.length === n ? shares : Array.from({ length: n }, () => 1 / n);
+  const total = parts.reduce((t, x) => t + x, 0);
+  let at = 0;
+  return parts.map((p) => {
+    const len = (room * p) / total;
+    const slot = vertical ? { x: 0, y: at, w: r.w, h: len } : { x: at, y: 0, w: len, h: r.h };
+    at += len + GAP;
+    return slot;
+  });
 }
+
+const SPLIT_MIN = 90; // px: the smallest a window gets when dragging the gap between two in a sidebar
 
 const TUCK_ZONE = 44; // px strip at each stage edge: with ⌘ held, drop a window there to pin it to that sidebar
 const SWITCH_ZONE = 48; // left/right: hold a dragged window here to switch desktops
@@ -649,6 +662,34 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
   };
+  // Live shares while dragging the gap between two windows in a sidebar; committed on release.
+  const [splitting, setSplitting] = useState<{ edge: Edge; shares: number[] } | null>(null);
+  const startSplit = (edge: Edge, i: number, start: number[], r: Rect, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    const vertical = edge === 'left' || edge === 'right';
+    const room = (vertical ? r.h : r.w) - GAP * (start.length - 1);
+    const from = vertical ? e.clientY : e.clientX;
+    let shares = start;
+    document.body.classList.add('frames-off');
+    const move = (ev: PointerEvent) => {
+      // Move the boundary between window i and i+1; each keeps at least SPLIT_MIN.
+      const pair = start[i] + start[i + 1];
+      const min = Math.min(SPLIT_MIN / room, pair / 2);
+      const a = Math.max(min, Math.min(pair - min, start[i] + ((vertical ? ev.clientY : ev.clientX) - from) / room));
+      shares = start.map((x, j) => (j === i ? a : j === i + 1 ? pair - a : x));
+      setSplitting({ edge, shares });
+    };
+    const up = () => {
+      document.body.classList.remove('frames-off');
+      window.removeEventListener('pointermove', move);
+      setSplitting(null);
+      if (shares !== start) void dispatch({ type: 'tuck.split', edge, shares });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+  };
   return (
     <>
       {EDGES.map((edge) => {
@@ -666,7 +707,9 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
         const dragged = drag && ids.includes(drag.id) ? drag.id : null;
         const others = ids.filter((id) => id !== dragged);
         const ghostAt = drag && drag.tuck === edge && drag.slot != null ? Math.min(drag.slot, others.length) : null;
-        const slots = panelSlots(edge, Math.max(1, others.length + (ghostAt != null ? 1 : 0)), r);
+        const shares = splitting?.edge === edge ? splitting.shares : state.tuckSplit?.[edge];
+        const evenShares = ids.map(() => 1 / ids.length);
+        const slots = panelSlots(edge, Math.max(1, others.length + (ghostAt != null ? 1 : 0)), r, dragged || ghostAt != null ? undefined : shares);
         const slotOf = (i: number) => slots[ghostAt != null && i >= ghostAt ? i + 1 : i];
         const stage = drag ? document.querySelector('.stage')?.getBoundingClientRect() : undefined;
         return (
@@ -731,13 +774,19 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
             <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
               style={{ width: pw, height: ph, ...(vertical ? {} : { left: PAD + side.l }) }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
               {kept && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, e)} />}
+              {/* Drag the gap between two windows to change how they share the sidebar. */}
+              {!drag && ids.length > 1 && slots.slice(0, -1).map((s, i) => (
+                <div key={`split-${i}`} className={`edge-split ${vertical ? 'rows' : 'cols'}`} title="Drag to resize"
+                  style={vertical ? { top: s.y + s.h, left: 0, width: pw, height: GAP } : { left: s.x + s.w, top: 0, height: ph, width: GAP }}
+                  onPointerDown={(e) => startSplit(edge, i, shares?.length === ids.length ? shares : evenShares, r, e)} />
+              ))}
               {ghostAt != null && <div className="drop-ghost" style={{ width: slots[ghostAt].w, height: slots[ghostAt].h, transform: `translate(${slots[ghostAt].x}px, ${slots[ghostAt].y}px)` }} />}
               {ids.map((id) => {
                 const meta = state.instances[id];
                 const isDragged = id === dragged && drag && stage;
                 // The dragged window keeps its size and follows the pointer (panel-relative).
                 const home = slotOf(Math.max(0, others.indexOf(id))) ?? slots[0];
-                const own = panelSlots(edge, ids.length, r)[ids.indexOf(id)];
+                const own = panelSlots(edge, ids.length, r, shares)[ids.indexOf(id)];
                 const style: React.CSSProperties = isDragged
                   ? { width: own.w, height: own.h, zIndex: 5, transform: `translate(${drag.px - stage.left - r.x - drag.ox}px, ${drag.py - stage.top - r.y - drag.oy}px) scale(.97)` }
                   : { width: home.w, height: home.h, transform: `translate(${home.x}px, ${home.y}px)` };

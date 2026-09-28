@@ -792,6 +792,31 @@ try {
     check(working !== done, `state colors: working goes back to the user's own light (${working})`);
   }
 
+  // Two windows in one sidebar: drag the gap between them to change their shares.
+  {
+    const a = (await cli(env, 'new', 'markdown', '--title', 'Split A')).split(' ')[0];
+    const b = (await cli(env, 'new', 'markdown', '--title', 'Split B')).split(' ')[0];
+    await cli(env, 'window', 'pin', a, 'right');
+    await cli(env, 'window', 'pin', b, 'right');
+    await page.evaluate(() => window.glass.dispatch({ type: 'tuck.keep', edge: 'right', keep: true }));
+    await sleep(700);
+    const gap = await page.locator('.edge-panel.right .edge-split').boundingBox();
+    const hA = async () => (await page.locator(`[data-window="${a}"]`).boundingBox()).height;
+    const before = await hA();
+    await page.mouse.move(gap.x + gap.width / 2, gap.y + gap.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(gap.x + gap.width / 2, gap.y + 150, { steps: 6 });
+    await page.mouse.up();
+    await sleep(600);
+    const after = await hA();
+    const split = JSON.parse(await cli(env, 'state', '--json')).tuckSplit?.right;
+    check(after > before + 100 && split?.[0] > 0.6, `dragging the gap in a sidebar resizes its windows (${Math.round(before)} → ${Math.round(after)}px, shares ${JSON.stringify(split)})`);
+    await page.screenshot({ path: join(shots, '12i-sidebar-split.png') });
+    await cli(env, 'window', 'delete', a);
+    await cli(env, 'window', 'delete', b);
+    await sleep(300);
+  }
+
   // macOS fullscreen hides the traffic lights: the top bar drops their inset.
   {
     // The glass window, not one of the hidden windows that render fetched pages.

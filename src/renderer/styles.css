@@ -331,6 +331,10 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 .edge-resize.top, .edge-resize.bottom { left: 0; right: 0; height: 10px; cursor: row-resize; }
 .edge-resize.top { bottom: -11px; } .edge-resize.bottom { top: -11px; }
 .edge-resize:hover, .edge-panel.resizing .edge-resize { background: rgba(127, 200, 255, 0.25); border-radius: 4px; }
+/* The gap between two windows in a sidebar: drag it to change their shares. */
+.edge-split { position: absolute; z-index: 4; border-radius: 4px; }
+.edge-split.rows { cursor: row-resize; } .edge-split.cols { cursor: col-resize; }
+.edge-split:hover, .edge-split:active { background: rgba(127, 200, 255, 0.25); }
 .edge-panel.resizing { transition: none; }
 .edge-panel.drop-on::after { content: ''; position: absolute; inset: -4px; z-index: -1; border-radius: calc(var(--radius-win) + 4px);
   box-shadow: 0 0 0 2px rgba(127, 200, 255, 0.55); pointer-events: none; }

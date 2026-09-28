@@ -400,8 +400,10 @@ Queue, in order:
     edges. Scrolling moves through the sequence: the next tile grows into the center as the current
     one shrinks back into the grid. Depth (scale) gives far windows room instead of cramming them.
 
-26. [ ] **Resizable windows inside a sidebar**: drag the gap between two windows pinned to the same
-    sidebar to change their share of it (stored per sidebar, like `tuckSize`).
+26. [x] **Resizable windows inside a sidebar (2026-09-27)**: drag the gap between two windows in a
+    sidebar (`.edge-split`) to change their shares; `tuck.split` stores normalized shares per
+    sidebar (`tuckSplit`), each window keeps at least 90px, and the shares are ignored (even split)
+    once the sidebar's window count changes.
 
 27. [x] **Top bar in macOS fullscreen (2026-09-27)**: the window's `enter-full-screen` /
     `leave-full-screen` events (`glass:fullscreen`) put a `fullscreen` class on the page, and the top
