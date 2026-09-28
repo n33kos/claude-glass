@@ -377,6 +377,14 @@ Queue, in order:
     lists/sets them (`claude-glass settings set app.<type>.<key> …`), apps read them through the
     SDK, and guide text can depend on them (see 23).
 
+25. [ ] **State palettes** (deterministic background signal): a setting (`stateColors`, off |
+    on, plus editable palettes) that recolors the wallpaper light from session state the hooks
+    already track, no Claude prose involved: working, waiting on the user (question/permission),
+    idle/done, error (a failed tool), session ended. Each state maps to a palette (defaults, editable
+    in Settings); changes ease over like today. When on, the guide drops the "set colors as a
+    signal" paragraph (or keeps `background` only for deliberate one-offs, which win until the
+    state next changes).
+
 21. [ ] **Selectable panes** (after 20): scrolling anywhere over the glass walks desktops/the
     spiral; a click selects a window (outlined), and only a selected window takes wheel and pointer
     input; clicking off (or Esc) deselects. Today you have to find the thin gaps between windows to
