@@ -60,7 +60,7 @@ minutes of what its processes use, and a line whenever one crashes, so a slow le
 can be traced after the fact.
 
 To open one automatically for every session, turn on **Open Claude Glass when a Claude session
-starts** in Settings (the gear in the dock), or `claude-glass settings set autoStart true`.
+starts** in Settings (the gear in the launcher), or `claude-glass settings set autoStart true`.
 
 **What fills in by itself** (no Claude tokens spent):
 
@@ -70,12 +70,12 @@ starts** in Settings (the gear in the dock), or `claude-glass settings set autoS
 | Terminal | every tool call with its output, filterable by tool; a lock on the one waiting for you |
 | Changes | a diff of every edit; flip through a file's revisions |
 | Plan | plan files and plan mode |
-| Images | images Claude reads; one at a time or a grid of recent ones; "Show in Finder" reveals the original |
+| Images | one window for every image Claude reads or shows (one at a time or a grid; "Show in Finder" reveals the original), and a Project tab with the images in the project folder, newest first |
 | Browser | Claude's web searches (results) and the pages it fetches, rendered, with back/forward and the passage Claude says it relied on highlighted; a browser Claude drives (Playwright, Chrome with a DevTools port) streams in live, watch-only (copy the address or open it in your own browser with ↗) |
 | Tasks | Claude's own to-do list, live, with progress and what it's doing now |
 | Agents | the subagents Claude starts: their task, whether they're still running, and what each reported |
 | Tests | results of the test runs Claude does (npm test, vitest, jest, pytest, go test, cargo test…): pass/fail, failing tests, recent runs |
-| Files | every file Claude read or changed: most recent first, as a folder tree, or a map of what it worked on together |
+| Files | every file Claude read or changed: most recent first, as a folder tree, or a map of what it worked on together; click a changed file to see its diff in Changes |
 
 Claude can also draw **diagrams** from templates (flow, sequence, layers, timeline, compare, tree,
 cycle, stats): it picks one and fills it with JSON, so they look the same polished way every time.
@@ -89,13 +89,16 @@ overflow spills onto the next desktop.
   over any other window switches desktops. Click elsewhere or press Esc to let go.
 - Drag a title bar to reorder; a dashed placeholder shows where it lands. Hold it at a side edge to
   move it to the next desktop.
-- **Sidebars**: drag a window (or its dock icon) onto the pin target in the middle of a screen edge
-  to pin it there. Hover the edge to slide the sidebar out; its pin button keeps it open (the
-  layout makes room). Drag its inner edge to resize it, the gap between two of its windows to
-  share it differently, and a window out of it to unpin. Pinned windows stay put on every desktop,
-  which suits things you interact with.
+- **Docks**: drag a window (or its launcher icon) onto a dock target, in the middle of a screen
+  edge or in a corner, to dock it there. Hover the edge (or corner) to pull the dock out and click
+  to open it, or set docks to open on hover. Its pin button keeps it open, and the layout makes
+  room; on a kept dock the pin stays out of sight until you hover the dock. Drag its inner edge to
+  resize it (a corner dock resizes both ways from its inner corner), the gap between two of its
+  windows to share it differently, and a window out of it to undock. Corner docks suit apps that
+  want a fixed, modest size: a kept corner takes the end of its side's column and the edge dock
+  fits beside it. Docked windows stay put on every desktop, which suits things you interact with.
 
-  ![The terminal pinned to the right edge, kept open beside the desktop](docs/media/sidebar.png)
+  ![The terminal docked at the right edge, kept open beside the desktop](docs/media/sidebar.png)
 - **Nested view** (Settings): one screen instead of desktops. *Spiral*: the newest window is big
   and each older one takes half of what's left. *Carousel*: the focused window sits in the middle
   and its neighbors line up as small tiles either side; scroll, swipe or click a tile to move
@@ -104,14 +107,15 @@ overflow spills onto the next desktop.
   ![The carousel: scrolling moves the next window into the middle](docs/media/carousel.gif)
 - **History mode** (Settings, per session): every edit, plan, image, search and page opens in its
   own window, newest first, so the glass reads as a timeline (the newest 12 are kept).
-- **Presets**: save a glass's frame (which apps sit in which sidebars, their sizes and splits,
+- **Presets**: save a glass's frame (which apps sit in which docks, their sizes and splits,
   desktop layouts, this glass's settings and the look) under a name and a short description, then
   apply it to any glass, or make it the frame every new glass starts with. In Settings, or
   `claude-glass preset save|apply|list|default`, and `claude-glass open --preset <name>`. Claude sees
   the list with descriptions, so "set up the glass for this" can pick one. Presets are JSON files in
   `~/.claude/claude-glass/presets/`, easy to edit or share.
-- **Dock**: click an icon to show a window, drag to reorder, drag onto an edge to pin. It can
-  auto-hide.
+- **Launcher** (the bar along the bottom): click an icon to show a window, drag to reorder, drag
+  onto a dock target to dock it. An app's windows share one icon with a count; click it to pick
+  one from a list (turn grouping off in Settings for an icon per window). It can auto-hide.
 - **Background**: presets or your own image; pick the light colors yourself. With **state colors**
   on (default), the light follows the session: amber while Claude waits on you, green when it's
   your turn, graphite when the session ends.
@@ -126,13 +130,13 @@ The plugin gives Claude a short guide when a glass is open (`claude-glass help` 
 `claude-glass` CLI:
 
 ```
-claude-glass view                          what's on screen: desktops, windows and their positions, sidebars
+claude-glass view                          what's on screen: desktops, windows and their positions, docks
 claude-glass show <file> [--id ID]         .md → markdown, image → image, .html → html; opens first
 claude-glass new <type> [--id ID] [--title T]
 claude-glass app <id> <command> [--text T | --file F] [--key value]
 claude-glass window open|close|delete <id>
 claude-glass window move <id> <index>      0 = the first slot, to bring something to your attention
-claude-glass window pin <id> <edge> | unpin <id>
+claude-glass window dock <id> <place> | undock <id>   place: left|right|top|bottom|top-left|top-right|bottom-right|bottom-left
 claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
 claude-glass catalog                       every app and its commands
 claude-glass settings [set <key> <value>]  (Claude changes settings only when you ask)
@@ -147,7 +151,7 @@ charts and diagrams.
 
 ## Settings
 
-Everything is in Settings (the gear in the dock), and `claude-glass settings` lists it all with
+Everything is in Settings (the gear in the launcher), and `claude-glass settings` lists it all with
 the current values. Global settings live in `~/.claude/claude-glass/config.json`.
 
 <img src="docs/media/settings.png" alt="Settings: light colors and state colors" width="560">
@@ -170,8 +174,10 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `stateColors` | **true** / false | the light follows the session |
 | `statePalettes` | JSON per state | colors for working / waiting / idle / ended (`[]`: your own) |
 | `waitingGlow` | **true** / false | amber edge glow while Claude waits on you |
-| `dockAutoHide` | true / **false** | hide the dock until the pointer reaches the bottom |
-| `dockOrder` | **windows** / fixed | dock follows window order, or a fixed order by app |
+| `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |
+| `launcherAutoHide` | true / **false** | hide the launcher until the pointer reaches the bottom (was `dockAutoHide`) |
+| `launcherOrder` | **windows** / fixed | launcher follows window order, or a fixed order by app (was `dockOrder`) |
+| `launcherGroup` | **true** / false | an app's windows share one launcher icon, with a list to pick one |
 | `disabledApps` | app types | turned-off apps are hidden and Claude can't use them |
 | `toolReminders` | **true** / false | remind Claude to read and edit with its own tools (so you see the work) |
 | `app.<type>.<key>` | per app | an app's own settings (e.g. `app.image.gridSize`) |
@@ -201,7 +207,7 @@ claude-glass apps                 # what's installed (and what failed to load, a
   core.js          init() and command(state, name, args): pure state; optional onHook(state, payload)
   view.html        the view; loads the SDK and renders props
   guide.md         instructions for Claude (optional)
-  icon.svg         dock and title bar icon (optional)
+  icon.svg         launcher and title bar icon (optional)
 ```
 
 An app can fill itself from Claude Code hooks (`onHook`), take commands from Claude
@@ -225,7 +231,7 @@ Claude Code session ──hooks (async)──► scripts/hook-forward.sh ──n
                   └────────────▲──────────────────────────────┬─────────────────────┘
                       ipc: dispatch(action)            ipc: state patches
                   ┌────────────┴──────────────────────────────▼─────────────────────┐
-                  │  renderer (React): desktops · windows · dock · sidebars          │
+                  │  renderer (React): desktops · windows · launcher · docks         │
                   │  app views in sandboxed frames (glass-app://<type>/view.html)    │
                   └──────────────────────────────────────────────────────────────────┘
 ```
@@ -264,7 +270,7 @@ on you"; `Stop` and `SessionEnd` mark the session idle or ended; `SessionStart` 
 stays closed. Apps with `onHook` see every payload too.
 
 **State.** A glass is one `GlassState`: the session (activity, what it's waiting on), the ordered
-window list, per-desktop layouts, window instances, each app's own state slice, sidebars, and
+window list, per-desktop layouts, window instances, each app's own state slice, docks, and
 per-session settings. It's saved (debounced) to `state.json`, and the renderer gets patches.
 
 **Launching.** `claude-glass open` starts the app through macOS LaunchServices (a renamed copy of
@@ -310,7 +316,7 @@ src/core/       server, reducer, hooks, layout, config, guide, mods (pure Node)
 src/apps/       built-in apps: <type>/index.ts (core) + view.tsx + view.css + guide.md
 src/sdk/        the app SDK (bridge between a view frame and the glass)
 src/main/       Electron main: window, protocols, permissions, browser streams, fetched pages
-src/renderer/   the shell: desktops, windows, dock, sidebars, settings
+src/renderer/   the shell: desktops, windows, launcher, docks, settings
 src/cli/        the claude-glass CLI
 hooks/, skills/, scripts/, bin/   the Claude Code plugin
 ```

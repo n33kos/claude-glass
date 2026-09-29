@@ -1,6 +1,9 @@
 // Core data model. Pure types, shared by core, main, renderer, and CLI.
 
 export type Edge = 'left' | 'right' | 'top' | 'bottom';
+export type Corner = 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left';
+/** A dock: somewhere a window can be docked, out of the tiling flow. One per edge and corner. */
+export type Dock = Edge | Corner;
 
 export type LayoutName = 'full' | 'split' | 'main-left' | 'main-left-nest' | 'columns' | 'grid' | 'nested';
 
@@ -47,8 +50,10 @@ export interface GlobalConfig {
   statePalettes: Record<'working' | 'waiting' | 'idle' | 'ended', string[]>; // per state; empty = own colors
   defaultLayout: LayoutName | 'claude'; // claude: new desktops fit their window count; Claude picks layouts
   windowOpacity: number;
-  dockAutoHide: boolean; // dock overlays and hides; windows get its space
-  dockOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
+  launcherAutoHide: boolean; // the launcher (bottom bar) overlays and hides; windows get its space
+  launcherOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
+  launcherGroup: boolean; // an app's windows share one launcher icon, with a menu to pick one
+  dockOpen: 'click' | 'hover'; // a hidden dock slides out when its tab is clicked, or on hover
   waitingGlow: boolean; // faint amber edge glow while Claude waits on the user
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
@@ -73,16 +78,18 @@ export interface GlassState {
   ui: { viewingDesktop: number };
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
-  // Windows pinned to an edge sidebar (shown to users as "pin"; stored as "tucked"): out of the
+  // Windows docked at an edge or corner (shown to users as "dock"; stored as "tucked"): out of the
   // tiling flow, on every desktop, shown on hover or kept open.
-  tucked?: Partial<Record<Edge, string[]>>;
-  // Edges whose panel stays open; the layout makes room for them (like a docked sidebar).
-  tuckKeep?: Edge[];
-  // Sidebar sizes the user dragged (px: width for left/right, height for top/bottom).
-  tuckSize?: Partial<Record<Edge, number>>;
-  // How a sidebar's windows share its length (fractions summing to 1, in sidebar order). Ignored
-  // once the sidebar's window count changes (they split evenly again).
-  tuckSplit?: Partial<Record<Edge, number[]>>;
+  tucked?: Partial<Record<Dock, string[]>>;
+  // Docks that stay open; the layout makes room for them.
+  tuckKeep?: Dock[];
+  // Dock sizes the user dragged (px: width for left/right and corners, height for top/bottom).
+  tuckSize?: Partial<Record<Dock, number>>;
+  // Corner docks' heights the user dragged (px).
+  tuckHeight?: Partial<Record<Corner, number>>;
+  // How a dock's windows share its length (fractions summing to 1, in dock order). Ignored once
+  // the dock's window count changes (they split evenly again).
+  tuckSplit?: Partial<Record<Dock, number[]>>;
 }
 
 export type Action =
@@ -98,12 +105,12 @@ export type Action =
   | { type: 'session.update'; patch: Partial<SessionInfo> }
   | { type: 'ui.viewDesktop'; index: number }
   | { type: 'app.hook'; payload: unknown }
-  | { type: 'window.tuck'; id: string; edge: Edge; index?: number } // index: position in the sidebar (default last)
+  | { type: 'window.tuck'; id: string; edge: Dock; index?: number } // dock it; index: position in the dock (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
-  | { type: 'tuck.keep'; edge: Edge; keep: boolean }
-  | { type: 'tuck.split'; edge: Edge; shares: number[] } // one share per window in the sidebar
-  | { type: 'tuck.size'; edge: Edge; size: number };
+  | { type: 'tuck.keep'; edge: Dock; keep: boolean }
+  | { type: 'tuck.split'; edge: Dock; shares: number[] } // one share per window in the dock
+  | { type: 'tuck.size'; edge: Dock; size?: number; height?: number }; // height: corners only
 
 export interface Envelope {
   op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'preset' | 'quit';

@@ -168,11 +168,22 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
       <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
 
-      <h4>Dock</h4>
-      <Toggle label="Auto-hide the dock (shows at the bottom edge)" on={config.dockAutoHide} onChange={(v) => setConfig('dockAutoHide', v)} />
+      <h4>Docks</h4>
+      <p className="s-note">Drag a window onto a target at an edge or corner to dock it there.</p>
       <label className="s-row">
-        <span>Dock order</span>
-        <select value={config.dockOrder} onChange={(e) => setConfig('dockOrder', e.target.value)}>
+        <span>Open a hidden dock</span>
+        <select value={config.dockOpen ?? 'click'} onChange={(e) => setConfig('dockOpen', e.target.value)}>
+          <option value="click">When its tab is clicked</option>
+          <option value="hover">When hovering its tab</option>
+        </select>
+      </label>
+
+      <h4>Launcher</h4>
+      <Toggle label="Auto-hide the launcher (shows at the bottom edge)" on={config.launcherAutoHide} onChange={(v) => setConfig('launcherAutoHide', v)} />
+      <Toggle label="Group an app's windows under one icon" on={config.launcherGroup !== false} onChange={(v) => setConfig('launcherGroup', v)} />
+      <label className="s-row">
+        <span>Launcher order</span>
+        <select value={config.launcherOrder} onChange={(e) => setConfig('launcherOrder', e.target.value)}>
           <option value="windows">Match window order</option>
           <option value="fixed">Fixed by app type</option>
         </select>
@@ -226,7 +237,7 @@ function Presets() {
   return (
     <>
       <h4>Presets</h4>
-      <p className="s-note">A preset is a saved frame: which apps sit in which sidebars (sizes, splits, kept open), the desktop layouts, this glass's settings and the look. Claude can apply them too (<code>claude-glass preset</code>).</p>
+      <p className="s-note">A preset is a saved frame: which apps sit in which docks (sizes, splits, kept open), the desktop layouts, this glass's settings and the look. Claude can apply them too (<code>claude-glass preset</code>).</p>
       {list.presets.map((p) => (
         <div key={p.name} className="s-row s-preset">
           <span>

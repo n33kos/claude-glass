@@ -95,9 +95,10 @@ function formatView(v: any): string {
     if (!d.windows.length) lines.push('  (empty)');
     for (const w of d.windows) lines.push(`  ${String(w.index).padStart(2)}  ${w.id.padEnd(16)} ${w.type.padEnd(12)} ${w.title.padEnd(20)} ${pos(w.rect)}`);
   }
-  for (const [edge, sb] of Object.entries(v.sidebars ?? {}) as [string, any][]) {
-    const names = (v.tucked?.[edge] ?? []).map((w: any) => `${w.id} (${w.type})`).join(', ');
-    lines.push(`Pinned ${edge} sidebar (${sb.open ? `kept open, ${sb.size}px` : 'hidden until hovered'}): ${names}`);
+  for (const [dock, sb] of Object.entries(v.sidebars ?? {}) as [string, any][]) {
+    const names = (v.tucked?.[dock] ?? []).map((w: any) => `${w.id} (${w.type})`).join(', ');
+    const size = sb.height ? `${sb.size}×${sb.height}px` : `${sb.size}px`;
+    lines.push(`Docked ${dock} (${sb.open ? `kept open, ${size}` : 'hidden until hovered'}): ${names}`);
   }
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
   return lines.join('\n');
@@ -164,7 +165,7 @@ async function main(argv: string[]) {
       return;
     }
     case 'preset': case 'presets': {
-      // Saved frames: sidebars, layouts, this glass's settings and the look settings.
+      // Saved frames: docks, layouts, this glass's settings and the look settings.
       const sid = sessionId(flags);
       const [sub = 'list', ...words] = rest;
       const name = words.join(' ') || undefined;
@@ -173,7 +174,7 @@ async function main(argv: string[]) {
       if (sub === 'list') {
         const rows = r.presets.map((p: any) => {
           const sides = Object.entries(p.sidebars ?? {}).map(([e, sb]: [string, any]) => `${e}: ${sb.windows.map((w: any) => w.id).join('+')}`).join(', ');
-          return `  ${p.name}${p.name === r.default ? ' (default)' : ''}${p.description ? ` — ${p.description}` : ''}${sides ? `\n      sidebars ${sides}` : ''}`;
+          return `  ${p.name}${p.name === r.default ? ' (default)' : ''}${p.description ? ` — ${p.description}` : ''}${sides ? `\n      docks ${sides}` : ''}`;
         });
         out(r, rows.length ? ['Presets (claude-glass preset apply <name>):', ...rows].join('\n')
           : 'No presets yet. Arrange the glass, then: claude-glass preset save <name> --description "what it\'s for"');
@@ -249,7 +250,12 @@ async function main(argv: string[]) {
           : ext === '.md' || ext === '.markdown' || ext === '.txt'
             ? ['markdown', 'set', { text: readFileSync(path, 'utf8'), source: path }]
             : ['markdown', 'set', { text: '```' + ext.slice(1) + '\n' + readFileSync(path, 'utf8') + '\n```', source: path }];
-      const id = await dispatch(sid, { type: 'instance.create', appType, id: typeof flags.id === 'string' ? flags.id : undefined, title });
+      // Images all go to the one Images window (unless an id is given).
+      const id = await dispatch(sid, {
+        type: 'instance.create', appType,
+        id: typeof flags.id === 'string' ? flags.id : appType === 'image' ? 'images' : undefined,
+        title: appType === 'image' && typeof flags.id !== 'string' ? 'Images' : title,
+      });
       await dispatch(sid, { type: 'app.command', id: String(id), command, args });
       out({ id }, `${id} (${appType})`);
       return;
@@ -257,15 +263,15 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-glass window open|close|move|pin|unpin|delete|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|dock|undock|delete|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
       else if (sub === 'opacity') await dispatch(sid, { type: 'window.opacity', id, value: arg === undefined || arg === 'reset' ? null : Number(arg) });
       else if (sub === 'rename') await dispatch(sid, { type: 'instance.rename', id, title: String(arg ?? id) });
-      // Pin to an edge sidebar ("tuck"/"untuck" still work).
-      else if (sub === 'pin' || sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
-      else if (sub === 'unpin' || sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
+      // Dock at an edge or corner (the older "pin"/"unpin" and "tuck"/"untuck" still work).
+      else if (sub === 'dock' || sub === 'pin' || sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
+      else if (sub === 'undock' || sub === 'unpin' || sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
       else if (sub === 'delete') await dispatch(sid, { type: 'instance.delete', id });
       else throw new Error(`unknown window command "${sub}"`);
       out({ ok: true }, 'ok');

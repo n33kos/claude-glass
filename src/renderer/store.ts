@@ -13,6 +13,7 @@ declare global {
       onPatch(fn: (p: any) => void): () => void;
       onFullscreen(fn: (on: boolean) => void): () => void;
       readDoc(id: string, path: string): Promise<{ ok: boolean; result?: { path: string; text: string }; error?: string }>;
+      projectImages(): Promise<{ ok: boolean; result?: { root: string; images: { path: string; rel: string; mtime: number; size: number }[] }; error?: string }>;
       openLink(url: string): void;
       revealFile(paths: string[]): void;
       webAspect(aspect: number): void;

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('glass', {
   resetAppData: (type: string) => ipcRenderer.invoke('glass:resetAppData', type),
   preset: (action: string, name?: string, description?: string) => ipcRenderer.invoke('glass:preset', action, name, description),
   readDoc: (id: string, path: string) => ipcRenderer.invoke('glass:readDoc', id, path),
+  projectImages: () => ipcRenderer.invoke('glass:projectImages'),
   openLink: (url: string) => ipcRenderer.send('glass:openLink', url),
   revealFile: (paths: string[]) => ipcRenderer.send('glass:revealFile', paths),
   lastFrame: (id: string) => ipcRenderer.invoke('glass:lastFrame', id),

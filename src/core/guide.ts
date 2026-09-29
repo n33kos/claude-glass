@@ -17,7 +17,7 @@ that feed the glass: change files with Edit/Write (never sed, python, or heredoc
 those edits never reach "changes"), write plans to plan files, and Read images you want to discuss.
 
   claude-glass view                          layout: display modes, desktops, each window's slot + position,
-                                             pinned edge sidebars, closed apps
+                                             docked windows (edges and corners), closed apps
   claude-glass show <file> [--id ID] [--title T]   .md → markdown, image → image, .html → html. Opens at 0
   claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff, browser, diagram
   claude-glass app <id> <command> [--text T | --file F] [--key value]
@@ -28,7 +28,7 @@ those edits never reach "changes"), write plans to plan files, and Read images y
   claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
   claude-glass catalog                       all apps and commands
   claude-glass background --colors "#hex,…" | reset   optional: tint this glass's light yourself
-  claude-glass preset list | apply <name>    the user's saved frames (sidebars, layouts, settings), each
+  claude-glass preset list | apply <name>    the user's saved frames (docks, layouts, settings), each
                                              with a description; apply one when the user asks, or pick
                                              the one whose description fits when they ask you to set up
 
@@ -41,7 +41,7 @@ windows, so directing attention is your job:
   supporting context goes next to it (the plan beside the diff it drives, the chart beside its
   numbers). Move stale windows back or close them.
 - Before rearranging, run \`claude-glass view\` (the user may have moved things). Leave windows the
-  user pinned to an edge sidebar alone. Don't reshuffle on every tool call; move windows when the topic
+  user docked at an edge or corner alone. Don't reshuffle on every tool call; move windows when the topic
   changes.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.

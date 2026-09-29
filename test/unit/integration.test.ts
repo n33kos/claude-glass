@@ -88,8 +88,11 @@ describe('CLI ↔ core over the socket', () => {
   it('image show copies the file into the session', async () => {
     const png = join(home, 'dot.png');
     writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
-    expect(await cli('show', png)).toBe('image-1 (image)');
-    const st = core.state.appState['image-1'] as any;
+    // Every image goes to the one Images window.
+    expect(await cli('show', png)).toBe('images (image)');
+    expect(await cli('show', png)).toBe('images (image)');
+    const st = core.state.appState['images'] as any;
+    expect(st.images).toHaveLength(2);
     expect(st.images[0].file.startsWith(join(home, 'sessions', SID, 'files'))).toBe(true);
     expect(existsSync(st.images[0].file)).toBe(true);
   });
@@ -324,7 +327,7 @@ describe('presets from the CLI', () => {
     core.dispatch({ type: 'tuck.keep', edge: 'bottom', keep: true });
     expect(await cli('preset', 'save', 'Voice frame', '--description', 'terminal along the bottom')).toContain('Saved preset "Voice frame"');
     core.dispatch({ type: 'window.untuck', id: 'terminal' });
-    expect(await cli('preset', 'list')).toMatch(/Voice frame — terminal along the bottom\n\s+sidebars bottom: terminal/);
+    expect(await cli('preset', 'list')).toMatch(/Voice frame — terminal along the bottom\n\s+docks bottom: terminal/);
     expect(await cli('preset', 'apply', 'Voice frame')).toContain('applied');
     expect(core.state.tucked?.bottom).toEqual(['terminal']);
     await cli('preset', 'default', 'Voice frame');
@@ -372,14 +375,33 @@ describe('tool reminder hook', () => {
 });
 
 describe('view for Claude', () => {
-  it('reports display modes, window positions and pinned sidebars', async () => {
+  it('reports display modes, window positions and docked windows (edges and corners)', async () => {
     core.dispatch({ type: 'window.tuck', id: 'terminal', edge: 'left' });
     core.dispatch({ type: 'tuck.keep', edge: 'left', keep: true });
+    await cli('window', 'dock', 'conversation', 'top-right');
+    core.dispatch({ type: 'tuck.size', edge: 'top-right', size: 360, height: 240 });
     const v = JSON.parse(await cli('view', '--json'));
     expect(v.display).toMatchObject({ nestedView: false, windowMode: 'live' });
     expect(v.desktops[0].windows[0].rect).toMatchObject({ x: 0, y: 0 });
     expect(v.sidebars.left).toMatchObject({ open: true, windows: ['terminal'] });
-    expect(await cli('view')).toMatch(/Pinned left sidebar \(kept open, \d+px\): terminal/);
+    expect(v.sidebars['top-right']).toMatchObject({ open: false, size: 360, height: 240, windows: ['conversation'] });
+    const text = await cli('view');
+    expect(text).toMatch(/Docked left \(kept open, \d+px\): terminal/);
+    expect(text).toMatch(/Docked top-right \(hidden until hovered\): conversation/);
+    await cli('window', 'undock', 'conversation');
     core.dispatch({ type: 'window.untuck', id: 'terminal' });
+  });
+});
+
+describe('renamed settings', () => {
+  it('the old dock* names still set the launcher settings', async () => {
+    await cli('settings', 'set', 'dockAutoHide', 'true');
+    expect(core.config.launcherAutoHide).toBe(true);
+    expect('dockAutoHide' in core.config).toBe(false);
+    await cli('settings', 'set', 'launcherAutoHide', 'false');
+    await cli('settings', 'set', 'dockOpen', 'hover');
+    expect(core.config.dockOpen).toBe('hover');
+    await expect(cli('settings', 'set', 'dockOpen', 'sometimes')).rejects.toThrow(/click or hover/);
+    await cli('settings', 'set', 'dockOpen', 'click');
   });
 });

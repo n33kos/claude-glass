@@ -173,6 +173,23 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .running { position: absolute; bottom: -6px; width: 14px; height: 3px; border-radius: 2px; background: var(--sky); }
 .dock-sep { width: 1px; align-self: stretch; margin: 4px 4px; background: rgba(255, 255, 255, 0.18); }
 .dock-sep.screen { margin: 7px 3px; background: rgba(127, 200, 255, 0.32); }
+/* Launcher groups: an app's windows under one icon, with a count; the menu lists them. */
+.dock-item .count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1; color: #0b0d14; background: #cfe9ff;
+  box-shadow: 0 0 0 2px rgba(12, 14, 22, 0.9); pointer-events: none; }
+.dock-item.menu-open .label { opacity: 0 !important; }
+.dock-item.menu-open .tile { filter: brightness(1.15); }
+.launcher-menu { position: fixed; z-index: 45; transform: translateX(-50%); pointer-events: auto; min-width: 200px; max-width: 340px; max-height: 60vh; overflow: auto;
+  padding: 5px; border-radius: 10px; display: flex; flex-direction: column; gap: 1px;
+  background: rgba(20, 23, 34, 0.96); border: 1px solid var(--line-strong); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
+.launcher-menu button { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 6px 9px; border-radius: 6px; text-align: left; touch-action: none; }
+.launcher-menu button:hover { background: rgba(255, 255, 255, 0.08); }
+.launcher-menu button.here .lm-title::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 7px 1px 0; border-radius: 50%; background: var(--sky); }
+.launcher-menu button.lifted { opacity: .4; }
+.lm-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-where { flex: none; font-size: 11px; color: var(--ink-faint); }
+/* An auto-hidden launcher stays up while its menu is open. */
+.dock-autohide .dock-wrap:has(.launcher-menu) { transform: none; transition-delay: 0s; }
 
 .lightbox { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: hidden;
   background: rgba(8, 10, 16, 0.86); backdrop-filter: blur(14px); cursor: grab; touch-action: none; animation: lb-in .14s ease-out; }
@@ -255,9 +272,18 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
   transition: top .32s cubic-bezier(.2, .8, .2, 1), left .32s cubic-bezier(.2, .8, .2, 1), width .32s cubic-bezier(.2, .8, .2, 1), height .32s cubic-bezier(.2, .8, .2, 1); }
 .edge-rail.left { border-radius: 0 999px 999px 0; } .edge-rail.right { border-radius: 999px 0 0 999px; }
 .edge-rail.top { border-radius: 0 0 999px 999px; } .edge-rail.bottom { border-radius: 999px 999px 0 0; }
-/* Open: the rail grows into a solid backing behind the whole sidebar (same black as when closed). */
+/* Corner rails lie along the top/bottom edge from the corner; only their inner end is round. */
+.edge-rail.top-left { border-radius: 0 0 999px 0; } .edge-rail.top-right { border-radius: 0 0 0 999px; }
+.edge-rail.bottom-right { border-radius: 999px 0 0 0; } .edge-rail.bottom-left { border-radius: 0 999px 0 0; }
+/* Open: the rail grows into a solid backing behind the whole dock (same black as when closed). */
 .edge-rail.open.left { border-radius: 0 22px 22px 0; } .edge-rail.open.right { border-radius: 22px 0 0 22px; }
 .edge-rail.open.top { border-radius: 0 0 22px 22px; } .edge-rail.open.bottom { border-radius: 22px 22px 0 0; }
+.edge-rail.open.top-left { border-radius: 0 0 22px 0; } .edge-rail.open.top-right { border-radius: 0 0 0 22px; }
+.edge-rail.open.bottom-right { border-radius: 22px 0 0 0; } .edge-rail.open.bottom-left { border-radius: 0 22px 0 0; }
+/* Where two open backings meet at an inside corner: a fillet (drawn inline as a radial gradient)
+   rounds it. It waits for the rails to finish growing, so it never shows ahead of them. */
+.edge-fillet { position: absolute; z-index: 35; pointer-events: none; animation: fillet-in .18s ease-out .3s both; }
+@keyframes fillet-in { from { opacity: 0; } to { opacity: 1; } }
 /* The capsule is placed by its center (inline left/top), so every state move animates. */
 .edge-cap { position: absolute; z-index: 37; translate: -50% -50%; display: flex; gap: 6px; align-items: center; padding: 7px; background: #000;
   color: rgba(255, 255, 255, 0.85); font-size: 22px; line-height: 1; cursor: pointer;
@@ -267,22 +293,32 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 .edge-cap.left, .edge-cap.right { flex-direction: column; }
 .edge-cap.left { border-radius: 0 18px 18px 0; } .edge-cap.right { border-radius: 18px 0 0 18px; }
 .edge-cap.top { border-radius: 0 0 18px 18px; } .edge-cap.bottom { border-radius: 18px 18px 0 0; }
-/* Open: a round keep-open toggle on the sidebar's inner edge (chevron: away = keep open, toward = hide). */
-.edge-cap.open { padding: 9px; border-radius: 999px; background: rgba(12, 14, 22, 0.92); border: 1px solid var(--line-strong);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); color: var(--ink-dim); }
+.edge-cap.top-left { border-radius: 0 0 18px 0; } .edge-cap.top-right { border-radius: 0 0 0 18px; }
+.edge-cap.bottom-right { border-radius: 18px 0 0 0; } .edge-cap.bottom-left { border-radius: 0 18px 0 0; }
+/* Open: a small round keep-open pin on the dock's inner edge. On a kept dock it's out of sight
+   until the pointer is over the dock (or the pin's spot), so a kept dock reads as quiet furniture. */
+.edge-cap.open { padding: 6px; border-radius: 999px; background: rgba(12, 14, 22, 0.88); border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); color: var(--ink-faint);
+  transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), border-radius .2s, background .2s, opacity .2s; }
 .edge-cap.open:hover { color: var(--ink); border-color: var(--sky); }
-.edge-cap.open.kept { color: var(--sky); }
-.edge-cap svg { display: block; transition: transform .2s; }
+.edge-cap.open.kept { color: rgba(127, 200, 255, 0.8); }
+.edge-cap.open.kept:not(.hover) { opacity: 0; }.edge-cap svg { display: block; transition: transform .2s; }
 /* With an auto-hidden dock, the closed bottom pull sits above the dock's trigger strip (the whole
    rest of the edge raises the dock), and fades out while the dock is up so they never overlap. */
-.dock-autohide .edge-cap.bottom:not(.open) { z-index: 41; transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), opacity .15s; }
+.dock-autohide :is(.edge-cap.bottom, .edge-cap.bottom-left, .edge-cap.bottom-right):not(.open) { z-index: 41; transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), opacity .15s; }
+.dock-autohide :is(.edge-hot.bottom-left, .edge-hot.bottom-right) { z-index: 41; }
 .dock-autohide:has(.dock-hot:hover, .dock:hover) :is(.edge-cap.bottom:not(.open), .edge-rail.bottom:not(.open)) { opacity: 0; pointer-events: none; }
+/* Placed inline (left/top); hidden, a dock waits just off its edge (a corner dock, off both). */
 .edge-panel { position: absolute; z-index: 36; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; opacity: 0; pointer-events: none; }
 .edge-panel .window { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }
-.edge-panel.left { top: 12px; left: 12px; transform: translateX(calc(-100% - 24px)); }
-.edge-panel.right { top: 12px; right: 12px; transform: translateX(calc(100% + 24px)); }
-.edge-panel.top { top: 12px; left: 12px; transform: translateY(calc(-100% - 24px)); }
-.edge-panel.bottom { bottom: 12px; left: 12px; transform: translateY(calc(100% + 24px)); }
+.edge-panel.left { transform: translateX(calc(-100% - 24px)); }
+.edge-panel.right { transform: translateX(calc(100% + 24px)); }
+.edge-panel.top { transform: translateY(calc(-100% - 24px)); }
+.edge-panel.bottom { transform: translateY(calc(100% + 24px)); }
+.edge-panel.top-left { transform: translate(calc(-100% - 24px), calc(-100% - 24px)); }
+.edge-panel.top-right { transform: translate(calc(100% + 24px), calc(-100% - 24px)); }
+.edge-panel.bottom-right { transform: translate(calc(100% + 24px), calc(100% + 24px)); }
+.edge-panel.bottom-left { transform: translate(calc(-100% - 24px), calc(100% + 24px)); }
 .edge-panel.open { transform: none; opacity: 1; pointer-events: auto; }
 
 /* While anything is dragged (window, dock icon, sidebar edge), app frames ignore the pointer: they'd
@@ -315,11 +351,19 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 .edge-hot.left { left: 0; } .edge-hot.right { right: 0; }
 .edge-hot.top, .edge-hot.bottom { left: 0; right: 0; height: 10px; }
 .edge-hot.top { top: 0; } .edge-hot.bottom { bottom: 0; }
+/* A corner dock's trigger: the screen corner itself, over the edges' strips. */
+.edge-hot.corner { z-index: 35; width: 36px; height: 36px; }
+.edge-hot.top-left { top: 0; left: 0; } .edge-hot.top-right { top: 0; right: 0; }
+.edge-hot.bottom-right { bottom: 0; right: 0; } .edge-hot.bottom-left { bottom: 0; left: 0; }
 .edge-resize { position: absolute; z-index: 1; }
 .edge-resize.left, .edge-resize.right { top: 0; bottom: 0; width: 10px; cursor: col-resize; }
 .edge-resize.left { right: -11px; } .edge-resize.right { left: -11px; }
 .edge-resize.top, .edge-resize.bottom { left: 0; right: 0; height: 10px; cursor: row-resize; }
 .edge-resize.top { bottom: -11px; } .edge-resize.bottom { top: -11px; }
+/* A corner dock's inner corner: resizes both ways. */
+.edge-resize.corner { width: 16px; height: 16px; z-index: 2; }
+.edge-resize.top-left { right: -14px; bottom: -14px; cursor: nwse-resize; } .edge-resize.bottom-right { left: -14px; top: -14px; cursor: nwse-resize; }
+.edge-resize.top-right { left: -14px; bottom: -14px; cursor: nesw-resize; } .edge-resize.bottom-left { right: -14px; top: -14px; cursor: nesw-resize; }
 .edge-resize:hover, .edge-panel.resizing .edge-resize { background: rgba(127, 200, 255, 0.25); border-radius: 4px; }
 /* The gap between two windows in a sidebar: drag it to change their shares. */
 .edge-split { position: absolute; z-index: 4; border-radius: 4px; }

@@ -1,8 +1,8 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
 import { parseColors } from './colors';
-import { EDGES, isLayout } from './layout';
-import type { Action, Edge, GlassState, InstanceMeta, SessionInfo } from './types';
+import { DOCKS, isCorner, isDock, isLayout } from './layout';
+import type { Action, Dock, GlassState, InstanceMeta, SessionInfo } from './types';
 
 export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<SessionInfo>): GlassState {
   const base: GlassState = {
@@ -21,9 +21,11 @@ export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<
     ui: { viewingDesktop: 0 },
     autoOpened: [],
   };
-  // Default windows: conversation + terminal.
+  // Default windows: conversation + terminal, and the one Images window (closed until wanted:
+  // the launcher opens it, and so does the first image).
   let s = reduce(base, { type: 'instance.create', appType: 'terminal' }).state;
   s = reduce(s, { type: 'instance.create', appType: 'conversation' }).state;
+  s = reduce(s, { type: 'instance.create', appType: 'image', id: 'images', title: 'Images', open: false }).state;
   return s;
 }
 
@@ -48,15 +50,17 @@ function openAtZero(order: string[], id: string): string[] {
   return [id, ...order.filter((x) => x !== id)];
 }
 
-/** Take a window out of whatever edge panel it's tucked in (no-op if it isn't). */
+/** Take a window out of whatever dock it's in (no-op if it isn't). */
 function untuck(s: GlassState, id: string): GlassState {
-  if (!s.tucked || !EDGES.some((e) => s.tucked![e]?.includes(id))) return s;
-  const tucked = Object.fromEntries(EDGES.map((e) => [e, (s.tucked![e] ?? []).filter((x) => x !== id)]).filter(([, l]) => l.length));
-  // An emptied edge can't stay open.
+  if (!s.tucked || !DOCKS.some((e) => s.tucked![e]?.includes(id))) return s;
+  const tucked = Object.fromEntries(DOCKS.map((e) => [e, (s.tucked![e] ?? []).filter((x) => x !== id)]).filter(([, l]) => l.length));
+  // An emptied dock can't stay open.
   return { ...s, tucked, tuckKeep: (s.tuckKeep ?? []).filter((e) => e in tucked) };
 }
 
-export const tuckedEdge = (s: GlassState, id: string): Edge | undefined => EDGES.find((e) => s.tucked?.[e]?.includes(id));
+export const tuckedEdge = (s: GlassState, id: string): Dock | undefined => DOCKS.find((e) => s.tucked?.[e]?.includes(id));
+
+const needDock = (d: unknown) => { if (!isDock(d)) throw new Error(`dock must be one of ${DOCKS.join(', ')}`); };
 
 export function reduce(s: GlassState, a: Action): ReduceResult {
   const r = reduceRaw(s, a);
@@ -82,7 +86,7 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
 
     case 'window.tuck': {
       requireInstance(s, a.id);
-      if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
+      needDock(a.edge);
       const t = untuck(s, a.id);
       const list = [...(t.tucked?.[a.edge] ?? [])];
       list.splice(a.index == null ? list.length : clampIndex(a.index, list.length), 0, a.id);
@@ -92,21 +96,27 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     }
 
     case 'tuck.keep': {
-      if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
+      needDock(a.edge);
       const keep = (s.tuckKeep ?? []).filter((e) => e !== a.edge);
       return { state: { ...s, tuckKeep: a.keep && s.tucked?.[a.edge]?.length ? [...keep, a.edge] : keep } };
     }
 
     case 'tuck.size': {
-      if (!EDGES.includes(a.edge) || !(a.size > 0)) throw new Error('tuck.size needs an edge and a positive size');
-      return { state: { ...s, tuckSize: { ...s.tuckSize, [a.edge]: Math.round(a.size) } } };
+      needDock(a.edge);
+      const ok = (v: unknown) => v == null || (v as number) > 0;
+      if (!ok(a.size) || !ok(a.height) || (a.size == null && a.height == null)) throw new Error('tuck.size needs a positive size (or height)');
+      if (a.height != null && !isCorner(a.edge)) throw new Error('only corner docks take a height');
+      let state = s;
+      if (a.size != null) state = { ...state, tuckSize: { ...state.tuckSize, [a.edge]: Math.round(a.size) } };
+      if (a.height != null && isCorner(a.edge)) state = { ...state, tuckHeight: { ...state.tuckHeight, [a.edge]: Math.round(a.height) } };
+      return { state };
     }
 
     case 'tuck.split': {
-      if (!EDGES.includes(a.edge)) throw new Error(`edge must be one of ${EDGES.join(', ')}`);
+      needDock(a.edge);
       const n = s.tucked?.[a.edge]?.length ?? 0;
       const shares = Array.isArray(a.shares) ? a.shares.map(Number) : [];
-      if (shares.length !== n || n < 2 || shares.some((x) => !(x > 0))) throw new Error(`tuck.split needs ${n} positive shares for the ${a.edge} sidebar`);
+      if (shares.length !== n || n < 2 || shares.some((x) => !(x > 0))) throw new Error(`tuck.split needs ${n} positive shares for the ${a.edge} dock`);
       const sum = shares.reduce((t, x) => t + x, 0);
       return { state: { ...s, tuckSplit: { ...s.tuckSplit, [a.edge]: shares.map((x) => Math.round((x / sum) * 1000) / 1000) } } };
     }

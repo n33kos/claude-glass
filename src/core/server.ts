@@ -5,12 +5,12 @@ import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
 import { coerceSetting, settingValues } from '../apps/types';
-import { coerceConfigValue, loadConfig, saveConfig, writeJsonAtomic } from './config';
+import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
 import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
 import { applyHook } from './hooks';
 import { loadMods, type ModReport } from './mods';
-import { computeDesktops, desktopsFor, edgeSize, effectiveLayout, EDGES, LAYOUTS, nestedSlots } from './layout';
+import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
 import type { Action, GlassState, Envelope, GlobalConfig, Reply } from './types';
@@ -129,7 +129,8 @@ export class GlassCore {
     }
   }
 
-  setConfig(key: string, value: unknown): GlobalConfig {
+  setConfig(rawKey: string, value: unknown): GlobalConfig {
+    const key = settingKey(rawKey); // old names (dockAutoHide...) still work
     // app.<type>.<key>: one of an app's own settings, validated against its manifest.
     const appKey = key.match(/^app\.([a-z][a-z0-9-]*)\.([A-Za-z0-9]+)$/);
     if (appKey) {
@@ -174,9 +175,11 @@ export class GlassCore {
         };
       }),
       ...(s.tucked && Object.keys(s.tucked).length ? { tucked: Object.fromEntries(Object.entries(s.tucked).map(([e, ids]) => [e, (ids ?? []).map(meta)])) } : {}),
-      // Edge sidebars ("pinned" windows): open = kept open, taking room from the layout (px size).
-      sidebars: Object.fromEntries(EDGES.filter((e) => s.tucked?.[e]?.length).map((e) => [e, {
-        open: !!s.tuckKeep?.includes(e), size: s.tuckSize?.[e] ?? edgeSize(e, 1440, 860), windows: s.tucked![e]!,
+      // Docks (edges and corners; "sidebars" for compatibility): open = kept open, taking room from
+      // the layout (px size: width for sides and corners, height for top/bottom; corners also a height).
+      sidebars: Object.fromEntries(DOCKS.filter((e) => s.tucked?.[e]?.length).map((e) => [e, {
+        open: !!s.tuckKeep?.includes(e), size: s.tuckSize?.[e] ?? edgeSize(e, 1440, 860),
+        ...(isCorner(e) ? { height: s.tuckHeight?.[e] ?? cornerHeight(e, 860) } : {}), windows: s.tucked![e]!,
       }])),
       closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
     };
@@ -217,7 +220,8 @@ export class GlassCore {
 
   /** Put a preset's frame on this glass: its look settings (global), then its sidebars, layouts and session settings. */
   applyPreset(p: Preset): { applied: string; skipped: string[] } {
-    for (const [k, v] of Object.entries(p.look ?? {})) {
+    for (const [old, v] of Object.entries(p.look ?? {})) {
+      const k = settingKey(old); // presets saved before a rename
       if (!(LOOK_KEYS as readonly string[]).includes(k)) continue;
       try { this.setConfig(k, v); } catch {} // a value from an older version that no longer fits
     }

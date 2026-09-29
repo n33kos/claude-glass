@@ -1,18 +1,33 @@
 // Tiling math: one ordered window array, cut into desktops by each desktop's layout.
-import type { Edge, LayoutName } from './types';
+import type { Corner, Dock, Edge, LayoutName } from './types';
 
-/** Edges a window can be tucked into (out of the tiling flow). */
+/** Edge docks. */
 export const EDGES: Edge[] = ['left', 'right', 'top', 'bottom'];
+/** Corner docks: a fixed-size spot for an app that wants one, without taking a whole edge. */
+export const CORNERS: Corner[] = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+/** Everywhere a window can be docked (out of the tiling flow). */
+export const DOCKS: Dock[] = [...EDGES, ...CORNERS];
+
+export const isCorner = (d: Dock): d is Corner => d.includes('-');
+export const isDock = (d: unknown): d is Dock => typeof d === 'string' && (DOCKS as string[]).includes(d);
+/** A corner's side (left/right) and end (top/bottom). */
+export const cornerSides = (c: Corner) => c.split('-') as ['top' | 'bottom', 'left' | 'right'];
 
 /**
- * An edge sidebar's size in a W×H stage: width for left/right, height for top/bottom. The user's
- * dragged size if set (clamped to the stage), else a default.
+ * A dock's size in a W×H stage: width for left/right and corners, height for top/bottom. The
+ * user's dragged size if set (clamped to the stage), else a default.
  */
-export function edgeSize(edge: Edge, W: number, H: number, sizes?: Partial<Record<Edge, number>>): number {
+export function edgeSize(edge: Dock, W: number, H: number, sizes?: Partial<Record<Dock, number>>): number {
+  if (isCorner(edge)) return Math.round(Math.max(200, Math.min(W * 0.5, sizes?.[edge] ?? Math.min(420, Math.max(280, W * 0.26)))));
   const vertical = edge === 'left' || edge === 'right';
   const def = vertical ? Math.min(480, Math.max(320, W * 0.32)) : Math.min(380, Math.max(240, H * 0.38));
   const [min, max] = vertical ? [200, W * 0.7] : [140, H * 0.7];
   return Math.round(Math.max(min, Math.min(max, sizes?.[edge] ?? def)));
+}
+
+/** A corner dock's height: the user's dragged height if set (clamped), else a default. */
+export function cornerHeight(c: Corner, H: number, heights?: Partial<Record<Corner, number>>): number {
+  return Math.round(Math.max(140, Math.min(H * 0.6, heights?.[c] ?? Math.min(320, Math.max(200, H * 0.36)))));
 }
 
 export interface SlotRect { x: number; y: number; w: number; h: number } // fractions 0..1

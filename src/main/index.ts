@@ -1,6 +1,7 @@
 // Electron main: one process per Claude session. Wraps GlassCore and hosts one BrowserWindow.
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, protocol, session, shell } from 'electron';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { APPS } from '../apps/registry';
 import { appInfo, NO_PERMISSIONS, type AppPermissions } from '../apps/types';
@@ -10,6 +11,7 @@ import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { computeDesktops, desktopsFor } from '../core/layout';
 import { attachBuiltinViews } from '../core/mods';
+import { findProjectImages, IMAGE_FILE } from '../core/projectImages';
 import { GlassCore } from '../core/server';
 import { WebFeed, type WebInput } from './webFeed';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
@@ -187,11 +189,16 @@ let quitting = false;
  */
 const THUMB_WIDTHS = [320, 640, 960, 1440, 2048];
 function thumbnail(path: string, want: number): string | null {
-  if (!/\.(png|jpe?g|webp|bmp)$/i.test(path) || !path.startsWith(filesDir(sessionId!) + '/')) return null;
+  if (!/\.(png|jpe?g|webp|bmp)$/i.test(path)) return null;
+  const own = path.startsWith(filesDir(sessionId!) + '/');
+  const cwd = core.state.session.cwd;
+  if (!own && !(cwd && path.startsWith(resolve(cwd) + sep))) return null;
   const width = THUMB_WIDTHS.find((x) => x >= want);
   if (!width) return null;
   const dir = join(filesDir(sessionId!), '.thumbs');
-  const out = join(dir, `${basename(path)}@${width}.jpg`);
+  // Project images: keyed by path and modification time, so an edited image gets a fresh thumbnail.
+  const key = own ? basename(path) : `p-${createHash('sha1').update(`${path}:${statSync(path).mtimeMs}`).digest('hex').slice(0, 16)}`;
+  const out = join(dir, `${key}@${width}.jpg`);
   if (existsSync(out)) return out;
   const img = nativeImage.createFromPath(path);
   if (img.isEmpty() || img.getSize().width <= width * 1.2) return null;
@@ -218,11 +225,14 @@ async function boot() {
     streams: streams.size, pages: webFeeds.size, frames: lastFrames.size,
   }));
 
-  // glass-file://f/<abs path> — only files inside this session's files dir, or the configured background.
+  // glass-file://f/<abs path> — only files inside this session's files dir, the configured
+  // background, or images inside the project folder (the Images app's "Project" list).
   protocol.handle('glass-file', (req) => {
     const url = new URL(req.url);
     const path = resolve(decodeURIComponent(url.pathname));
-    const allowed = path.startsWith(filesDir(sessionId!) + '/') || path === core.config.background;
+    const cwd = core.state.session.cwd;
+    const allowed = path.startsWith(filesDir(sessionId!) + '/') || path === core.config.background
+      || (!!cwd && path.startsWith(resolve(cwd) + sep) && IMAGE_FILE.test(path));
     if (!allowed) return new Response('forbidden', { status: 403 });
     try {
       // ?w=<px>: a downsized copy for views that show the image small (cached in files/.thumbs).
@@ -272,6 +282,8 @@ async function boot() {
   // The markdown viewer following a link to another markdown file: any local markdown/text file
   // the user can read (only those, so it stays a viewer). macOS may ask once before the glass reads
   // from protected folders (Documents, Desktop, Downloads, iCloud Drive).
+  // The Images app's "Project" list: images in the project folder, newest first.
+  ipcMain.handle('glass:projectImages', () => ({ ok: true, result: { root: core.state.session.cwd, images: findProjectImages(core.state.session.cwd) } }));
   ipcMain.handle('glass:readDoc', (_e, _id: string, path: string) => {
     try {
       const target = resolve(String(path));

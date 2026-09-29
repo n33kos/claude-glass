@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { computeDesktops, desktopsFor, EDGES, edgeSize, effectiveLayout, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
-import type { Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
+import { computeDesktops, cornerHeight, cornerSides, desktopsFor, DOCKS, EDGES, edgeSize, effectiveLayout, isCorner, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
+import type { Corner, Dock, Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon } from './AppIcon';
@@ -10,6 +10,7 @@ import { VIEWS } from './views';
 
 const PAD = 12;
 const GAP = 12;
+const WIN_RADIUS = 12; // --radius-win
 
 interface Rect { x: number; y: number; w: number; h: number }
 // scale < 1: the window is laid out at rect/scale and shrunk, a zoomed-out copy (carousel tiles).
@@ -17,29 +18,45 @@ interface Placed { id: string; page: number; index: number; rect: Rect; hidden?:
 interface Drag {
   id: string; px: number; py: number; ox: number; oy: number; // pointer, and its offset inside the window
   target: number | null; // layout slot it would land in
-  tuck?: Edge | null; slot?: number | null; // sidebar it would pin to, and where in it
-  from?: Edge; // dragging a window out of this sidebar
+  tuck?: Dock | null; slot?: number | null; // dock it would land in, and where in it
+  from?: Dock; // dragging a window out of this dock
   mod?: boolean; // ⌘ held
 }
 
-type TuckState = { tucked?: Partial<Record<Edge, string[]>>; tuckKeep?: Edge[]; tuckSize?: Partial<Record<Edge, number>> };
+type TuckState = { tucked?: Partial<Record<Dock, string[]>>; tuckKeep?: Dock[]; tuckSize?: Partial<Record<Dock, number>>; tuckHeight?: Partial<Record<Corner, number>> };
 
-/** Where an edge sidebar sits in a W×H stage (side sidebars full height; top/bottom between them). */
-function panelRect(edge: Edge, W: number, H: number, s: TuckState): Rect {
+const keptOpen = (s: TuckState, d: Dock) => !!s.tuckKeep?.includes(d) && !!s.tucked?.[d]?.length;
+/** Docks whose windows stack (sides and corners); top/bottom ones sit side by side. */
+const stacks = (d: Dock) => d !== 'top' && d !== 'bottom';
+
+/**
+ * Where a dock sits in a W×H stage. Kept-open docks on a side (its edge and its two corners) share
+ * one column: the corners take its ends and the edge dock fits between them. Top/bottom docks fit
+ * between the columns.
+ */
+function panelRect(edge: Dock, W: number, H: number, s: TuckState): Rect {
   const sz = edgeSize(edge, W, H, s.tuckSize);
+  if (isCorner(edge)) {
+    const [v, h] = cornerSides(edge);
+    const ch = cornerHeight(edge, H, s.tuckHeight);
+    return { x: h === 'left' ? PAD : W - PAD - sz, y: v === 'top' ? PAD : H - PAD - ch, w: sz, h: ch };
+  }
+  if (edge === 'left' || edge === 'right') {
+    const end = (c: Corner) => (keptOpen(s, c) ? cornerHeight(c, H, s.tuckHeight) + GAP : 0);
+    const top = end(`top-${edge}`), bottom = end(`bottom-${edge}`);
+    return { x: edge === 'left' ? PAD : W - PAD - sz, y: PAD + top, w: sz, h: H - PAD * 2 - top - bottom };
+  }
   const side = sideRoom(s, W, H);
-  if (edge === 'left') return { x: PAD, y: PAD, w: sz, h: H - PAD * 2 };
-  if (edge === 'right') return { x: W - PAD - sz, y: PAD, w: sz, h: H - PAD * 2 };
   const w = W - PAD * 2 - side.l - side.r;
   return { x: PAD + side.l, y: edge === 'top' ? PAD : H - PAD - sz, w, h: sz };
 }
 
 /**
- * n slots along a sidebar (stacked on left/right, side by side on top/bottom), panel-relative:
- * sized by `shares` when there's one per slot (the user dragged the gaps), else equal.
+ * n slots along a dock (stacked on the sides and corners, side by side on top/bottom),
+ * panel-relative: sized by `shares` when there's one per slot (the user dragged the gaps), else equal.
  */
-function panelSlots(edge: Edge, n: number, r: Rect, shares?: number[]): Rect[] {
-  const vertical = edge === 'left' || edge === 'right';
+function panelSlots(edge: Dock, n: number, r: Rect, shares?: number[]): Rect[] {
+  const vertical = stacks(edge);
   const room = (vertical ? r.h : r.w) - GAP * (n - 1);
   const parts = shares?.length === n ? shares : Array.from({ length: n }, () => 1 / n);
   const total = parts.reduce((t, x) => t + x, 0);
@@ -52,24 +69,70 @@ function panelSlots(edge: Edge, n: number, r: Rect, shares?: number[]): Rect[] {
   });
 }
 
-const SPLIT_MIN = 90; // px: the smallest a window gets when dragging the gap between two in a sidebar
+const SPLIT_MIN = 90; // px: the smallest a window gets when dragging the gap between two in a dock
 
-const TUCK_ZONE = 44; // px strip at each stage edge: with ⌘ held, drop a window there to pin it to that sidebar
+const TUCK_ZONE = 44; // px strip at each stage edge: with ⌘ held, drop a window there to dock it at that edge
 const SWITCH_ZONE = 48; // left/right: hold a dragged window here to switch desktops
 const PIN_TARGET = 30; // radius of the pin target shown mid-edge while dragging (drop on it to pin)
-const PULL_ICON = 34; // icon cell in a sidebar's pull capsule
+const PULL_ICON = 34; // icon cell in a dock's pull capsule
 const PULL_T = 7; // the pull rail's thickness, and the capsule's margin around its icons
 
-/** Room kept-open left/right sidebars take (top/bottom sidebars fit between them). */
+/** Room the kept-open side columns take: the widest kept dock on each side (edge or corner). */
 function sideRoom(s: TuckState, W: number, H: number) {
-  const room = (e: Edge) => (s.tuckKeep?.includes(e) && s.tucked?.[e]?.length ? edgeSize(e, W, H, s.tuckSize) + GAP : 0);
-  return { l: room('left'), r: room('right') };
+  const col = (side: 'left' | 'right') => Math.max(0, ...([side, `top-${side}`, `bottom-${side}`] as Dock[])
+    .filter((d) => keptOpen(s, d)).map((d) => edgeSize(d, W, H, s.tuckSize) + GAP));
+  return { l: col('left'), r: col('right') };
 }
 
-/** Center of an edge's pin target in stage coordinates (top/bottom: between kept side sidebars). */
-function pinTargetCenter(edge: Edge, W: number, H: number, side: { l: number; r: number }): { x: number; y: number } {
+/** Center of a dock's drop target in stage coordinates (top/bottom: between kept side columns). */
+function pinTargetCenter(edge: Dock, W: number, H: number, side: { l: number; r: number }): { x: number; y: number } {
   const mid = (W + side.l - side.r) / 2;
-  return { left: { x: 34, y: H / 2 }, right: { x: W - 34, y: H / 2 }, top: { x: mid, y: 34 }, bottom: { x: mid, y: H - 34 } }[edge];
+  const C = 44; // corner targets sit in from both edges
+  return {
+    left: { x: 34, y: H / 2 }, right: { x: W - 34, y: H / 2 }, top: { x: mid, y: 34 }, bottom: { x: mid, y: H - 34 },
+    'top-left': { x: C, y: C }, 'top-right': { x: W - C, y: C }, 'bottom-right': { x: W - C, y: H - C }, 'bottom-left': { x: C, y: H - C },
+  }[edge];
+}
+
+/**
+ * The black backing behind an open dock, in stage coordinates: from just off the screen edge to
+ * half a gap past the dock, so its edge sits mid-gap between the dock and the layout. Edge
+ * backings run the screen's full length, inset so their rounded ends show.
+ */
+function backingRect(edge: Dock, r: Rect, W: number, H: number): Rect {
+  const B = GAP / 2, E = 6;
+  const toLeft = { x: -4, w: r.x + r.w + B + 4 }, toRight = { x: r.x - B, w: W - r.x + B + 4 };
+  const toTop = { y: -4, h: r.y + r.h + B + 4 }, toBottom = { y: r.y - B, h: H - r.y + B + 4 };
+  const long = { x: E, w: W - E * 2 }, tall = { y: E, h: H - E * 2 };
+  return {
+    left: { ...toLeft, ...tall }, right: { ...toRight, ...tall }, top: { ...long, ...toTop }, bottom: { ...long, ...toBottom },
+    'top-left': { ...toLeft, ...toTop }, 'top-right': { ...toRight, ...toTop },
+    'bottom-right': { ...toRight, ...toBottom }, 'bottom-left': { ...toLeft, ...toBottom },
+  }[edge];
+}
+
+/**
+ * Where open backings meet at an inside corner (the left dock's and the top dock's, say), a small
+ * fillet rounds it, matching their rounded ends. Found generally: wherever a vertical side of one
+ * backing crosses a horizontal side of another, three of the four quadrants around the crossing
+ * are covered, and the fillet fills the empty one's corner.
+ */
+function fillets(rects: Rect[], W: number, H: number): { x: number; y: number; R: number; qx: number; qy: number }[] {
+  const out: { x: number; y: number; R: number; qx: number; qy: number }[] = [];
+  const inside = (C: Rect, x: number, y: number) => x > C.x && x < C.x + C.w && y > C.y && y < C.y + C.h;
+  for (const A of rects) for (const B of rects) {
+    if (A === B) continue;
+    for (const ax of [A.x, A.x + A.w]) for (const by of [B.y, B.y + B.h]) {
+      if (!(ax > B.x && ax < B.x + B.w && by > A.y && by < A.y + A.h)) continue;
+      if (ax < 30 || ax > W - 30 || by < 30 || by > H - 30) continue; // screen corners keep their rounded ends
+      const qx = ax === A.x ? -1 : 1, qy = by === B.y ? -1 : 1; // the empty quadrant: away from A in x, from B in y
+      if (rects.some((C) => inside(C, ax + qx * 2, by + qy * 2))) continue; // a third backing covers it
+      // Concentric with the window sitting in the notch: its corner radius plus the half gap between.
+      const R = Math.min(WIN_RADIUS + GAP / 2, qx > 0 ? B.x + B.w - ax : ax - B.x, qy > 0 ? A.y + A.h - by : by - A.y);
+      if (R >= 4) out.push({ x: qx > 0 ? ax : ax - R, y: qy > 0 ? by : by - R, R, qx, qy });
+    }
+  }
+  return out;
 }
 
 type Inset = { l: number; r: number; t: number; b: number };
@@ -150,49 +213,59 @@ export function App() {
     [state.order, state.desktops, config.defaultLayout, config.nestedView]);
   const [view, setViewRaw] = useState(0);
   const [drag, setDrag] = useState<Drag | null>(null);
-  const [peek, setPeek] = useState<Edge | null>(null); // edge panel slid out (hover or dock)
-  // Dragging a dock icon: along the dock reorders windows; onto an edge's Tuck strip tucks it.
-  const [dockDrag, setDockDrag] = useState<{ id: string; px: number; py: number; tuck: Edge | null; slot?: number | null; before: string | null } | null>(null);
+  const [peek, setPeek] = useState<Dock | null>(null); // dock slid out (hover, or from the launcher)
+  // Dragging a launcher icon: along the launcher reorders windows; onto a dock target docks it.
+  const [dockDrag, setDockDrag] = useState<{ id: string; px: number; py: number; tuck: Dock | null; slot?: number | null; before: string | null } | null>(null);
   /**
-   * Where a drag at (cx, cy) would pin: a sidebar kept open takes drops anywhere over it; a hidden
-   * edge through its pin target (always shown while dragging), or its whole strip when `strips`
-   * (⌘ held, or a dock icon drag).
+   * Where a drag at (cx, cy) would dock: a hidden dock through its drop target (always shown while
+   * dragging, and checked first so a corner's target works over a kept-open side dock); a dock kept
+   * open takes drops anywhere over it; a hidden edge also takes its whole strip when `strips` (⌘
+   * held, or a launcher icon drag).
    */
-  const pinTarget = (cx: number, cy: number, strips: boolean, showing: Edge | null = null): Edge | null => {
+  const pinTarget = (cx: number, cy: number, strips: boolean, showing: Dock | null = null): Dock | null => {
     const st = stageRef.current?.getBoundingClientRect();
     if (!st || cx < st.left || cx > st.right || cy < st.top || cy > st.bottom) return null;
-    // Open = kept open, or slid out right now (e.g. the sidebar a window is being dragged out of).
-    const open = (e: Edge) => !!state.tucked?.[e]?.length && (!!state.tuckKeep?.includes(e) || e === showing);
+    // Open = kept open, or slid out right now (e.g. the dock a window is being dragged out of).
+    const open = (e: Dock) => !!state.tucked?.[e]?.length && (!!state.tuckKeep?.includes(e) || e === showing);
     const side = sideRoom(state, st.width, st.height);
     const x = cx - st.left, y = cy - st.top;
-    for (const e of EDGES) {
-      if (!open(e)) continue;
-      const r = panelRect(e, st.width, st.height, state);
-      if (x >= r.x - GAP / 2 && x <= r.x + r.w + GAP / 2 && y >= r.y - GAP / 2 && y <= r.y + r.h + GAP / 2) return e;
-    }
-    for (const e of EDGES) {
+    for (const e of DOCKS) {
       if (open(e)) continue;
       const c = pinTargetCenter(e, st.width, st.height, side);
       if (Math.hypot(x - c.x, y - c.y) <= PIN_TARGET) return e;
+    }
+    for (const e of DOCKS) {
+      if (!open(e)) continue;
+      const r = panelRect(e, st.width, st.height, state);
+      if (x >= r.x - GAP / 2 && x <= r.x + r.w + GAP / 2 && y >= r.y - GAP / 2 && y <= r.y + r.h + GAP / 2) return e;
     }
     if (!strips) return null;
     const hit: Edge | null = cx - st.left < TUCK_ZONE ? 'left' : st.right - cx < TUCK_ZONE ? 'right'
       : cy - st.top < TUCK_ZONE ? 'top' : st.bottom - cy < TUCK_ZONE ? 'bottom' : null;
     return hit && !open(hit) ? hit : null;
   };
-  /** Where in an open sidebar a window dropped at (cx, cy) would go (its other windows keep order). */
-  const panelIndexAt = (edge: Edge, cx: number, cy: number, dragId: string): number => {
+  /** Where in an open dock a window dropped at (cx, cy) would go (its other windows keep order). */
+  const panelIndexAt = (edge: Dock, cx: number, cy: number, dragId: string): number => {
     const st = stageRef.current!.getBoundingClientRect();
     const r = panelRect(edge, st.width, st.height, state);
     const others = (state.tucked?.[edge] ?? []).filter((x) => x !== dragId);
-    const vertical = edge === 'left' || edge === 'right';
+    const vertical = stacks(edge);
     const pos = vertical ? (cy - st.top - r.y) / r.h : (cx - st.left - r.x) / r.w;
     return Math.max(0, Math.min(others.length, Math.floor(pos * (others.length + 1))));
   };
   // Nested layout: which window is in the big pane (by id, so new windows don't move you; null = newest).
   const [focusId, setFocusId] = useState<string | null>(null);
   const nestedPage = pages.find((p) => p.layout === 'nested');
-  const focus = nestedPage && focusId ? Math.max(0, nestedPage.windows.indexOf(focusId)) : 0;
+  // When the focused window goes (closed, docked), focus stays at its position, on the window that
+  // took its place, instead of jumping back to the newest: closing neighbors one after another
+  // walks along the row.
+  const lastFocus = useRef(0);
+  const at = nestedPage && focusId ? nestedPage.windows.indexOf(focusId) : 0;
+  const focus = !nestedPage || !focusId ? 0 : at >= 0 ? at : Math.max(0, Math.min(lastFocus.current, nestedPage.windows.length - 1));
+  useEffect(() => {
+    lastFocus.current = focus;
+    if (nestedPage && focusId && at < 0) setFocusId(focus === 0 ? null : nestedPage.windows[focus] ?? null);
+  });
   const stepFocus = (d: number) => {
     if (!nestedPage) return false;
     const i = Math.max(0, Math.min(nestedPage.windows.length - 1, focus + d));
@@ -267,11 +340,13 @@ export function App() {
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('wheel', onWheel); window.removeEventListener('pointerdown', onDown, true); };
   }, [v, pages, setView, config.wheelDesktops, config.nestedStyle, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Edge panels kept open take their space from the layout.
+  // Docks kept open take their space from the layout: side columns (edge and corner docks), then
+  // top/bottom docks between them.
   const kept = state.tuckKeep ?? [];
   const inset = useMemo(() => {
-    const room = (e: Edge) => (kept.includes(e) && state.tucked?.[e]?.length ? edgeSize(e, size.W, size.H, state.tuckSize) + GAP : 0);
-    return { l: room('left'), r: room('right'), t: room('top'), b: room('bottom') };
+    const room = (e: Edge) => (keptOpen(state, e) ? edgeSize(e, size.W, size.H, state.tuckSize) + GAP : 0);
+    const side = sideRoom(state, size.W, size.H);
+    return { l: side.l, r: side.r, t: room('top'), b: room('bottom') };
   }, [size.W, size.H, kept.join(), state.tucked, state.tuckSize]); // eslint-disable-line react-hooks/exhaustive-deps
   const carousel = config.nestedStyle === 'carousel';
   const placed = useMemo(() => place(pages, size.W, size.H, focus, inset, carousel), [pages, size, focus, inset, carousel]);
@@ -279,8 +354,8 @@ export function App() {
 
   // ---- drag to reorder -------------------------------------------------------------
   const edgeTimer = useRef<number | null>(null);
-  /** Start dragging a window by its title bar: one in the layout, or one pinned to a sidebar (`from`). */
-  const onDragStart = (id: string, e: React.PointerEvent, from?: Edge) => {
+  /** Start dragging a window by its title bar: one in the layout, or one in a dock (`from`). */
+  const onDragStart = (id: string, e: React.PointerEvent, from?: Dock) => {
     const win = (e.currentTarget as HTMLElement).closest('.window')?.getBoundingClientRect();
     if (!win) return;
     // Keep the pointer while dragging (app frames under it are also switched off, see CSS).
@@ -356,7 +431,7 @@ export function App() {
 
   useEffect(() => { if (!drag && view > pages.length - 1) setViewRaw(pages.length - 1); }, [drag, pages.length, view]);
 
-  // Dock icon drags (started by the Dock once the pointer moves a few px).
+  // Launcher icon drags (started by the Launcher once the pointer moves a few px).
   useEffect(() => {
     if (!dockDrag) return;
     const id = dockDrag.id;
@@ -385,7 +460,7 @@ export function App() {
       const b = beforeAt(e.clientX, e.clientY);
       setDockDrag(null);
       if (tuck) return void dispatch({ type: 'window.tuck', id, edge: tuck, index: state.tuckKeep?.includes(tuck) ? panelIndexAt(tuck, e.clientX, e.clientY, id) : undefined });
-      if (b === undefined || state.settings.windowMode === 'history' || config.dockOrder === 'fixed' || b === id) return;
+      if (b === undefined || state.settings.windowMode === 'history' || config.launcherOrder === 'fixed' || b === id) return;
       // Reorder: the window lands where its icon was dropped among the open windows.
       const open = state.order.filter((x) => x !== id);
       const idx = b === null ? open.length : Math.max(0, open.indexOf(b));
@@ -396,7 +471,29 @@ export function App() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-  }, [dockDrag?.id, state.order, state.settings.windowMode, config.dockOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dockDrag?.id, state.order, state.settings.windowMode, config.launcherOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Bring a window into view without reordering: slide out its dock, go to its desktop, or (nested view) focus it. */
+  function reveal(id: string) {
+    const edge = DOCKS.find((e) => state.tucked?.[e]?.includes(id));
+    if (edge) return setPeek(edge);
+    const p = placed.find((x) => x.id === id);
+    if (nestedPage?.windows.includes(id)) setFocusId(nestedPage.windows.indexOf(id) === 0 ? null : id);
+    setView(p ? p.page : 0);
+  }
+  // Another app asked to show a window (Files → the change to a file); open it first if it's closed.
+  const revealRef = useRef(reveal);
+  revealRef.current = reveal;
+  useEffect(() => {
+    const on = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      const shown = state.order.includes(id) || DOCKS.some((d) => state.tucked?.[d]?.includes(id));
+      if (shown) revealRef.current(id);
+      else void dispatch({ type: 'window.open', id }).then(() => { setFocusId(null); setView(0); }); // it opens first
+    };
+    window.addEventListener('glass:reveal', on);
+    return () => window.removeEventListener('glass:reveal', on);
+  }, [state.order, state.tucked]);
 
   const s = state.session;
   const waiting = s.endedAt ? undefined : s.waiting;
@@ -404,7 +501,7 @@ export function App() {
   const rel = (t: string) => (s.cwd ? t.split(s.cwd + '/').join('') : t);
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
-    <div className={`glass${config.dockAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}>
+    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}>
       <Wallpaper bg={config.background} animate={config.animateBackground} colors={lightColors({
         signal: state.settings.backgroundColors, stateColors: config.stateColors !== false,
         palettes: config.statePalettes ?? DEFAULT_PALETTES, mood: moodOf(state.session), own: config.backgroundColors ?? [],
@@ -477,18 +574,18 @@ export function App() {
               {older > 0 && <span className="nest-badge bottom" style={{ left: left + size.W - 90 }}>{older} older ↓</span>}
             </>);
           })()}
-          {pages.every((p) => p.windows.length === 0) && !EDGES.some((e) => state.tucked?.[e]?.length) && (
+          {pages.every((p) => p.windows.length === 0) && !DOCKS.some((e) => state.tucked?.[e]?.length) && (
             <div className="empty" style={{ width: size.W }}>
-              <p>Nothing on screen. Open an app from the dock, or ask Claude to show you something.</p>
+              <p>Nothing on screen. Open an app from the launcher, or ask Claude to show you something.</p>
             </div>
           )}
         </div>
         {(drag?.mod || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length) && e !== drag?.from)
-          .map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Pin</span></div>)}
-        {/* Pin targets: drop a dragged window on one to pin it to that edge; anywhere else is a normal drag. */}
-        {(drag || dockDrag) && EDGES.filter((e) => !(state.tuckKeep?.includes(e) && state.tucked?.[e]?.length) && e !== drag?.from).map((e) => {
+          .map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Dock</span></div>)}
+        {/* Dock targets (edges and corners): drop a dragged window on one to dock it there; anywhere else is a normal drag. */}
+        {(drag || dockDrag) && DOCKS.filter((e) => !keptOpen(state, e) && e !== drag?.from).map((e) => {
           const c = pinTargetCenter(e, size.W, size.H, sideRoom(state, size.W, size.H));
-          return <div key={e} className={`pin-target ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`} style={{ left: c.x, top: c.y }} title={`Pin ${e}`}>
+          return <div key={e} className={`pin-target ${e}${isCorner(e) ? ' corner' : ''}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`} style={{ left: c.x, top: c.y }} title={`Dock ${e}`}>
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
           </div>;
         })}
@@ -496,14 +593,9 @@ export function App() {
           drag={drag ?? (dockDrag ? { id: dockDrag.id, px: dockDrag.px, py: dockDrag.py, ox: 0, oy: 0, tuck: dockDrag.tuck, slot: dockDrag.slot ?? null } : null)} />
       </main>
 
-      {config.dockAutoHide && <div className="dock-hot" aria-hidden />}
+      {config.launcherAutoHide && <div className="dock-hot" aria-hidden />}
       {dockDrag && <div className="dock-ghost" style={{ left: dockDrag.px, top: dockDrag.py }}><span className={`tile tile-${state.instances[dockDrag.id]?.type}`}><AppIcon type={state.instances[dockDrag.id]?.type} /></span></div>}
-      <Dock pages={pages} viewing={v} width={size.W} dragging={dockDrag} onDragStart={(id, x, y) => setDockDrag({ id, px: x, py: y, tuck: null, before: null })} onReveal={(id) => {
-        const edge = EDGES.find((e) => state.tucked?.[e]?.includes(id));
-        if (edge) return setPeek(edge);
-        const p = placed.find((x) => x.id === id);
-        setView(p ? p.page : 0);
-      }} />
+      <Launcher pages={pages} viewing={v} width={size.W} dragging={dockDrag} onDragStart={(id, x, y) => setDockDrag({ id, px: x, py: y, tuck: null, before: null })} onReveal={reveal} />
     </div>
   );
 }
@@ -570,7 +662,7 @@ const useSelected = () => useSyncExternalStore((fn) => { selectListeners.add(fn)
 
 function WindowFrame(props: {
   meta: InstanceMeta; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
-  page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Edge;
+  page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Dock;
   onTileClick?: () => void; // carousel side tile: a click brings it to the middle instead of selecting
 }) {
   const { meta, page, tucked } = props;
@@ -623,12 +715,26 @@ function LayoutGlyph({ name }: { name: LayoutName }) {
   );
 }
 
-function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
+/**
+ * The launcher: the bar along the bottom with an icon per window (and Settings). With grouping on,
+ * an app's windows share one icon with a count, and clicking it lists them to pick one.
+ */
+function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
   pages: DesktopPage[]; viewing: number; onReveal: (id: string) => void; width: number;
   onDragStart: (id: string, x: number, y: number) => void; dragging: { id: string } | null;
 }) {
   const { state, config } = useSnapshot();
-  // Press + move a few px = drag (reorder along the dock, or onto an edge to tuck); else a click.
+  // The open group menu: which app, and where its icon is (the menu sits above it).
+  const [menu, setMenu] = useState<{ type: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const down = (e: PointerEvent) => { if (!(e.target as HTMLElement).closest?.('.launcher-menu, .dock-item.group')) setMenu(null); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('pointerdown', down, true); window.removeEventListener('keydown', key); };
+  }, [menu]);
+  // Press + move a few px = drag (reorder along the launcher, or onto a dock); else a click.
   const press = useRef<{ id: string; x: number; y: number; started: boolean } | null>(null);
   const onPointerDown = (id: string, e: React.PointerEvent) => {
     press.current = { id, x: e.clientX, y: e.clientY, started: false };
@@ -636,6 +742,7 @@ function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
       const p = press.current;
       if (!p || p.started || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) < 6) return;
       p.started = true;
+      setMenu(null);
       onDragStart(p.id, ev.clientX, ev.clientY);
     };
     const up = () => { window.removeEventListener('pointermove', move); setTimeout(() => { press.current = null; }, 0); };
@@ -656,26 +763,69 @@ function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
     (tile.get(a.id) ?? Infinity) - (tile.get(b.id) ?? Infinity) || fixed(a, b);
   const off = new Set(config.disabledApps ?? []);
   const items = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type))
-    .sort(config.dockOrder === 'fixed' ? fixed : byWindows);
+    .sort(config.launcherOrder === 'fixed' ? fixed : byWindows);
+  // Grouping: one entry per app, at its first window's place, holding all of its windows.
+  const entries: InstanceMeta[][] = [];
+  if (config.launcherGroup !== false) {
+    const byType = new Map<string, InstanceMeta[]>();
+    for (const m of items) {
+      const g = byType.get(m.type);
+      if (g) g.push(m); else { const list = [m]; byType.set(m.type, list); entries.push(list); }
+    }
+  } else for (const m of items) entries.push([m]);
+  const show = (id: string) => (open.has(id) ? onReveal(id) : dispatch({ type: 'window.open', id }).then(() => onReveal(id)));
+  const docked = (id: string) => DOCKS.find((d) => state.tucked?.[d]?.includes(id));
+  const where = (id: string) => {
+    const d = docked(id);
+    if (d) return `docked ${d}`;
+    if (!pageOf.has(id)) return 'closed';
+    return pages.length > 1 ? `desktop ${pageOf.get(id)! + 1}` : 'open';
+  };
   const settingsOpen = open.has('settings');
-  // Crowded dock: icons shrink to fit the window (38px → 26px); past that the dock scrolls.
-  const tileSize = Math.max(26, Math.min(38, Math.floor((width - 80) / (items.length + 1) - 5)));
-  const crowded = (items.length + 1) * (tileSize + 5) + 60 > width;
+  // Crowded launcher: icons shrink to fit the window (38px → 26px); past that it scrolls.
+  const tileSize = Math.max(26, Math.min(38, Math.floor((width - 80) / (entries.length + 1) - 5)));
+  const crowded = (entries.length + 1) * (tileSize + 5) + 60 > width;
+  const menuItems = menu ? entries.find((g) => g[0].type === menu.type && g.length > 1) : undefined;
   return (
     <footer className="dock-wrap">
+      {/* Class names say "dock" for history: this is the launcher. */}
       <div className={`dock${crowded ? ' crowded' : ''}${dragging ? ' dragging' : ''}`} style={{ ['--tile' as any]: `${tileSize}px` }}>
-        {items.map((m, i) => (
-          <Fragment key={m.id}>
-            {config.dockOrder !== 'fixed' && i > 0 && group(items[i - 1].id) !== group(m.id) && <span className="dock-sep screen" />}
-            <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}${dragging?.id === m.id ? ' lifted' : ''}`} title={m.title} data-dock-id={m.id}
-              onPointerDown={(e) => onPointerDown(m.id, e)}
-              onClick={clickable(() => (open.has(m.id) ? onReveal(m.id) : dispatch({ type: 'window.open', id: m.id }).then(() => onReveal(m.id))))}>
-              <span className={`tile tile-${m.type}${apps[m.type]?.iconUrl ? ' has-img' : ''}`}><AppIcon type={m.type} /></span>
-              <span className="label">{m.title}</span>
-              {open.has(m.id) && <i className="running" />}
-            </button>
-          </Fragment>
-        ))}
+        {entries.map((g, i) => {
+          const m = g[0];
+          const sep = config.launcherOrder !== 'fixed' && i > 0 && group(entries[i - 1][0].id) !== group(m.id) && <span className="dock-sep screen" />;
+          const tile = <span className={`tile tile-${m.type}${apps[m.type]?.iconUrl ? ' has-img' : ''}`}><AppIcon type={m.type} /></span>;
+          if (g.length === 1) return (
+            <Fragment key={m.id}>
+              {sep}
+              <button className={`dock-item${offScreen(m.id) ? ' off-screen' : ''}${dragging?.id === m.id ? ' lifted' : ''}`} title={m.title} data-dock-id={m.id}
+                onPointerDown={(e) => onPointerDown(m.id, e)} onClick={clickable(() => show(m.id))}>
+                {tile}
+                <span className="label">{m.title}</span>
+                {open.has(m.id) && <i className="running" />}
+              </button>
+            </Fragment>
+          );
+          // A group: dimmed when none of its windows is on this desktop; the menu picks one.
+          const anyOpen = g.some((x) => open.has(x.id));
+          const away = anyOpen && g.every((x) => !open.has(x.id) || offScreen(x.id));
+          const title = apps[m.type]?.title ?? m.type;
+          return (
+            <Fragment key={`group-${m.type}`}>
+              {sep}
+              <button className={`dock-item group${away ? ' off-screen' : ''}${menu?.type === m.type ? ' menu-open' : ''}`} title={`${title}: ${g.length} windows`}
+                data-dock-group={m.type} aria-haspopup="menu" aria-expanded={menu?.type === m.type}
+                onClick={(e) => {
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setMenu((cur) => (cur?.type === m.type ? null : { type: m.type, x: r.left + r.width / 2, y: r.top }));
+                }}>
+                {tile}
+                <b className="count">{g.length}</b>
+                <span className="label">{title}</span>
+                {anyOpen && <i className="running" />}
+              </button>
+            </Fragment>
+          );
+        })}
         <span className="dock-sep" />
         <button className={`dock-item${offScreen('settings') ? ' off-screen' : ''}`} title="Settings"
           onClick={() => (settingsOpen ? onReveal('settings') : dispatch({ type: 'instance.create', appType: 'settings' }).then(() => onReveal('settings')))}>
@@ -684,54 +834,94 @@ function Dock({ pages, viewing, onReveal, onDragStart, dragging, width }: {
           {settingsOpen && <i className="running" />}
         </button>
       </div>
+      {menuItems && menu && (
+        <div className="launcher-menu" role="menu" style={{ left: menu.x, bottom: window.innerHeight - menu.y + 10 }}>
+          {menuItems.map((m) => (
+            <button key={m.id} role="menuitem" className={`${open.has(m.id) && !offScreen(m.id) ? 'here' : ''}${dragging?.id === m.id ? ' lifted' : ''}`} data-dock-id={m.id}
+              onPointerDown={(e) => onPointerDown(m.id, e)} onClick={clickable(() => { setMenu(null); void show(m.id); })}>
+              <span className="lm-title">{m.title}</span>
+              <span className="lm-where">{where(m.id)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </footer>
   );
 }
 
 /**
- * Edge sidebars ("pin" in the UI): windows pinned to an edge leave the tiling flow and live here,
- * the same on every desktop. Hidden, a sidebar is a slim tab and hovering anywhere along its edge
- * slides it out; kept open, the layout makes room and its inner edge drags to resize. Windows
- * split a sidebar evenly and stay mounted while hidden (a voice app keeps listening).
+ * Docks ("tucked" in state): windows docked at an edge or a corner leave the tiling flow and live
+ * here, the same on every desktop. Hidden, a dock is a slim tab and hovering its edge (or corner)
+ * starts pulling it out; a click opens it, or the hover does with `dockOpen: hover`. Kept open, the
+ * layout makes room and its inner side drags to resize (a corner resizes both ways). Windows split
+ * a dock evenly and stay mounted while hidden (a voice app keeps listening).
  */
 function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
-  W: number; H: number; peek: Edge | null; setPeek: (e: Edge | null) => void;
+  W: number; H: number; peek: Dock | null; setPeek: (e: Dock | null) => void;
   drag: Pick<Drag, 'id' | 'px' | 'py' | 'ox' | 'oy' | 'from' | 'tuck' | 'slot'> | null;
-  onWindowDragStart: (id: string, e: React.PointerEvent, from: Edge) => void;
+  onWindowDragStart: (id: string, e: React.PointerEvent, from: Dock) => void;
 }) {
   const { state, config } = useSnapshot();
   const closeTimer = useRef<number | null>(null);
-  const hold = (e: Edge) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
-  // Pointer near an edge's pull (hovering the edge or its capsule): starts the pull-out animation,
-  // and keeps an open sidebar open (it slides in under the pointer, which would otherwise count
-  // as leaving it and close it again).
-  const [near, setNear] = useState<Edge | null>(null);
-  const enterPull = (e: Edge) => { setNear(e); if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; };
-  const release = () => { closeTimer.current = window.setTimeout(() => setPeek(null), 350); };
-  // Live size while dragging a sidebar's inner edge; committed to state on release.
-  const [resizing, setResizing] = useState<{ edge: Edge; size: number } | null>(null);
-  const startResize = (edge: Edge, e: React.PointerEvent) => {
+  const hold = (e: Dock) => { if (closeTimer.current) clearTimeout(closeTimer.current); closeTimer.current = null; setPeek(e); };
+  // Pointer near a dock's pull (hovering the edge or its capsule): starts the pull-out animation
+  // (or opens it, in hover mode), and keeps an open dock open (it slides in under the pointer,
+  // which would otherwise count as leaving it and close it again).
+  const [near, setNear] = useState<Dock | null>(null);
+  const hoverOpens = config.dockOpen === 'hover';
+  const enterPull = (e: Dock) => { setNear(e); if (hoverOpens) hold(e); else if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const release = () => { closeTimer.current = window.setTimeout(() => { closeTimer.current = null; setPeek(null); }, 350); };
+  // Leaving through an app frame sends the shell no mouseleave, so once the pointer has been in the
+  // open dock, any move over the shell outside it (and its pull) lets it go too. (A dock opened from
+  // the launcher waits for the pointer to arrive first.)
+  const visited = useRef(false);
+  useEffect(() => { visited.current = false; }, [peek]);
+  useEffect(() => {
+    if (!peek && !near) return;
+    const move = (e: PointerEvent) => {
+      const t = e.target as HTMLElement;
+      const over = (d: Dock) => !!t.closest?.(`.edge-panel.${d}, .edge-cap.${d}, .edge-hot.${d}`);
+      if (near && !over(near)) setNear(null);
+      if (peek && over(peek)) visited.current = true;
+      else if (peek && visited.current && closeTimer.current == null && !drag) { visited.current = false; release(); }
+    };
+    window.addEventListener('pointermove', move);
+    return () => window.removeEventListener('pointermove', move);
+  }, [peek, near, drag]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Live size while dragging a dock's inner side (or a corner dock's inner corner); committed to
+  // state on release. `axes`: which of width/height the handle changes.
+  const [resizing, setResizing] = useState<{ edge: Dock; size: number; height?: number } | null>(null);
+  const startResize = (edge: Dock, axes: 'w' | 'h' | 'wh', e: React.PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); // frames under the pointer would swallow the drag
     const stage = (e.currentTarget as HTMLElement).closest('.stage')!.getBoundingClientRect();
-    const sizeAt = (x: number, y: number) => ({ left: x - stage.left, right: stage.right - x, top: y - stage.top, bottom: stage.bottom - y }[edge] - PAD);
+    const dist = (side: Edge, x: number, y: number) => ({ left: x - stage.left, right: stage.right - x, top: y - stage.top, bottom: stage.bottom - y }[side] - PAD);
+    const corner = isCorner(edge) ? edge : null;
+    const [vSide, hSide] = corner ? cornerSides(corner) : [edge as Edge, edge as Edge];
     let size = edgeSize(edge, W, H, state.tuckSize);
+    let height = corner ? cornerHeight(corner, H, state.tuckHeight) : undefined;
     document.body.classList.add('frames-off');
-    const move = (ev: PointerEvent) => { size = edgeSize(edge, W, H, { [edge]: sizeAt(ev.clientX, ev.clientY) }); setResizing({ edge, size }); };
+    const move = (ev: PointerEvent) => {
+      if (axes !== 'h') size = edgeSize(edge, W, H, { [edge]: dist(hSide, ev.clientX, ev.clientY) });
+      if (corner && axes !== 'w') height = cornerHeight(corner, H, { [corner]: dist(vSide, ev.clientX, ev.clientY) });
+      setResizing({ edge, size, height });
+    };
     const up = () => {
       document.body.classList.remove('frames-off');
-      window.removeEventListener('pointermove', move); setResizing(null); void dispatch({ type: 'tuck.size', edge, size });
+      window.removeEventListener('pointermove', move); setResizing(null);
+      void dispatch({ type: 'tuck.size', edge, size: axes !== 'h' ? size : undefined, height: axes !== 'w' ? height : undefined });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
   };
-  // Live shares while dragging the gap between two windows in a sidebar; committed on release.
-  const [splitting, setSplitting] = useState<{ edge: Edge; shares: number[] } | null>(null);
-  const startSplit = (edge: Edge, i: number, start: number[], r: Rect, e: React.PointerEvent) => {
+  // Live shares while dragging the gap between two windows in a dock; committed on release.
+  const [splitting, setSplitting] = useState<{ edge: Dock; shares: number[] } | null>(null);
+  const startSplit = (edge: Dock, i: number, start: number[], r: Rect, e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    const vertical = edge === 'left' || edge === 'right';
+    const vertical = stacks(edge);
     const room = (vertical ? r.h : r.w) - GAP * (start.length - 1);
     const from = vertical ? e.clientY : e.clientX;
     let shares = start;
@@ -753,19 +943,31 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
   };
+  const docks = DOCKS.map((edge) => {
+    const ids = (state.tucked?.[edge] ?? []).filter((id) => state.instances[id]);
+    const kept = !!state.tuckKeep?.includes(edge);
+    const open = !!ids.length && (peek === edge || kept || drag?.from === edge);
+    const sized = resizing?.edge === edge
+      ? { ...state, tuckSize: { ...state.tuckSize, [edge]: resizing.size }, tuckHeight: isCorner(edge) && resizing.height ? { ...state.tuckHeight, [edge]: resizing.height } : state.tuckHeight }
+      : state;
+    return { edge, ids, kept, open, r: panelRect(edge, W, H, sized) };
+  });
+  // Rounded inside corners where two open docks' backings meet.
+  const joins = fillets(docks.filter((d) => d.open).map((d) => backingRect(d.edge, d.r, W, H)), W, H);
   return (
     <>
-      {EDGES.map((edge) => {
-        const ids = (state.tucked?.[edge] ?? []).filter((id) => state.instances[id]);
+      {joins.map((f) => (
+        <i key={`fillet-${f.x}-${f.y}`} className="edge-fillet" aria-hidden style={{
+          left: f.x, top: f.y, width: f.R, height: f.R,
+          background: `radial-gradient(circle at ${f.qx > 0 ? '100%' : '0'} ${f.qy > 0 ? '100%' : '0'}, transparent ${f.R - 0.5}px, #000 ${f.R}px)`,
+        }} />
+      ))}
+      {docks.map(({ edge, ids, kept, open, r }) => {
         if (!ids.length) return null;
-        const vertical = edge === 'left' || edge === 'right';
-        const kept = !!state.tuckKeep?.includes(edge);
-        const open = peek === edge || kept || drag?.from === edge;
-        // Side sidebars win: top/bottom ones fit between any kept-open left/right sidebars.
-        const r = panelRect(edge, W, H, resizing?.edge === edge ? { ...state, tuckSize: { ...state.tuckSize, [edge]: resizing.size } } : state);
-        const side = sideRoom(state, W, H);
+        const vertical = stacks(edge);
+        const corner = isCorner(edge) ? edge : null;
         const pw = r.w, ph = r.h;
-        // While a window is dragged over (or out of) this sidebar, the others reflow around a
+        // While a window is dragged over (or out of) this dock, the others reflow around a
         // placeholder slot where it will land; the dragged one follows the pointer.
         const dragged = drag && ids.includes(drag.id) ? drag.id : null;
         const others = ids.filter((id) => id !== dragged);
@@ -779,28 +981,35 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
           <Fragment key={edge}>
             {(() => {
               // The drawer pull. Closed: a black rail running off the screen edge with a capsule of
-              // the pinned apps' icons; hovering the edge or the capsule starts pulling it out, and
-              // clicking opens the sidebar. Open (or kept open): the rail becomes a translucent
-              // backing behind the whole sidebar, and the capsule rides out to the sidebar's inner
-              // edge, its icons swapped for the keep-open chevron.
+              // the docked apps' icons; hovering the edge or the capsule starts pulling it out, and
+              // clicking opens the dock. Open (or kept open): the rail becomes a solid backing
+              // behind the whole dock, and the capsule rides out to the dock's inner edge (a
+              // corner's inner corner), its icons swapped for the keep-open pin.
               const state3 = open ? 'open' : near === edge ? 'near' : 'idle';
               const capThick = PULL_ICON + PULL_T * 2;
               const capLen = ids.length * PULL_ICON + (ids.length - 1) * 6 + PULL_T * 2;
-              // The closed capsule sits at the sidebar's middle. At the bottom with an auto-hiding dock,
-              // it sits above the dock's trigger strip and steps aside while the dock is up (CSS).
+              // The closed capsule sits at an edge dock's middle. At the bottom with an auto-hiding
+              // launcher, it sits above the launcher's trigger strip and steps aside while the
+              // launcher is up (CSS). A corner's capsule lies along its top/bottom edge, in the corner.
               const along = vertical ? r.y + r.h / 2 : r.x + r.w / 2;
-              // How far the open backing extends past the sidebar: half the gap, so its edge (and the
-              // pin riding on it) sits exactly mid-gap between the sidebar and the layout.
+              // How far the open backing extends past the dock: half the gap, so its edge (and the
+              // pin riding on it) sits exactly mid-gap between the dock and the layout.
               const B = GAP / 2;
-              const E = 6; // the open backing runs the screen's full length, inset so its rounded ends show
               let railStyle: React.CSSProperties;
+              let armStyle: React.CSSProperties | null = null; // a corner's second rail, down its side edge
               if (state3 === 'open') {
-                railStyle = {
-                  left: { left: -4, right: r.x - B, top: E, bottom: E }[edge],
-                  top: { left: E, right: E, top: -4, bottom: r.y - B }[edge],
-                  width: { left: r.x + r.w + B + 4, right: W - r.x + B + 4, top: W - E * 2, bottom: W - E * 2 }[edge],
-                  height: { left: H - E * 2, right: H - E * 2, top: r.y + r.h + B + 4, bottom: H - r.y + B + 4 }[edge],
-                };
+                const b = backingRect(edge, r, W, H);
+                railStyle = { left: b.x, top: b.y, width: b.w, height: b.h };
+                if (corner) armStyle = railStyle; // both arms grow into the one backing
+              } else if (corner) {
+                // An even L hugging the corner: the same length along both edges, thick enough that
+                // the capsule easing off the corner still sits on black.
+                const [v, h] = cornerSides(corner);
+                const len = (state3 === 'near' ? capLen + 90 : capLen + 30) + 4;
+                const depth = state3 === 'near' ? PULL_T + 12 : PULL_T + 4;
+                const x0 = h === 'left' ? -4 : W - len + 4, y0 = v === 'top' ? -4 : H - len + 4;
+                railStyle = { width: len, height: depth, left: x0, top: v === 'top' ? -4 : H - depth + 4 };
+                armStyle = { width: depth, height: len, left: h === 'left' ? -4 : W - depth + 4, top: y0 };
               } else {
                 const len = state3 === 'near' ? Math.max(capLen + 80, (vertical ? r.h : r.w) * 0.45) : capLen + 80;
                 const depth = state3 === 'near' ? PULL_T + 8 : PULL_T + 4; // from 4px off-screen inward
@@ -810,22 +1019,36 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               }
               // The capsule's center: on the edge (eased in when near), or on the open backing's inner edge.
               const inset = state3 === 'near' ? capThick / 2 + 8 : capThick / 2;
-              const [cx, cy] = state3 === 'open'
-                ? { left: [r.x + r.w + B, r.y + r.h / 2], right: [r.x - B, r.y + r.h / 2], top: [r.x + r.w / 2, r.y + r.h + B], bottom: [r.x + r.w / 2, r.y - B] }[edge]
-                : { left: [inset, along], right: [W - inset, along], top: [along, inset], bottom: [along, H - inset] }[edge];
+              let cx: number, cy: number;
+              if (corner) {
+                const [v, h] = cornerSides(corner);
+                const nx = state3 === 'near' ? capLen / 2 + 8 : capLen / 2;
+                // Open: on the inner side facing the layout, mid-height (the inner corner is its resize handle).
+                [cx, cy] = state3 === 'open'
+                  ? [h === 'left' ? r.x + r.w + B : r.x - B, r.y + r.h / 2]
+                  : [h === 'left' ? nx : W - nx, v === 'top' ? inset : H - inset];
+              } else {
+                [cx, cy] = state3 === 'open'
+                  ? { left: [r.x + r.w + B, r.y + r.h / 2], right: [r.x - B, r.y + r.h / 2], top: [r.x + r.w / 2, r.y + r.h + B], bottom: [r.x + r.w / 2, r.y - B] }[edge as Edge]
+                  : { left: [inset, along], right: [W - inset, along], top: [along, inset], bottom: [along, H - inset] }[edge as Edge];
+              }
               const openIt = () => hold(edge);
               const toggleKeep = () => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); };
+              // The keep-open pin stays out of sight on a kept dock until the pointer is over the dock or the pin.
+              const hovered = peek === edge || near === edge;
+              const where = corner ? corner.replace('-', ' ') : edge;
               return (
                 <>
-                  {!kept && <div className={`edge-hot ${edge}`} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
+                  {!kept && <div className={`edge-hot ${edge}${corner ? ' corner' : ''}`} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
                   <i className={`edge-rail ${edge} ${state3}`} style={railStyle} />
-                  <button className={`edge-cap ${edge} ${state3}${kept ? ' kept' : ''}`} style={{ left: cx, top: cy }} aria-pressed={state3 === 'open' ? kept : undefined}
-                    title={state3 === 'open' ? (kept ? 'Unpin: hide this sidebar until you hover its edge' : 'Pin this sidebar open') : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
+                  {armStyle && <i className={`edge-rail ${edge} ${state3}`} style={armStyle} />}
+                  <button className={`edge-cap ${edge} ${state3}${kept ? ' kept' : ''}${hovered ? ' hover' : ''}${corner ? ' corner' : ''}`} style={{ left: cx, top: cy }} aria-pressed={state3 === 'open' ? kept : undefined}
+                    title={state3 === 'open' ? (kept ? `Hide the ${where} dock until you hover it` : `Keep the ${where} dock open`) : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
                     onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={state3 === 'open' ? toggleKeep : openIt}>
                     {state3 === 'open'
                       // A pushpin, not an arrow (arrows read as "switch desktop"): upright and filled
-                      // when the sidebar is pinned open, tilted and hollow when it isn't.
-                      ? <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden style={{ transform: `rotate(${kept ? 0 : 45}deg)` }}>
+                      // when the dock is kept open, tilted and hollow when it isn't.
+                      ? <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden style={{ transform: `rotate(${kept ? 0 : 45}deg)` }}>
                           <path d="M5.5 1.75h5M6.5 1.75v3.5L4.25 8.5h7.5L9.5 5.25v-3.5Z" fill={kept ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                           <path d="M8 8.5v5.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
@@ -835,9 +1058,19 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               );
             })()}
             <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
-              style={{ width: pw, height: ph, ...(vertical ? {} : { left: PAD + side.l }) }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
-              {kept && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, e)} />}
-              {/* Drag the gap between two windows to change how they share the sidebar. */}
+              style={{ left: r.x, top: r.y, width: pw, height: ph }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
+              {/* Resize from the inner side; a corner from its two inner sides and its inner corner.
+                  A handle's class names the side of the stage its dock hugs (it sits opposite). */}
+              {kept && !corner && <div className={`edge-resize ${edge}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, stacks(edge) ? 'w' : 'h', e)} />}
+              {kept && corner && (() => {
+                const [v, h] = cornerSides(corner);
+                return (<>
+                  <div className={`edge-resize ${h}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, 'w', e)} />
+                  <div className={`edge-resize ${v}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, 'h', e)} />
+                  <div className={`edge-resize corner ${corner}`} title="Drag to resize" onPointerDown={(e) => startResize(edge, 'wh', e)} />
+                </>);
+              })()}
+              {/* Drag the gap between two windows to change how they share the dock. */}
               {!drag && ids.length > 1 && slots.slice(0, -1).map((s, i) => (
                 <div key={`split-${i}`} className={`edge-split ${vertical ? 'rows' : 'cols'}`} title="Drag to resize"
                   style={vertical ? { top: s.y + s.h, left: 0, width: pw, height: GAP } : { left: s.x + s.w, top: 0, height: ph, width: GAP }}

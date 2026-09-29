@@ -230,6 +230,42 @@ try {
     await cli(env, 'window', 'delete', gid);
   }
 
+  // One Images window: `show` without an id goes to it; its Project tab lists the project's images.
+  {
+    const a = await cli(env, 'show', join(shots, '01-empty.png'));
+    const b = await cli(env, 'show', join(shots, '06b-image.png'));
+    check(a.startsWith('images ') && b.startsWith('images '), `images all go to the one Images window (${a.trim()}, ${b.trim()})`);
+    await cli(env, 'app', 'images', 'view', '--source', 'project');
+    await sleep(1200);
+    const frame = appFrame(page, 'images');
+    const tiles = await frame.locator('.img-tile').count();
+    const loaded = await frame.locator('.img-tile img').first().evaluate((i) => i.complete && i.naturalWidth > 0).catch(() => false);
+    check(tiles > 3 && loaded, `the Project tab lists the project folder's images, and they load (${tiles})`);
+    await page.locator('[data-window="images"]').screenshot({ path: join(shots, '06i-image-project.png') });
+    await cli(env, 'app', 'images', 'view', '--source', 'shown');
+  }
+
+  // Files → Changes: clicking a changed file opens its diff in Changes.
+  {
+    await cli(env, 'window', 'open', 'files');
+    await cli(env, 'app', 'files', 'view', '--mode', 'list');
+    await sleep(800);
+    const row = appFrame(page, 'files').locator('.fl-row.edited').first();
+    const path = ((await row.getAttribute('title').catch(() => '')) ?? '').replace(/: show the change$/, '');
+    await cli(env, 'window', 'move', 'changes', 7); // off to another desktop, so revealing it shows
+    await sleep(500);
+    await row.click();
+    await sleep(900);
+    const st = JSON.parse(await cli(env, 'state', 'changes')).state;
+    const v = JSON.parse(await cli(env, 'view', '--json'));
+    const page2 = v.desktops.find((d) => d.windows.some((w) => w.id === 'changes'))?.desktop;
+    check(!!path && st.selected?.endsWith(path) && page2 === v.userViewingDesktop,
+      `clicking a changed file in Files selects it in Changes and shows Changes (${path} → desktop ${page2 + 1}, viewing ${v.userViewingDesktop + 1})`);
+    await cli(env, 'window', 'close', 'files');
+    await page.locator('.pager button').first().click(); // back to desktop 1
+    await sleep(600);
+  }
+
   // Reordering windows must not reload app frames (they'd flicker and lose scroll).
   {
     const mark = () => appFrame(page, 'terminal').locator('body').evaluate((b) => (b.dataset.mark ??= String(Math.random())));
@@ -322,8 +358,11 @@ try {
   await sleep(500);
   check(!(await cli(env, 'view')).match(/\bsettings\s+settings/), 'close button closes the window');
 
-  // Dock order follows window order; auto-hide gives the space back and reveals at the bottom edge.
+  // Launcher order follows window order; auto-hide gives the space back and reveals at the bottom edge.
+  // (Grouping off here, so each window has its own icon.)
   {
+    await cli(env, 'settings', 'set', 'launcherGroup', 'false');
+    await sleep(300);
     const winIds = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows.map((w) => w.id));
     const dockTitles = await page.locator('.dock-item').evaluateAll((els) => els.map((e) => e.getAttribute('title')));
     const winTitles = await Promise.all(winIds.map((id) => page.locator(`[data-window="${id}"] .wtitle`).innerText()));
@@ -354,7 +393,8 @@ try {
     const shift = await page.evaluate(() => ({ top: document.querySelector('.topbar').getBoundingClientRect().top, scroll: document.scrollingElement.scrollTop + document.querySelector('.glass').scrollTop }));
     check(shift.top === 0 && shift.scroll === 0, `a focused hidden dock doesn't push the glass up (topbar at ${shift.top})`);
     await page.mouse.move(vp.width / 2, vp.height / 2);
-    await cli(env, 'settings', 'set', 'dockAutoHide', 'false');
+    await cli(env, 'settings', 'set', 'dockAutoHide', 'false'); // the old name still works
+    await cli(env, 'settings', 'set', 'launcherGroup', 'true');
     await sleep(500);
   }
 
@@ -558,6 +598,16 @@ try {
     const moved = await box(order[1]);
     check(Math.abs(moved.x + moved.width / 2 - W / 2) < 40, `carousel: clicking a tile brings it to the middle (${Math.round(moved.x)})`);
     await page.screenshot({ path: join(shots, '11c-carousel-focused.png') });
+    // Closing the focused window keeps focus where it was: the next one slides into the middle
+    // (it used to jump back to the newest).
+    await page.locator(`[data-window="${order[1]}"] .light.close`).click();
+    await sleep(800);
+    const took = await box(order[2]);
+    check(Math.abs(took.x + took.width / 2 - W / 2) < 40, `carousel: closing the focused window focuses the one that took its place (${order[2]} at ${Math.round(took.x)})`);
+    await page.locator(`[data-window="${order[2]}"] .light.close`).click();
+    await sleep(800);
+    const took2 = await box(order[3]);
+    check(Math.abs(took2.x + took2.width / 2 - W / 2) < 40, `carousel: closing neighbors one after another walks along the row (${order[3]} at ${Math.round(took2.x)})`);
     await cli(env, 'settings', 'set', 'nestedStyle', 'spiral');
     for (const id of made) await cli(env, 'window', 'delete', id);
     await cli(env, 'settings', 'set', 'nestedView', 'false');
@@ -823,14 +873,128 @@ try {
     const v = JSON.parse(await cli(env, 'view', '--json'));
     check(v.tucked?.left?.[0]?.id === mover, `dragging a dock icon onto an edge tucks it (${JSON.stringify(v.tucked)})`);
     await cli(env, 'window', 'untuck', mover);
-    // Crowd the dock: icons shrink to fit, and the dock never runs off the window.
+    // Crowd the launcher (grouping off): icons shrink to fit, and it never runs off the window.
+    await cli(env, 'settings', 'set', 'launcherGroup', 'false');
     const made = [];
     for (let i = 0; i < 16; i++) made.push((await cli(env, 'new', 'markdown', '--title', `Crowd ${i}`, '--no-open')).trim());
     await sleep(500);
     const fit = await page.evaluate(() => ({ dock: document.querySelector('.dock').getBoundingClientRect().width, win: innerWidth, tile: document.querySelector('.dock-item .tile').getBoundingClientRect().width }));
-    check(fit.dock <= fit.win && fit.tile < 38, `a crowded dock shrinks its icons and stays on screen (${Math.round(fit.tile)}px icons, dock ${Math.round(fit.dock)} of ${fit.win})`);
+    check(fit.dock <= fit.win && fit.tile < 38, `a crowded launcher shrinks its icons and stays on screen (${Math.round(fit.tile)}px icons, launcher ${Math.round(fit.dock)} of ${fit.win})`);
     await page.screenshot({ path: join(shots, '13-dock.png') });
+    // Grouping on (the default): the markdown windows share one icon with a count; clicking it
+    // lists them, and picking one opens it.
+    await cli(env, 'settings', 'set', 'launcherGroup', 'true');
+    await sleep(500);
+    const group = page.locator('.dock-item.group[data-dock-group="markdown"]');
+    const count = Number(await group.locator('.count').innerText());
+    const icons = await page.locator('.dock-item').count();
+    check(count >= 16 && icons < count, `launcher groups an app's windows under one icon (markdown ×${count}, ${icons} icons)`);
+    await group.click();
+    await sleep(300);
+    const listed = await page.locator('.launcher-menu button').count();
+    await page.screenshot({ path: join(shots, '13b-launcher-group.png') });
+    check(listed === count, `clicking a group lists its windows (${listed})`);
+    await page.locator('.launcher-menu button', { hasText: 'Crowd 7' }).click();
+    await sleep(500);
+    const openNow = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows.map((w) => w.id));
+    check(openNow.includes(made[7]) && (await page.locator('.launcher-menu').count()) === 0, `picking a window from the group opens it and closes the menu (${made[7]})`);
     for (const id of made) await cli(env, 'window', 'close', id);
+  }
+
+  // Corner docks: dock at a corner (CLI or the corner's drop target); hover the corner to pull it,
+  // click to open; kept open, a corner takes the end of its side's column and the edge dock fits
+  // beside it. Open backings meeting at an inside corner get a rounded fillet. A kept dock's pin
+  // hides until hovered. With dockOpen hover, hovering opens a dock without a click.
+  {
+    await sleep(400);
+    const stage = await page.locator('.stage').boundingBox();
+    // Small steps, like a real pointer: it crosses the gaps between windows, where the shell sees it.
+    const away = () => page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 16 });
+    const lay = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows.map((w) => w.id);
+    await cli(env, 'window', 'dock', lay[0], 'top-right');
+    await sleep(400);
+    await away();
+    await sleep(400);
+    await page.screenshot({ path: join(shots, '12i2-corner-idle.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
+    await page.mouse.move(stage.x + stage.width - 6, stage.y + 6, { steps: 4 });
+    await sleep(400);
+    await page.screenshot({ path: join(shots, '12i3-corner-near.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
+    check((await page.locator('.edge-cap.top-right.near').count()) === 1 && (await page.locator('.edge-panel.top-right.open').count()) === 0,
+      'hovering a corner starts pulling its dock out (without opening it)');
+    await page.mouse.down(); await page.mouse.up();
+    await sleep(700);
+    const tr = await page.locator('.edge-panel.top-right').boundingBox();
+    check((await page.locator('.edge-panel.top-right.open').count()) === 1 && tr.x + tr.width > stage.x + stage.width - 20 && tr.y < stage.y + 20 && tr.height < stage.height * 0.7,
+      `clicking the corner opens the corner dock, in the corner (${Math.round(tr.width)}×${Math.round(tr.height)})`);
+    await page.locator('.edge-cap.top-right.open').click(); // keep it open
+    await cli(env, 'window', 'dock', lay[1], 'right');
+    await cli(env, 'window', 'dock', lay[2], 'top');
+    await sleep(300);
+    for (const e of ['right', 'top']) {
+      await away();
+      const pt = e === 'right' ? [stage.x + stage.width - 4, stage.y + stage.height * 0.6] : [stage.x + stage.width * 0.4, stage.y + 4];
+      await page.mouse.move(pt[0], pt[1], { steps: 3 });
+      await page.mouse.down(); await page.mouse.up();
+      await sleep(600);
+      await page.locator(`.edge-cap.${e}.open`).click();
+      await sleep(300);
+    }
+    await away();
+    await sleep(700);
+    const [C, R, T] = [await page.locator('.edge-panel.top-right').boundingBox(), await page.locator('.edge-panel.right').boundingBox(), await page.locator('.edge-panel.top').boundingBox()];
+    check(R.y >= C.y + C.height && T.x + T.width <= Math.min(C.x, R.x), `a kept corner takes the top of the right column; the right dock fits below it, the top dock beside (corner ends ${Math.round(C.y + C.height)}, right starts ${Math.round(R.y)})`);
+    const fillets = await page.locator('.edge-fillet').count();
+    check(fillets >= 1, `open docks meeting at an inside corner get a rounded fillet (${fillets})`);
+    const pinHidden = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '0');
+    await page.mouse.move(R.x + R.width / 2, R.y + 16, { steps: 3 }); // over its title bar (a synthetic jump into a frame isn't seen)
+    await sleep(400);
+    const pinShown = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '1');
+    check(pinHidden && pinShown, 'a kept dock\'s pin stays hidden until the pointer is over the dock');
+    await away();
+    await sleep(700);
+    const pinBack = await page.locator('.edge-cap.right').evaluate((e) => `${e.className} · opacity ${getComputedStyle(e).opacity}`);
+    check(pinBack.endsWith('opacity 0'), `and hides again once the pointer leaves (${pinBack})`);
+    await page.screenshot({ path: join(shots, '12j-corner-docks.png') });
+    // Resize the kept corner from its inner corner: both dimensions change.
+    const before = JSON.parse(await cli(env, 'view', '--json')).sidebars['top-right'];
+    const h = await page.locator('.edge-resize.corner.top-right').boundingBox();
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(h.x - 80, h.y + 60, { steps: 6 });
+    await page.mouse.up();
+    await sleep(400);
+    const after = JSON.parse(await cli(env, 'view', '--json')).sidebars['top-right'];
+    check(after.size > before.size + 50 && after.height > before.height + 30, `dragging a corner dock's inner corner resizes both ways (${before.size}×${before.height} → ${after.size}×${after.height})`);
+    for (const id of lay.slice(0, 3)) await cli(env, 'window', 'undock', id);
+    await sleep(500);
+    // Drop on a corner's target to dock there.
+    const w = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    const tb = await page.locator(`.strip [data-window="${w}"] .titlebar`).first().boundingBox();
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 18);
+    await page.mouse.down();
+    await away();
+    const tgt = await page.locator('.pin-target.bottom-left').boundingBox();
+    await page.mouse.move(tgt.x + tgt.width / 2, tgt.y + tgt.height / 2, { steps: 6 });
+    await sleep(150);
+    const lit = await page.locator('.pin-target.bottom-left.on').count();
+    await page.screenshot({ path: join(shots, '12k-corner-target.png') });
+    await page.mouse.up();
+    await sleep(500);
+    let v = JSON.parse(await cli(env, 'view', '--json'));
+    check(lit === 1 && v.tucked?.['bottom-left']?.[0]?.id === w, `dropping on a corner's target docks the window there (${JSON.stringify(Object.keys(v.tucked ?? {}))})`);
+    // Open on hover: no click needed.
+    await cli(env, 'settings', 'set', 'dockOpen', 'hover');
+    await away();
+    await sleep(500);
+    await page.mouse.move(stage.x + 6, stage.y + stage.height - 6, { steps: 4 });
+    await sleep(700);
+    check((await page.locator('.edge-panel.bottom-left.open').count()) === 1, 'with dockOpen hover, hovering a dock\'s tab opens it');
+    await away();
+    await sleep(900);
+    check((await page.locator('.edge-panel.bottom-left.open').count()) === 0, 'and it closes when the pointer leaves');
+    await cli(env, 'settings', 'set', 'dockOpen', 'click');
+    await cli(env, 'window', 'undock', w);
+    await sleep(400);
   }
 
   // Background light: Claude's signal recolors the wallpaper blobs, easing over; reset restores.

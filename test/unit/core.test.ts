@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { findProjectImages } from '../../src/core/projectImages';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
 import { coerceSetting, parsePermissions, parseSettingSpecs, settingValues } from '../../src/apps/types';
@@ -384,8 +386,8 @@ describe('app guides by setting', () => {
   });
   it('the images guide asks to reuse one window only in live mode', () => {
     attachBuiltinViews(join(__dirname, '../../dist/apps')); // built-ins read their guide.md from the build
-    expect(guideFor({ defaultLayout: 'grid', windowMode: 'live' })).toContain('--id images');
-    expect(guideFor({ defaultLayout: 'grid', windowMode: 'history' })).not.toContain('--id images');
+    expect(guideFor({ defaultLayout: 'grid', windowMode: 'live' })).toContain('Images live in one window');
+    expect(guideFor({ defaultLayout: 'grid', windowMode: 'history' })).not.toContain('Images live in one window');
   });
   it('images: grid view is a saved view option; opening a tile goes back to single', () => {
     const img = APPS.image;
@@ -474,6 +476,39 @@ describe('presets', () => {
     expect(b.settings.windowMode).toBe('history');
     expect(skipped).toEqual(['vmux (vmux)']);
   });
+  it('carry corner docks with both dimensions', () => {
+    let a = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'top-left' }).state;
+    a = reduce(a, { type: 'tuck.size', edge: 'top-left', size: 320, height: 210 }).state;
+    const p = capturePreset(a, DEFAULT_CONFIG, 'corner');
+    expect(p.sidebars?.['top-left']).toMatchObject({ size: 320, height: 210, open: false });
+    let b = fresh();
+    for (const act of presetActions(b, p, () => true).actions) b = reduce(b, act).state;
+    expect(b.tucked?.['top-left']).toEqual(['terminal']);
+    expect([b.tuckSize?.['top-left'], b.tuckHeight?.['top-left']]).toEqual([320, 210]);
+  });
+});
+
+describe('project images', () => {
+  it('finds images newest first, skipping dependency, build and hidden folders', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cg-imgs-'));
+    for (const d of ['docs', 'node_modules/x', '.git', 'dist']) mkdirSync(join(root, d), { recursive: true });
+    for (const f of ['old.png', 'docs/new.jpg', 'docs/notes.md', 'node_modules/x/dep.png', '.git/g.png', 'dist/built.png']) writeFileSync(join(root, f), 'x');
+    utimesSync(join(root, 'old.png'), 1000, 1000);
+    const found = findProjectImages(root);
+    expect(found.map((i) => i.rel)).toEqual(['docs/new.jpg', 'old.png']);
+    expect(findProjectImages(root, { max: 1 })).toHaveLength(1);
+    expect(findProjectImages('')).toEqual([]);
+  });
+  it('a new glass has one Images window, closed; showing an image switches it to the Shown list', () => {
+    const s = fresh();
+    expect(s.instances.images?.type).toBe('image');
+    expect(s.order).not.toContain('images');
+    let st = APPS.image.command(APPS.image.init(), 'view', { source: 'project' }) as any;
+    expect(st.source).toBe('project');
+    st = APPS.image.command(st, 'add', { file: '/a.png' });
+    expect(st.source).toBe('shown');
+    expect(() => APPS.image.command(st, 'view', { source: 'desk' })).toThrow(/shown\|project/);
+  });
 });
 
 describe('health report', () => {
@@ -548,6 +583,22 @@ describe('edge sidebars', () => {
     expect(s.tuckKeep).toEqual(['right']);
     expect(reduce(s, { type: 'tuck.keep', edge: 'left', keep: true }).state.tuckKeep).toEqual(['right']); // empty edge
     s = reduce(s, { type: 'window.untuck', id: 'terminal' }).state;
+    expect(s.tuckKeep).toEqual([]);
+  });
+  it('corner docks take windows like edges, and sizes in both directions (height: corners only)', () => {
+    let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'bottom-right' }).state;
+    expect(s.tucked).toEqual({ 'bottom-right': ['terminal'] });
+    expect(s.order).not.toContain('terminal');
+    s = reduce(s, { type: 'tuck.keep', edge: 'bottom-right', keep: true }).state;
+    s = reduce(s, { type: 'tuck.size', edge: 'bottom-right', size: 300, height: 220 }).state;
+    expect(s.tuckSize?.['bottom-right']).toBe(300);
+    expect(s.tuckHeight?.['bottom-right']).toBe(220);
+    s = reduce(s, { type: 'tuck.size', edge: 'bottom-right', height: 260 }).state; // one dimension alone
+    expect([s.tuckSize?.['bottom-right'], s.tuckHeight?.['bottom-right']]).toEqual([300, 260]);
+    expect(() => reduce(s, { type: 'tuck.size', edge: 'left', height: 200 })).toThrow(/corner/);
+    expect(() => reduce(s, { type: 'window.tuck', id: 'conversation', edge: 'middle' as any })).toThrow(/dock must be one of/);
+    s = reduce(s, { type: 'window.tuck', id: 'terminal', edge: 'left' }).state; // moving docks
+    expect(s.tucked).toEqual({ left: ['terminal'] });
     expect(s.tuckKeep).toEqual([]);
   });
 });

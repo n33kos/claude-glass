@@ -13,8 +13,10 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   statePalettes: DEFAULT_PALETTES,
   defaultLayout: 'grid',
   windowOpacity: 0.78,
-  dockAutoHide: false,
-  dockOrder: 'windows',
+  launcherAutoHide: false,
+  launcherOrder: 'windows',
+  launcherGroup: true,
+  dockOpen: 'click',
   waitingGlow: true,
   animateBackground: true,
   scope: 'session',
@@ -28,9 +30,17 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   appSettings: {},
 };
 
+/** Settings that were renamed: "dock" now means the docks at the edges and corners; the bottom bar is the launcher. */
+export const RENAMED_SETTINGS: Record<string, keyof GlobalConfig> = { dockAutoHide: 'launcherAutoHide', dockOrder: 'launcherOrder' };
+export const settingKey = (key: string): string => RENAMED_SETTINGS[key] ?? key;
+
 export function loadConfig(): GlobalConfig {
   try {
     const raw = JSON.parse(readFileSync(configPath(), 'utf8'));
+    for (const [old, key] of Object.entries(RENAMED_SETTINGS)) {
+      if (old in raw && !(key in raw)) raw[key] = raw[old];
+      delete raw[old];
+    }
     const c = { ...DEFAULT_CONFIG, ...raw };
     if (!isDefaultLayout(c.defaultLayout)) c.defaultLayout = DEFAULT_CONFIG.defaultLayout;
     try { c.backgroundColors = parseColors(c.backgroundColors ?? []); } catch { c.backgroundColors = []; }
@@ -56,7 +66,8 @@ export function writeJsonAtomic(path: string, data: unknown): void {
 export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unknown {
   switch (key) {
     case 'autoStart':
-    case 'dockAutoHide':
+    case 'launcherAutoHide':
+    case 'launcherGroup':
     case 'waitingGlow':
     case 'animateBackground':
     case 'wheelDesktops':
@@ -74,7 +85,8 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
       if (value === 'watch') return 'carousel'; // its first name
       if (value !== 'spiral' && value !== 'carousel') throw new Error('nestedStyle must be spiral or carousel');
       return value;
-    case 'dockOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`dockOrder must be windows or fixed`); return value;
+    case 'launcherOrder': if (value !== 'windows' && value !== 'fixed') throw new Error(`launcherOrder must be windows or fixed`); return value;
+    case 'dockOpen': if (value !== 'click' && value !== 'hover') throw new Error(`dockOpen must be click or hover`); return value;
     case 'windowOpacity': return Math.max(0.2, Math.min(1, Number(value)));
     case 'defaultLayout': if (!isDefaultLayout(value)) throw new Error(`unknown layout ${value}`); return value;
     case 'background': return String(value);
@@ -96,8 +108,10 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   backgroundColors: 'up to 4 hex colors ("#2b6f8f,#7a3d8c"): the user\'s own wallpaper light; empty = the preset\'s (change only if asked)',
   animateBackground: 'true|false: drift the wallpaper light',
   waitingGlow: 'true|false: amber edge glow while Claude waits on the user',
-  dockAutoHide: 'true|false: hide the dock until the pointer reaches the bottom edge',
-  dockOrder: 'windows|fixed: dock follows window order, or a fixed order by app',
+  launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
+  launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',
+  launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',
+  dockOpen: 'click|hover: a hidden dock (edge or corner) slides out when its tab is clicked, or on hover',
   wheelDesktops: 'true|false: vertical scroll outside windows switches desktops',
   disabledApps: 'comma-separated app types the user turned off (change only if asked)',
   autoStart: 'true|false: open a glass when a Claude session starts',

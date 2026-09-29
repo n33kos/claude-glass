@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { settingValues, type AppInfo } from '../apps/types';
 import type { GlassState, InstanceMeta } from '../core/types';
 import { Lightbox } from './Lightbox';
+import { dispatch } from './store';
 
 interface Props {
   app: AppInfo;
@@ -60,13 +61,27 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
     else if (service === 'page-input' && app.type === 'browser') window.glass.webInput({ ...args, id });
     else if (service === 'open-link' && typeof args.url === 'string') window.glass.openLink(args.url);
     else if (service === 'reveal' && app.type === 'image' && Array.isArray(args.paths)) window.glass.revealFile(args.paths.filter((p): p is string => typeof p === 'string'));
+    else if (service === 'show-change' && app.type === 'files' && typeof args.path === 'string') showChange(args.path);
+  }
+
+  /** Files → Changes: select the file in the Changes window that has it (the live one, else the newest) and bring it into view. */
+  function showChange(path: string) {
+    const abs = path.startsWith('/') ? path : `${glass.session.cwd.replace(/\/$/, '')}/${path}`;
+    const has = (i: InstanceMeta) => i.type === 'diff' && !!(glass.appState[i.id] as { revisions?: Record<string, unknown> } | undefined)?.revisions?.[abs];
+    const holders = Object.values(glass.instances).filter(has).sort((a, b) => Number(b.id === 'changes') - Number(a.id === 'changes') || b.createdAt - a.createdAt);
+    if (!holders.length) return;
+    const target = holders[0].id;
+    void dispatch({ type: 'app.command', id: target, command: 'select', args: { path: abs } });
+    window.dispatchEvent(new CustomEvent('glass:reveal', { detail: target }));
   }
 
   // Services that answer. 'read-doc' is the markdown viewer following a link to another markdown
-  // file; main reads it (local markdown/text files only).
+  // file; main reads it (local markdown/text files only). 'project-images': the Images app's list
+  // of images in the project folder.
   async function answer(reqId: number, service: string, args: Record<string, unknown>) {
     let reply: { ok: boolean; result?: unknown; error?: string };
     if (service === 'read-doc' && app.type === 'markdown' && typeof args.path === 'string') reply = await window.glass.readDoc(id, args.path);
+    else if (service === 'project-images' && app.type === 'image') reply = await window.glass.projectImages();
     else reply = { ok: false, error: `no host service "${service}" for this app` };
     post({ kind: 'reply', id: reqId, ...reply });
   }

@@ -8,7 +8,9 @@ const ago = (t: number) => { const s = Math.round((Date.now() - t) / 1000); retu
 
 const RECENT_MS = 2 * 60_000; // touched this recently: lit up in the list and tree
 
-export default function FilesView({ state, run }: AppViewProps<FilesState>) {
+export default function FilesView({ state, run, host }: AppViewProps<FilesState>) {
+  // A changed file opens in Changes, with its diff selected.
+  const open = (path: string) => host('show-change', { path });
   const entries = Object.entries(state.files);
   const mode = state.view ?? 'list';
   // Re-render every 30s so "just now" and the recent glow age out on their own.
@@ -24,15 +26,18 @@ export default function FilesView({ state, run }: AppViewProps<FilesState>) {
           {(['list', 'tree', 'map'] as const).map((m) => <button key={m} className={mode === m ? 'on' : ''} onClick={() => run('view', { mode: m })}>{m[0].toUpperCase() + m.slice(1)}</button>)}
         </span>
       </header>
-      {mode === 'list' ? <FileList entries={entries} /> : mode === 'tree' ? <FileTree entries={entries} /> : <FileMap state={state} />}
+      {mode === 'list' ? <FileList entries={entries} open={open} /> : mode === 'tree' ? <FileTree entries={entries} open={open} /> : <FileMap state={state} open={open} />}
     </div>
   );
 }
 
-function Row({ path, f, name, depth }: { path: string; f: FileStat; name: ReactNode; depth?: number }) {
+type Open = (path: string) => void;
+
+function Row({ path, f, name, depth, open }: { path: string; f: FileStat; name: ReactNode; depth?: number; open: Open }) {
   const recent = Date.now() - f.last < RECENT_MS;
   return (
-    <div className={`fl-row ${f.edits ? 'edited' : 'read'}${recent ? ' recent' : ''}`} title={path} style={depth != null ? { paddingLeft: 8 + depth * 16 } : undefined}>
+    <div className={`fl-row ${f.edits ? 'edited' : 'read'}${recent ? ' recent' : ''}`} title={f.edits ? `${path}: show the change` : path}
+      style={depth != null ? { paddingLeft: 8 + depth * 16 } : undefined} onClick={f.edits ? () => open(path) : undefined}>
       <span className="fl-dot" />
       <span className="fl-name">{name}</span>
       {f.edits > 0 && <span className="fl-badge e">{f.edits} edit{f.edits > 1 ? 's' : ''}</span>}
@@ -43,12 +48,12 @@ function Row({ path, f, name, depth }: { path: string; f: FileStat; name: ReactN
 }
 
 /** Most recently touched first: a file Claude comes back to later jumps to the top. */
-function FileList({ entries }: { entries: [string, FileStat][] }) {
+function FileList({ entries, open }: { entries: [string, FileStat][]; open: Open }) {
   const sorted = [...entries].sort((a, b) => b[1].last - a[1].last);
   return (
     <div className="fl-list">
       {sorted.map(([path, f]) => (
-        <Row key={path} path={path} f={f} name={<>{baseOf(path)}{dirOf(path) !== '.' && <small>{dirOf(path)}/</small>}</>} />
+        <Row key={path} path={path} f={f} open={open} name={<>{baseOf(path)}{dirOf(path) !== '.' && <small>{dirOf(path)}/</small>}</>} />
       ))}
     </div>
   );
@@ -79,7 +84,7 @@ function buildTree(entries: [string, FileStat][]): Dir {
   return squash(root);
 }
 
-function FileTree({ entries }: { entries: [string, FileStat][] }) {
+function FileTree({ entries, open }: { entries: [string, FileStat][]; open: Open }) {
   const tree = useMemo(() => buildTree(entries), [entries]);
   const [shut, setShut] = useState<Set<string>>(new Set());
   const toggle = (k: string) => setShut((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
@@ -96,7 +101,7 @@ function FileTree({ entries }: { entries: [string, FileStat][] }) {
       );
       if (open) out.push(...render(c, k, depth + 1));
     }
-    for (const [path, f] of [...d.files].sort((a, b) => baseOf(a[0]).localeCompare(baseOf(b[0])))) out.push(<Row key={path} path={path} f={f} name={baseOf(path)} depth={depth} />);
+    for (const [path, f] of [...d.files].sort((a, b) => baseOf(a[0]).localeCompare(baseOf(b[0])))) out.push(<Row key={path} path={path} f={f} name={baseOf(path)} depth={depth} open={open} />);
     return out;
   };
   return <div className="fl-list fl-tree">{render(tree, '', 0)}</div>;
@@ -128,7 +133,7 @@ function layout(files: Record<string, FileStat>): { nodes: Node[]; hubs: { dir: 
   return { nodes, hubs };
 }
 
-function FileMap({ state }: { state: FilesState }) {
+function FileMap({ state, open }: { state: FilesState; open: Open }) {
   const { nodes, hubs } = useMemo(() => layout(state.files), [state.files]);
   const byPath = useMemo(() => new Map(nodes.map((n) => [n.path, n])), [nodes]);
   const links = useMemo(() => Object.entries(state.links)
@@ -188,6 +193,7 @@ function FileMap({ state }: { state: FilesState }) {
           <b title={sel.path}>{sel.path}</b>
           <span>{sel.f.edits} edits · {sel.f.reads} reads · last {ago(sel.f.last)}</span>
           {near.size > 1 && <span className="fl-with">Worked on with: {[...near].filter((p) => p !== sel.path).map(baseOf).slice(0, 8).join(', ')}</span>}
+          {sel.f.edits > 0 && <button className="fl-open" onClick={() => open(sel.path)}>Show the change</button>}
         </aside>
       )}
       <div className="fl-hint">Each circle is a folder · bigger dot = touched more · <span className="e">●</span> changed <span className="r">●</span> read · a line joins files used for the same request · click a file · drag, scroll to zoom</div>
