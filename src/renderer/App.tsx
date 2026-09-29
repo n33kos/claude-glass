@@ -46,9 +46,19 @@ function panelRect(edge: Dock, W: number, H: number, s: TuckState): Rect {
     const top = end(`top-${edge}`), bottom = end(`bottom-${edge}`);
     return { x: edge === 'left' ? PAD : W - PAD - sz, y: PAD + top, w: sz, h: H - PAD * 2 - top - bottom };
   }
-  const side = sideRoom(s, W, H);
+  const side = endRoom(s, W, H, edge);
   const w = W - PAD * 2 - side.l - side.r;
   return { x: PAD + side.l, y: edge === 'top' ? PAD : H - PAD - sz, w, h: sz };
+}
+
+/**
+ * Room a top or bottom dock leaves for the side columns: only what reaches its end (the side edge
+ * docks and that end's corners). A kept top-left corner doesn't shorten the bottom dock.
+ */
+function endRoom(s: TuckState, W: number, H: number, end: 'top' | 'bottom') {
+  const col = (side: 'left' | 'right') => Math.max(0, ...([side, `${end}-${side}`] as Dock[])
+    .filter((d) => keptOpen(s, d)).map((d) => edgeSize(d, W, H, s.tuckSize) + GAP));
+  return { l: col('left'), r: col('right') };
 }
 
 /**
@@ -84,12 +94,12 @@ function sideRoom(s: TuckState, W: number, H: number) {
   return { l: col('left'), r: col('right') };
 }
 
-/** Center of a dock's drop target in stage coordinates (top/bottom: between kept side columns). */
-function pinTargetCenter(edge: Dock, W: number, H: number, side: { l: number; r: number }): { x: number; y: number } {
-  const mid = (W + side.l - side.r) / 2;
+/** Center of a dock's drop target in stage coordinates (top/bottom: between the kept side columns at that end). */
+function pinTargetCenter(edge: Dock, W: number, H: number, s: TuckState): { x: number; y: number } {
+  const mid = (end: 'top' | 'bottom') => { const r = endRoom(s, W, H, end); return (W + r.l - r.r) / 2; };
   const C = 44; // corner targets sit in from both edges
   return {
-    left: { x: 34, y: H / 2 }, right: { x: W - 34, y: H / 2 }, top: { x: mid, y: 34 }, bottom: { x: mid, y: H - 34 },
+    left: { x: 34, y: H / 2 }, right: { x: W - 34, y: H / 2 }, top: { x: mid('top'), y: 34 }, bottom: { x: mid('bottom'), y: H - 34 },
     'top-left': { x: C, y: C }, 'top-right': { x: W - C, y: C }, 'bottom-right': { x: W - C, y: H - C }, 'bottom-left': { x: C, y: H - C },
   }[edge];
 }
@@ -227,11 +237,10 @@ export function App() {
     if (!st || cx < st.left || cx > st.right || cy < st.top || cy > st.bottom) return null;
     // Open = kept open, or slid out right now (e.g. the dock a window is being dragged out of).
     const open = (e: Dock) => !!state.tucked?.[e]?.length && (!!state.tuckKeep?.includes(e) || e === showing);
-    const side = sideRoom(state, st.width, st.height);
     const x = cx - st.left, y = cy - st.top;
     for (const e of DOCKS) {
       if (open(e)) continue;
-      const c = pinTargetCenter(e, st.width, st.height, side);
+      const c = pinTargetCenter(e, st.width, st.height, state);
       if (Math.hypot(x - c.x, y - c.y) <= PIN_TARGET) return e;
     }
     for (const e of DOCKS) {
@@ -584,7 +593,7 @@ export function App() {
           .map((e) => <div key={e} className={`tuck-zone ${e}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`}><span>Dock</span></div>)}
         {/* Dock targets (edges and corners): drop a dragged window on one to dock it there; anywhere else is a normal drag. */}
         {(drag || dockDrag) && DOCKS.filter((e) => !keptOpen(state, e) && e !== drag?.from).map((e) => {
-          const c = pinTargetCenter(e, size.W, size.H, sideRoom(state, size.W, size.H));
+          const c = pinTargetCenter(e, size.W, size.H, state);
           return <div key={e} className={`pin-target ${e}${isCorner(e) ? ' corner' : ''}${(drag ?? dockDrag)!.tuck === e ? ' on' : ''}`} style={{ left: c.x, top: c.y }} title={`Dock ${e}`}>
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M9.5 1.5l5 5-1.4.6-2.6 2.6.3 3.3-1.3 1.3-3-3-3.8 3.8H2v-.7l3.8-3.8-3-3 1.3-1.3 3.3.3 2.6-2.6z" /></svg>
           </div>;
@@ -874,13 +883,17 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
   // Leaving through an app frame sends the shell no mouseleave, so once the pointer has been in the
   // open dock, any move over the shell outside it (and its pull) lets it go too. (A dock opened from
   // the launcher waits for the pointer to arrive first.)
+  // The other way round too: passing through a frame can fire a stray mouseleave, so a move over an
+  // open dock holds it (and cancels a close that's pending).
   const visited = useRef(false);
   useEffect(() => { visited.current = false; }, [peek]);
   useEffect(() => {
-    if (!peek && !near) return;
     const move = (e: PointerEvent) => {
       const t = e.target as HTMLElement;
       const over = (d: Dock) => !!t.closest?.(`.edge-panel.${d}, .edge-cap.${d}, .edge-hot.${d}`);
+      const panel = t.closest?.('.edge-panel.open') as HTMLElement | null;
+      const inside = panel ? DOCKS.find((d) => panel.classList.contains(d)) : undefined;
+      if (inside && !drag && (inside !== peek || closeTimer.current != null)) { hold(inside); visited.current = true; return; }
       if (near && !over(near)) setNear(null);
       if (peek && over(peek)) visited.current = true;
       else if (peek && visited.current && closeTimer.current == null && !drag) { visited.current = false; release(); }

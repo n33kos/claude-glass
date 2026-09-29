@@ -918,8 +918,7 @@ try {
     await page.screenshot({ path: join(shots, '12i2-corner-idle.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
     await page.mouse.move(stage.x + stage.width - 6, stage.y + 6, { steps: 4 });
     await sleep(400);
-    await page.screenshot({ path: join(shots, '12i3-corner-near.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
-    check((await page.locator('.edge-cap.top-right.near').count()) === 1 && (await page.locator('.edge-panel.top-right.open').count()) === 0,
+    await page.screenshot({ path: join(shots, '12i3-corner-near.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });    check((await page.locator('.edge-cap.top-right.near').count()) === 1 && (await page.locator('.edge-panel.top-right.open').count()) === 0,
       'hovering a corner starts pulling its dock out (without opening it)');
     await page.mouse.down(); await page.mouse.up();
     await sleep(700);
@@ -943,13 +942,23 @@ try {
     await sleep(700);
     const [C, R, T] = [await page.locator('.edge-panel.top-right').boundingBox(), await page.locator('.edge-panel.right').boundingBox(), await page.locator('.edge-panel.top').boundingBox()];
     check(R.y >= C.y + C.height && T.x + T.width <= Math.min(C.x, R.x), `a kept corner takes the top of the right column; the right dock fits below it, the top dock beside (corner ends ${Math.round(C.y + C.height)}, right starts ${Math.round(R.y)})`);
+    // A bottom dock only makes room for what reaches the bottom: the right dock, not the top-right corner.
+    await cli(env, 'window', 'dock', lay[3], 'bottom');
+    await sleep(300);
+    await away();
+    await page.mouse.move(stage.x + stage.width * 0.4, stage.y + stage.height - 4, { steps: 3 });
+    await page.mouse.down(); await page.mouse.up();
+    await sleep(600);
+    await page.locator('.edge-cap.bottom.open').click();
+    await away();
+    await sleep(600);
+    const Bt = await page.locator('.edge-panel.bottom').boundingBox();
+    check(Bt.x <= stage.x + 13 && Bt.x + Bt.width <= R.x, `a kept bottom dock runs the full width a top corner leaves it (x ${Math.round(Bt.x - stage.x)}, ends ${Math.round(Bt.x + Bt.width)} before the right dock at ${Math.round(R.x)})`);
     const fillets = await page.locator('.edge-fillet').count();
     check(fillets >= 1, `open docks meeting at an inside corner get a rounded fillet (${fillets})`);
-    const pinHidden = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '0');
-    await page.mouse.move(R.x + R.width / 2, R.y + 16, { steps: 3 }); // over its title bar (a synthetic jump into a frame isn't seen)
+    const pinHidden = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '0');    await page.mouse.move(R.x + R.width / 2, R.y + 16, { steps: 3 }); // over its title bar (a synthetic jump into a frame isn't seen)
     await sleep(400);
-    const pinShown = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '1');
-    check(pinHidden && pinShown, 'a kept dock\'s pin stays hidden until the pointer is over the dock');
+    const pinShown = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '1');    check(pinHidden && pinShown, 'a kept dock\'s pin stays hidden until the pointer is over the dock');
     await away();
     await sleep(700);
     const pinBack = await page.locator('.edge-cap.right').evaluate((e) => `${e.className} · opacity ${getComputedStyle(e).opacity}`);
@@ -965,7 +974,7 @@ try {
     await sleep(400);
     const after = JSON.parse(await cli(env, 'view', '--json')).sidebars['top-right'];
     check(after.size > before.size + 50 && after.height > before.height + 30, `dragging a corner dock's inner corner resizes both ways (${before.size}×${before.height} → ${after.size}×${after.height})`);
-    for (const id of lay.slice(0, 3)) await cli(env, 'window', 'undock', id);
+    for (const id of lay.slice(0, 4)) await cli(env, 'window', 'undock', id);
     await sleep(500);
     // Drop on a corner's target to dock there.
     const w = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
