@@ -1,6 +1,6 @@
 {
   "name": "claude-glass",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Claude's monitor: a per-session visual window for Claude Code sessions",
   "main": "dist/main.js",
