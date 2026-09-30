@@ -75,7 +75,7 @@ starts** in Settings (the gear in the launcher), or `claude-glass settings set a
 | Tasks | Claude's own to-do list, live, with progress and what it's doing now |
 | Agents | the subagents Claude starts: their task, whether they're still running, and what each reported |
 | Tests | results of the test runs Claude does (npm test, vitest, jest, pytest, go test, cargo test…): pass/fail, failing tests, recent runs |
-| Files | every file Claude read or changed: most recent first, as a folder tree, or a map of what it worked on together; click a changed file to see its diff in Changes |
+| Files | every file Claude read or changed: most recent first, or as a folder tree; click a changed file to see its diff in Changes |
 
 Claude can also draw **diagrams** from templates (flow, sequence, layers, timeline, compare, tree,
 cycle, stats): it picks one and fills it with JSON, so they look the same polished way every time.

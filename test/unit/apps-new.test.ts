@@ -77,7 +77,7 @@ describe('tests', () => {
 });
 
 describe('files', () => {
-  it('counts reads and edits relative to the project, and links files touched for the same prompt', () => {
+  it('counts reads and edits relative to the project', () => {
     const s = feed(files, [
       post('Read', { file_path: '/p/src/a.ts' }, {}, { cwd: '/p', prompt_id: 'q1' }),
       post('Edit', { file_path: '/p/src/b.ts' }, {}, { cwd: '/p', prompt_id: 'q1' }),
@@ -86,8 +86,14 @@ describe('files', () => {
     ]);
     expect(s.files['src/a.ts']).toMatchObject({ reads: 1, edits: 1 });
     expect(s.files['src/b.ts']).toMatchObject({ edits: 1 });
-    expect(s.links[['src/a.ts', 'src/b.ts'].sort().join('\u0000')]).toBe(1);
-    expect(Object.keys(s.links)).toHaveLength(1); // README was another prompt
+    expect(s.files['README.md']).toMatchObject({ reads: 1, edits: 0 });
+  });
+  it('only list and tree views; a glass saved with the map view goes back to the list', () => {
+    expect(() => files.command(files.init(), 'view', { mode: 'map' })).toThrow(/list\|tree/);
+    const old = { files: {}, links: { x: 1 }, view: 'map' } as any;
+    const s = files.onHook!(old, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_input: { file_path: '/p/a.ts' }, cwd: '/p' }) as any;
+    expect(s.view).toBeUndefined();
+    expect(s.links).toBeUndefined();
   });
 });
 

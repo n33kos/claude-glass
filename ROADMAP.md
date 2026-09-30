@@ -25,6 +25,15 @@ Ideas and planned features, roughly in priority order. Everything here must fit 
 - **Files → Changes**: clicking a changed file selects its diff in Changes and brings Changes into
   view (without reordering); the map's card has "Show the change".
 
+- **Corners win over edges**: edge hover strips stop short of docked corners; corner triggers and
+  tabs sit above edges and open docks. Fillets follow a resize live.
+- **Files**: the map view is gone (list and tree remain).
+- **App icons**: full-tile SVG artwork for every built-in app (src/renderer/icons), larger in
+  their tiles; custom apps' own icon.svg still wins.
+- **Guide**: Claude is told to use the glass heavily (show, then direct attention). Window order is
+  a ranking of the user's attention (primary at 0, then secondary, tertiary); Claude re-ranks when
+  that ranking changes, not per topic and not per tool call.
+
 ## Next
 
 - Launcher: live state per icon (badges: tests failing, agent running, waiting on you).

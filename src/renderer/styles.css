@@ -283,6 +283,9 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 /* Where two open backings meet at an inside corner: a fillet (drawn inline as a radial gradient)
    rounds it. It waits for the rails to finish growing, so it never shows ahead of them. */
 .edge-fillet { position: absolute; z-index: 35; pointer-events: none; animation: fillet-in .18s ease-out .3s both; }
+/* While a dock is resized, backings and fillets follow the pointer exactly (no easing to lag behind). */
+.edge-fillet.live { animation: none; }
+.edge-rail.live { transition: none; }
 @keyframes fillet-in { from { opacity: 0; } to { opacity: 1; } }
 /* The capsule is placed by its center (inline left/top), so every state move animates. */
 .edge-cap { position: absolute; z-index: 37; translate: -50% -50%; display: flex; gap: 6px; align-items: center; padding: 7px; background: #000;
@@ -339,7 +342,9 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 
 /* Image app icons: fill a dock tile; sit inline in title bars, edge tabs and Settings. */
 .app-icon { width: 1em; height: 1em; object-fit: contain; vertical-align: -0.15em; }
-.dock-item .tile.has-img, .dock-ghost .tile:has(.app-icon) { background: rgba(255, 255, 255, 0.06) !important; padding: 0; overflow: hidden; }
+/* Image icons are full-tile artwork (their own color and shape): no tile color or border behind them. */
+.dock-item .tile.has-img, .dock-ghost .tile:has(.app-icon) { background: none !important; border-color: transparent; padding: 0; overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.wtitle em .app-icon { width: 16px; height: 16px; border-radius: 4px; vertical-align: -3px; }
 .tile .app-icon { width: 100%; height: 100%; }
 /* Keep-open handle on a panel's inner edge. */
 .edge-panel.kept .window { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
@@ -351,8 +356,11 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 .edge-hot.left { left: 0; } .edge-hot.right { right: 0; }
 .edge-hot.top, .edge-hot.bottom { left: 0; right: 0; height: 10px; }
 .edge-hot.top { top: 0; } .edge-hot.bottom { bottom: 0; }
-/* A corner dock's trigger: the screen corner itself, over the edges' strips. */
-.edge-hot.corner { z-index: 35; width: 36px; height: 36px; }
+/* A corner dock's trigger: the screen corner itself. Corners win over edges: their triggers and
+   tabs sit above the edge strips, the edge tabs and open docks (the edge strips also stop short
+   of a docked corner, inline). */
+.edge-hot.corner { z-index: 38; width: 56px; height: 56px; }
+.edge-cap.corner:not(.open) { z-index: 39; }
 .edge-hot.top-left { top: 0; left: 0; } .edge-hot.top-right { top: 0; right: 0; }
 .edge-hot.bottom-right { bottom: 0; right: 0; } .edge-hot.bottom-left { bottom: 0; left: 0; }
 .edge-resize { position: absolute; z-index: 1; }

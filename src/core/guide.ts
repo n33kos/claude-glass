@@ -1,22 +1,48 @@
 // Printed by `claude-glass open` and injected by SessionStart when the glass is live.
-// Keep it short: it lands in Claude's context.
+// It lands in Claude's context: keep it tight. The user wants the glass used heavily (show,
+// then direct attention). North star: window order = a ranking of the user's attention (primary,
+// secondary, tertiary); re-rank when that changes, not per tool call.
 import { APPS } from '../apps/registry';
 import { settingValues, type AppDef } from '../apps/types';
 import type { GlobalConfig } from './types';
 
 export const GUIDE = `# Claude Glass is open for this session
 
-The user can see a window: Claude's monitor/screen share. It fills itself from hooks:
-conversation, terminal (every tool call), "changes" (diffs of your edits), "plan" (plan files),
-"images" (images you Read). Use the \`claude-glass\` CLI to deliberately SHOW the user things
-visually when that would help: plans, diagrams, comparisons, mockups, screenshots, summaries.
-Don't overdo it; one well-chosen visual beats many.
+The user is watching a window: your monitor, a live visual layer over everything you do. Hooks
+fill in the basics on their own (conversation, terminal, "changes" diffs, "plan", "images",
+tasks, agents, tests, files), but that's only the floor. The user wants you to use the glass
+heavily and take the extra effort to make it a beautiful, current picture of the work. While it's
+open, showing is part of every answer, not an extra.
 
-Work visibly while the glass is open. Hooks only see your dedicated tools, so prefer the ones
-that feed the glass: change files with Edit/Write (never sed, python, or heredocs through Bash;
-those edits never reach "changes"), write plans to plan files, and Read images you want to discuss.
+Show, don't only tell:
+- Whenever a picture carries an idea faster than prose, put one up: a diagram of the code path you
+  just traced, the flow of a fix, options side by side, a chart of numbers, a mockup, a screenshot,
+  a short card of findings. Reach for the diagram app's templates first; use an html canvas for
+  anything custom (charts, mockups), and make it polished.
+- Before multi-step work, put the plan up and keep it current as steps land.
+- One window per topic: reuse ids (\`--id\`) and update it as understanding grows, instead of
+  piling up near-duplicates.
 
-  claude-glass view                          layout: display modes, desktops, each window's slot + position,
+Direct attention, continuously. Hooks and \`app\` commands never move windows; that's your job.
+The window order is a ranking of the user's attention: keep it matching what deserves their focus
+right now.
+- Primary focus at index 0: what you're about to talk about, the diff you just made, the failing
+  test, the page you relied on (\`show <file> --id <id>\` updates and moves it there; after an
+  \`app\` command, \`window move <id> 0\`).
+- Secondary and tertiary next (index 1, 2...): what the primary needs beside it, like the plan
+  behind a diff, the numbers behind a chart. Pick a layout that gives each its due. Send stale
+  windows back or close them.
+- Re-rank whenever that ranking changes: a new primary, or context that stops or starts mattering.
+  That can happen within one topic, and a new topic can keep the same ranking. Don't reshuffle on
+  every tool call; each move should read as a presenter shifting the user's attention on purpose.
+- Run \`claude-glass view\` before re-ranking (the user may have moved things), and leave windows
+  the user docked at an edge or corner alone.
+
+Work visibly: hooks only see your dedicated tools. Change files with Edit/Write (never sed, python,
+or heredocs through Bash; those edits never reach "changes"), write plans to plan files, and Read
+images you want to discuss.
+
+  claude-glass view                         layout: display modes, desktops, each window's slot + position,
                                              docked windows (edges and corners), closed apps
   claude-glass show <file> [--id ID] [--title T]   .md → markdown, image → image, .html → html. Opens at 0
   claude-glass new <type> [--id ID] [--title T]    types: markdown, html, image, diff, browser, diagram
@@ -32,17 +58,6 @@ those edits never reach "changes"), write plans to plan files, and Read images y
                                              with a description; apply one when the user asks, or pick
                                              the one whose description fits when they ask you to set up
 
-Treat the glass as a live feed of your focus. Hook updates (and \`app\` commands) never move
-windows, so directing attention is your job:
-- When you show or update something the user should look at now, bring it to index 0. Reuse a
-  window with \`show <file> --id <id>\`, which updates it and moves it to 0, or run
-  \`window move <id> 0\` after an \`app\` command. Don't pile up near-duplicate windows.
-- As the work shifts, reorder to match: what you're discussing or changing goes first, and
-  supporting context goes next to it (the plan beside the diff it drives, the chart beside its
-  numbers). Move stale windows back or close them.
-- Before rearranging, run \`claude-glass view\` (the user may have moved things). Leave windows the
-  user docked at an edge or corner alone. Don't reshuffle on every tool call; move windows when the topic
-  changes.
 HTML canvases are sandboxed iframes: inline your CSS/JS; scripts may also load from cdn.jsdelivr.net,
 cdnjs.cloudflare.com or unpkg.com (e.g. Chart.js, Mermaid). fetch/XHR are blocked.
 

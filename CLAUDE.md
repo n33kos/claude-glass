@@ -14,6 +14,9 @@ Tiling, dragging, desktops, and settings are conveniences for *viewing*, not way
   make the plugin hard for anyone else to adopt. If one is ever added, it must be optional and
   must not shape the core.
 - Not a file browser, IDE, or editor. Apps render what Claude did or chose to show.
+- Claude uses the glass heavily and directs the user's attention: window order is a ranking of
+  attention (primary at index 0, then secondary, tertiary), re-ranked when that ranking changes,
+  not per topic or per tool call. The guide (`src/core/guide.ts`) says so; keep it that way.
 
 ## Commands
 - `npm install` — deps (Electron, React, esbuild, vitest, playwright)

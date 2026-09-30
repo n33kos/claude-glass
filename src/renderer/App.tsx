@@ -3,7 +3,7 @@ import { computeDesktops, cornerHeight, cornerSides, desktopsFor, DOCKS, EDGES, 
 import type { Corner, Dock, Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
-import { AppIcon } from './AppIcon';
+import { AppIcon, iconSrc } from './AppIcon';
 import { FrameView } from './FrameView';
 import { apps, dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
@@ -86,6 +86,7 @@ const SWITCH_ZONE = 48; // left/right: hold a dragged window here to switch desk
 const PIN_TARGET = 30; // radius of the pin target shown mid-edge while dragging (drop on it to pin)
 const PULL_ICON = 34; // icon cell in a dock's pull capsule
 const PULL_T = 7; // the pull rail's thickness, and the capsule's margin around its icons
+const CORNER_HOT = 56; // px square at a stage corner that hovers its corner dock (above the edges' strips)
 
 /** Room the kept-open side columns take: the widest kept dock on each side (edge or corner). */
 function sideRoom(s: TuckState, W: number, H: number) {
@@ -802,7 +803,7 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
         {entries.map((g, i) => {
           const m = g[0];
           const sep = config.launcherOrder !== 'fixed' && i > 0 && group(entries[i - 1][0].id) !== group(m.id) && <span className="dock-sep screen" />;
-          const tile = <span className={`tile tile-${m.type}${apps[m.type]?.iconUrl ? ' has-img' : ''}`}><AppIcon type={m.type} /></span>;
+          const tile = <span className={`tile tile-${m.type}${iconSrc(m.type) ? ' has-img' : ''}`}><AppIcon type={m.type} /></span>;
           if (g.length === 1) return (
             <Fragment key={m.id}>
               {sep}
@@ -838,7 +839,7 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
         <span className="dock-sep" />
         <button className={`dock-item${offScreen('settings') ? ' off-screen' : ''}`} title="Settings"
           onClick={() => (settingsOpen ? onReveal('settings') : dispatch({ type: 'instance.create', appType: 'settings' }).then(() => onReveal('settings')))}>
-          <span className="tile tile-settings">{apps.settings?.icon}</span>
+          <span className="tile tile-settings has-img"><AppIcon type="settings" /></span>
           <span className="label">Settings</span>
           {settingsOpen && <i className="running" />}
         </button>
@@ -915,15 +916,21 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     let size = edgeSize(edge, W, H, state.tuckSize);
     let height = corner ? cornerHeight(corner, H, state.tuckHeight) : undefined;
     document.body.classList.add('frames-off');
+    // An edge dock has one size (width at the sides, height at top/bottom); a corner has both.
     const move = (ev: PointerEvent) => {
-      if (axes !== 'h') size = edgeSize(edge, W, H, { [edge]: dist(hSide, ev.clientX, ev.clientY) });
-      if (corner && axes !== 'w') height = cornerHeight(corner, H, { [corner]: dist(vSide, ev.clientX, ev.clientY) });
+      if (!corner) size = edgeSize(edge, W, H, { [edge]: dist(edge as Edge, ev.clientX, ev.clientY) });
+      else {
+        if (axes !== 'h') size = edgeSize(edge, W, H, { [edge]: dist(hSide, ev.clientX, ev.clientY) });
+        if (axes !== 'w') height = cornerHeight(corner, H, { [corner]: dist(vSide, ev.clientX, ev.clientY) });
+      }
       setResizing({ edge, size, height });
     };
     const up = () => {
       document.body.classList.remove('frames-off');
       window.removeEventListener('pointermove', move); setResizing(null);
-      void dispatch({ type: 'tuck.size', edge, size: axes !== 'h' ? size : undefined, height: axes !== 'w' ? height : undefined });
+      void dispatch(corner
+        ? { type: 'tuck.size', edge, size: axes !== 'h' ? size : undefined, height: axes !== 'w' ? height : undefined }
+        : { type: 'tuck.size', edge, size });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
@@ -956,21 +963,32 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up, { once: true });
   };
+  // While a dock is being resized, every dock is placed from its live size, so neighbors (and the
+  // fillets between them) follow the drag.
+  const live: TuckState = resizing
+    ? { ...state, tuckSize: { ...state.tuckSize, [resizing.edge]: resizing.size }, tuckHeight: isCorner(resizing.edge) && resizing.height ? { ...state.tuckHeight, [resizing.edge]: resizing.height } : state.tuckHeight }
+    : state;
   const docks = DOCKS.map((edge) => {
     const ids = (state.tucked?.[edge] ?? []).filter((id) => state.instances[id]);
     const kept = !!state.tuckKeep?.includes(edge);
     const open = !!ids.length && (peek === edge || kept || drag?.from === edge);
-    const sized = resizing?.edge === edge
-      ? { ...state, tuckSize: { ...state.tuckSize, [edge]: resizing.size }, tuckHeight: isCorner(edge) && resizing.height ? { ...state.tuckHeight, [edge]: resizing.height } : state.tuckHeight }
-      : state;
-    return { edge, ids, kept, open, r: panelRect(edge, W, H, sized) };
+    return { edge, ids, kept, open, r: panelRect(edge, W, H, live) };
   });
-  // Rounded inside corners where two open docks' backings meet.
+  // Rounded inside corners where two open docks' backings meet. Keyed by position in the list, so a
+  // resize moves them instead of remounting them (which restarted their fade-in on every move).
   const joins = fillets(docks.filter((d) => d.open).map((d) => backingRect(d.edge, d.r, W, H)), W, H);
+  // Corners win over edges: an edge's hover strip stops short of a corner that has a dock.
+  const cornerReach = (c: Corner) => {
+    const n = (state.tucked?.[c] ?? []).filter((id) => state.instances[id]).length;
+    return n ? Math.max(CORNER_HOT, n * PULL_ICON + (n - 1) * 6 + PULL_T * 2) : 0;
+  };
+  const hotStyle = (e: Edge): React.CSSProperties => (e === 'top' || e === 'bottom'
+    ? { left: cornerReach(`${e}-left`), right: cornerReach(`${e}-right`) }
+    : { top: cornerReach(`top-${e}`) && CORNER_HOT, bottom: cornerReach(`bottom-${e}`) && CORNER_HOT });
   return (
     <>
-      {joins.map((f) => (
-        <i key={`fillet-${f.x}-${f.y}`} className="edge-fillet" aria-hidden style={{
+      {joins.map((f, i) => (
+        <i key={`fillet-${i}`} className={`edge-fillet${resizing ? ' live' : ''}`} aria-hidden style={{
           left: f.x, top: f.y, width: f.R, height: f.R,
           background: `radial-gradient(circle at ${f.qx > 0 ? '100%' : '0'} ${f.qy > 0 ? '100%' : '0'}, transparent ${f.R - 0.5}px, #000 ${f.R}px)`,
         }} />
@@ -1035,11 +1053,12 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               let cx: number, cy: number;
               if (corner) {
                 const [v, h] = cornerSides(corner);
-                const nx = state3 === 'near' ? capLen / 2 + 8 : capLen / 2;
+                // Closed, it stays flush in the corner even when hovered (the L thickens instead): easing
+                // it off the corner moved it out from under the pointer, and hover flickered.
                 // Open: on the inner side facing the layout, mid-height (the inner corner is its resize handle).
                 [cx, cy] = state3 === 'open'
                   ? [h === 'left' ? r.x + r.w + B : r.x - B, r.y + r.h / 2]
-                  : [h === 'left' ? nx : W - nx, v === 'top' ? inset : H - inset];
+                  : [h === 'left' ? capLen / 2 : W - capLen / 2, v === 'top' ? capThick / 2 : H - capThick / 2];
               } else {
                 [cx, cy] = state3 === 'open'
                   ? { left: [r.x + r.w + B, r.y + r.h / 2], right: [r.x - B, r.y + r.h / 2], top: [r.x + r.w / 2, r.y + r.h + B], bottom: [r.x + r.w / 2, r.y - B] }[edge as Edge]
@@ -1052,9 +1071,9 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
               const where = corner ? corner.replace('-', ' ') : edge;
               return (
                 <>
-                  {!kept && <div className={`edge-hot ${edge}${corner ? ' corner' : ''}`} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
-                  <i className={`edge-rail ${edge} ${state3}`} style={railStyle} />
-                  {armStyle && <i className={`edge-rail ${edge} ${state3}`} style={armStyle} />}
+                  {!kept && <div className={`edge-hot ${edge}${corner ? ' corner' : ''}`} style={corner ? undefined : hotStyle(edge as Edge)} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
+                  <i className={`edge-rail ${edge} ${state3}${resizing ? ' live' : ''}`} style={railStyle} />
+                  {armStyle && <i className={`edge-rail ${edge} ${state3}${resizing ? ' live' : ''}`} style={armStyle} />}
                   <button className={`edge-cap ${edge} ${state3}${kept ? ' kept' : ''}${hovered ? ' hover' : ''}${corner ? ' corner' : ''}`} style={{ left: cx, top: cy }} aria-pressed={state3 === 'open' ? kept : undefined}
                     title={state3 === 'open' ? (kept ? `Hide the ${where} dock until you hover it` : `Keep the ${where} dock open`) : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
                     onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={state3 === 'open' ? toggleKeep : openIt}>

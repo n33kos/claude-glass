@@ -1,6 +1,6 @@
 ---
 name: glass
-description: Open or use Claude Glass, a window that acts as your monitor/screen share for the user. Use when the user asks to open/start/close it, or when it is open and showing something visually (plan, diagram, chart, mockup, comparison, screenshot) would help them.
+description: Open or use Claude Glass, a window that acts as your monitor/screen share for the user. Use when the user asks to open/start/close it, and whenever it is open: the user wants the work shown there (plans, diagrams, charts, mockups, comparisons, screenshots), with what matters most kept at the front.
 ---
 
 # Claude Glass

@@ -1,4 +1,4 @@
-/* Files: list by folder, or a map. Changed = green, only read = blue. */
+/* Files: most recent first, or a folder tree. Changed = green, only read = blue. */
 .fl-empty { height: 100%; display: grid; place-items: center; color: var(--ink-faint); font-family: var(--sans); padding: 20px; text-align: center; }
 .files { height: 100%; display: flex; flex-direction: column; font-family: var(--sans); }
 .fl-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
@@ -12,10 +12,7 @@
 .fl-row:hover { background: rgba(255, 255, 255, 0.05); }
 /* Changed files open their diff in Changes. */
 .fl-row.edited { cursor: pointer; }
-.fl-row.edited:hover { background: rgba(95, 208, 143, 0.10); }
-.fl-open { align-self: flex-start; margin-top: 5px; padding: 3px 9px; border-radius: 6px; font-size: 11.5px; color: #d6f5e3; background: rgba(95, 208, 143, 0.18); cursor: pointer; }
-.fl-open:hover { background: rgba(95, 208, 143, 0.28); }
-.fl-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.fl-row.edited:hover { background: rgba(95, 208, 143, 0.10); }.fl-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .fl-row.edited .fl-dot { background: var(--ok); } .fl-row.read .fl-dot { background: var(--sky); }
 .fl-name { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fl-name small { margin-left: 8px; color: var(--ink-faint); font-size: 11px; }
@@ -34,21 +31,3 @@
 .fl-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
 .fl-badge.e { background: rgba(62, 207, 142, 0.14); color: var(--ok); } .fl-badge.r { background: rgba(127, 200, 255, 0.12); color: var(--sky); }
 .fl-when { font-size: 11px; color: var(--ink-faint); min-width: 56px; text-align: right; }
-.fl-map { position: relative; flex: 1; min-height: 0; }
-.fl-map svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
-.fl-map svg:active { cursor: grabbing; }
-.fl-hub circle { fill: rgba(255, 255, 255, 0.025); stroke: rgba(255, 255, 255, 0.08); stroke-dasharray: 4 6; }
-.fl-hub text { fill: var(--ink-faint); font: 13px var(--mono); }
-.fl-link { stroke: rgba(255, 255, 255, 0.1); transition: stroke .15s; }
-.fl-link.lit { stroke: rgba(255, 214, 120, 0.7); }
-.fl-node { cursor: pointer; transition: opacity .15s; }
-.fl-node circle { stroke: rgba(0, 0, 0, 0.35); stroke-width: 1.5; }
-.fl-node.edited circle { fill: var(--ok); } .fl-node.read circle { fill: var(--sky); }
-.fl-node.focus circle { stroke: #fff; stroke-width: 3; }
-.fl-node.dim { opacity: .25; }
-.fl-node text { fill: var(--ink); font: 12px var(--mono); paint-order: stroke; stroke: rgba(10, 12, 20, 0.85); stroke-width: 3px; pointer-events: none; }
-.fl-card { position: absolute; left: 12px; top: 12px; max-width: 60%; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: #161924; border: 1px solid var(--line-strong); font-size: 12px; color: var(--ink-dim); }
-.fl-card b { color: var(--ink); font: 12.5px var(--mono); overflow-wrap: anywhere; }
-.fl-with { color: #ffd678; }
-.fl-hint { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: var(--ink-faint); pointer-events: none; }
-.fl-hint .e { color: var(--ok); } .fl-hint .r { color: var(--sky); }

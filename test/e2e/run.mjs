@@ -918,8 +918,10 @@ try {
     await page.screenshot({ path: join(shots, '12i2-corner-idle.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
     await page.mouse.move(stage.x + stage.width - 6, stage.y + 6, { steps: 4 });
     await sleep(400);
-    await page.screenshot({ path: join(shots, '12i3-corner-near.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });    check((await page.locator('.edge-cap.top-right.near').count()) === 1 && (await page.locator('.edge-panel.top-right.open').count()) === 0,
+    // Check before the screenshot: taking one can drop the hover in the test harness.
+    check((await page.locator('.edge-cap.top-right.near').count()) === 1 && (await page.locator('.edge-panel.top-right.open').count()) === 0,
       'hovering a corner starts pulling its dock out (without opening it)');
+    await page.screenshot({ path: join(shots, '12i3-corner-near.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
     await page.mouse.down(); await page.mouse.up();
     await sleep(700);
     const tr = await page.locator('.edge-panel.top-right').boundingBox();
@@ -954,6 +956,17 @@ try {
     await sleep(600);
     const Bt = await page.locator('.edge-panel.bottom').boundingBox();
     check(Bt.x <= stage.x + 13 && Bt.x + Bt.width <= R.x, `a kept bottom dock runs the full width a top corner leaves it (x ${Math.round(Bt.x - stage.x)}, ends ${Math.round(Bt.x + Bt.width)} before the right dock at ${Math.round(R.x)})`);
+    // Top/bottom docks resize from their inner edge too (height).
+    const bh = await page.locator('.edge-resize.bottom').boundingBox();
+    await page.mouse.move(bh.x + bh.width / 4, bh.y + bh.height / 2); // off the pin in the middle
+    await page.mouse.down();
+    await page.mouse.move(bh.x + bh.width / 4, bh.y - 80, { steps: 6 });
+    await page.mouse.up();
+    await sleep(400);
+    const taller = (await page.locator('.edge-panel.bottom').boundingBox()).height;
+    check(taller > Bt.height + 50, `dragging a bottom dock's inner edge resizes it (${Math.round(Bt.height)} → ${Math.round(taller)}px)`);
+    await away();
+    await sleep(400);
     const fillets = await page.locator('.edge-fillet').count();
     check(fillets >= 1, `open docks meeting at an inside corner get a rounded fillet (${fillets})`);
     const pinHidden = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '0');    await page.mouse.move(R.x + R.width / 2, R.y + 16, { steps: 3 }); // over its title bar (a synthetic jump into a frame isn't seen)

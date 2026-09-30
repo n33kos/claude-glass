@@ -108,7 +108,7 @@ const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.b
 
 const HELP = `claude-glass — Claude's monitor for this Claude Code session
 
-${GUIDE.split('\n').slice(8).join('\n')}
+${GUIDE.slice(GUIDE.indexOf('  claude-glass view'))}
 
 Presets: preset list | preset save <name> [--description D] | preset apply <name> | preset delete <name> | preset default <name|none> | open --preset <name>
 Other: open | close | status [--all] | state [id] | health | settings [set <key> <value>] | --session ID | --json
