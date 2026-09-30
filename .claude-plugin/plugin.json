@@ -1,7 +1,7 @@
 {
   "name": "claude-glass",
   "description": "Claude's monitor: a window that shows the conversation, tool calls, diffs, plans, web pages, and anything Claude wants to show you.",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "author": { "name": "Nicholas Suski" },
   "homepage": "https://github.com/n33kos/claude-glass",
   "repository": "https://github.com/n33kos/claude-glass",
