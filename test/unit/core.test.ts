@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findProjectImages } from '../../src/core/projectImages';
+import { installedGlass, pendingUpdate } from '../../src/core/update';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
 import { coerceSetting, parsePermissions, parseSettingSpecs, settingValues } from '../../src/apps/types';
@@ -485,6 +486,19 @@ describe('presets', () => {
     for (const act of presetActions(b, p, () => true).actions) b = reduce(b, act).state;
     expect(b.tucked?.['top-left']).toEqual(['terminal']);
     expect([b.tuckSize?.['top-left'], b.tuckHeight?.['top-left']]).toEqual([320, 210]);
+  });
+});
+
+describe('updates', () => {
+  it('an older plugin install sees the new version; the current one and a checkout never do', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-plugins-'));
+    const ver = (v: string) => { const root = join(dir, 'cache', 'n33kos', 'claude-glass', v); mkdirSync(join(root, 'bin'), { recursive: true }); writeFileSync(join(root, 'bin', 'claude-glass'), ''); return root; };
+    const old = ver('1.4.0'), now = ver('1.4.1');
+    writeFileSync(join(dir, 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'claude-glass@n33kos': [{ scope: 'user', installPath: now, version: '1.4.1' }] } }));
+    expect(pendingUpdate(old, dir)).toEqual({ version: '1.4.1', root: now });
+    expect(pendingUpdate(now, dir)).toBeNull();
+    expect(pendingUpdate('/Users/someone/claude-glass', dir)).toBeNull(); // a dev checkout
+    expect(installedGlass(join(dir, 'nowhere'))).toBeNull();
   });
 });
 

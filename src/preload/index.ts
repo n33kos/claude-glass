@@ -10,6 +10,13 @@ contextBridge.exposeInMainWorld('glass', {
   preset: (action: string, name?: string, description?: string) => ipcRenderer.invoke('glass:preset', action, name, description),
   readDoc: (id: string, path: string) => ipcRenderer.invoke('glass:readDoc', id, path),
   projectImages: () => ipcRenderer.invoke('glass:projectImages'),
+  getUpdate: () => ipcRenderer.invoke('glass:getUpdate'),
+  applyUpdate: () => ipcRenderer.send('glass:applyUpdate'),
+  onUpdate: (fn: (u: { version: string } | null) => void) => {
+    const h = (_e: unknown, u: { version: string } | null) => fn(u);
+    ipcRenderer.on('glass:update', h);
+    return () => ipcRenderer.removeListener('glass:update', h);
+  },
   openLink: (url: string) => ipcRenderer.send('glass:openLink', url),
   revealFile: (paths: string[]) => ipcRenderer.send('glass:revealFile', paths),
   lastFrame: (id: string) => ipcRenderer.invoke('glass:lastFrame', id),

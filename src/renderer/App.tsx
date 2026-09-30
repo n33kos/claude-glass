@@ -525,6 +525,7 @@ export function App() {
             {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
           </span>
         </div>
+        <UpdatePill />
         <nav className="pager" aria-label="Desktops">
           {pages.map((p) => (
             <button key={p.index} className={p.index === v ? 'on' : ''} onClick={() => setView(p.index)} title={`Desktop ${p.index + 1}`} />
@@ -621,6 +622,20 @@ function Wallpaper({ bg, colors, animate }: { bg: string; colors: string[]; anim
     <div className={`wallpaper${animate ? ' drifting' : ''}`} style={w.style} aria-hidden>
       <canvas ref={canvas} className="wallpaper-light" />
     </div>
+  );
+}
+
+/** A newer Claude Glass is installed: a pill in the top bar restarts this glass in it. */
+function UpdatePill() {
+  const [u, setU] = useState<{ version: string } | null>(null);
+  const [going, setGoing] = useState(false);
+  useEffect(() => { void window.glass.getUpdate?.().then(setU); return window.glass.onUpdate?.(setU); }, []);
+  if (!u) return null;
+  return (
+    <button className="update-pill" disabled={going} title="Restart this glass in the new version (your windows and history stay)"
+      onClick={() => { setGoing(true); window.glass.applyUpdate(); }}>
+      <i />{going ? 'Restarting…' : <>Claude Glass {u.version} is ready <b>Restart</b></>}
+    </button>
   );
 }
 

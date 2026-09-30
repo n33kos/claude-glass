@@ -76,6 +76,13 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(127, 200, 255, 0.6); } 100% { box-shadow: 0 0 0 9px rgba(127, 200, 255, 0); } }
 @media (prefers-reduced-motion: reduce) { .presence-working i { animation: none; } }
 
+/* A newer version is installed: restart into it. */
+.update-pill { margin-left: auto; margin-right: 14px; display: inline-flex; align-items: center; gap: 7px; padding: 3px 4px 3px 10px; border-radius: 999px;
+  font-size: 12px; color: #d6eeff; background: rgba(127, 200, 255, 0.12); border: 1px solid rgba(127, 200, 255, 0.35); cursor: pointer; }
+.update-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--sky); }
+.update-pill b { font-weight: 600; padding: 1px 9px; border-radius: 999px; background: rgba(127, 200, 255, 0.25); color: #fff; }
+.update-pill:hover b { background: rgba(127, 200, 255, 0.4); }
+.update-pill:disabled { opacity: .7; padding-right: 10px; }
 .pager { display: flex; gap: 8px; align-items: center; }
 .pager button { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.28); transition: background .2s, transform .2s; }
 .pager button.on { background: #fff; transform: scale(1.25); }

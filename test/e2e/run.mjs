@@ -245,6 +245,26 @@ try {
     await cli(env, 'app', 'images', 'view', '--source', 'shown');
   }
 
+  // Tests: the summary's flask stacks recent runs (green/red), with a run in progress on top in yellow.
+  {
+    const bash = (ev, stdout, id) => hook(env, { hook_event_name: ev, tool_name: 'Bash', tool_use_id: id, tool_input: { command: 'npx vitest run' }, tool_response: { stdout } });
+    const results = ['Tests  12 passed (12)', 'Tests  2 failed | 10 passed (12)', 'Tests  12 passed (12)', 'Tests  12 passed (12)', 'Tests  1 failed | 11 passed (12)', 'Tests  12 passed (12)'];
+    for (const [i, out] of results.entries()) await bash('PostToolUse', out, `t${i}`);
+    await bash('PreToolUse', '', 'tlive');
+    await cli(env, 'window', 'open', 'tests');
+    await sleep(900);
+    const t = appFrame(page, 'tests');
+    const slices = await t.locator('.ts-flask .liquid').count();
+    const live = await t.locator('.ts-flask .liquid.run').count();
+    await page.locator('[data-window="tests"]').screenshot({ path: join(shots, '16-tests-flask.png') });
+    // (>=: the seed may hold earlier runs)
+    check(slices >= results.length + 1 && live === 1, `the tests flask stacks each recent run, plus the running one in yellow (${slices} slices, ${live} running)`);
+    await bash('PostToolUse', 'Tests  12 passed (12)', 'tlive');
+    await sleep(500);
+    check((await t.locator('.ts-flask .liquid.run').count()) === 0, 'when the run finishes, its slice turns green or red');
+    await cli(env, 'window', 'close', 'tests');
+  }
+
   // Files → Changes: clicking a changed file opens its diff in Changes.
   {
     await cli(env, 'window', 'open', 'files');
@@ -922,6 +942,7 @@ try {
     check((await page.locator('.edge-cap.top-right.near').count()) === 1 && (await page.locator('.edge-panel.top-right.open').count()) === 0,
       'hovering a corner starts pulling its dock out (without opening it)');
     await page.screenshot({ path: join(shots, '12i3-corner-near.png'), clip: { x: stage.x + stage.width - 260, y: stage.y, width: 260, height: 200 } });
+    await page.mouse.move(stage.x + stage.width - 7, stage.y + 7); // re-hover after the screenshot, like a real pointer
     await page.mouse.down(); await page.mouse.up();
     await sleep(700);
     const tr = await page.locator('.edge-panel.top-right').boundingBox();

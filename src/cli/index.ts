@@ -139,6 +139,17 @@ async function main(argv: string[]) {
       console.log(await call(sid, { op: 'guide' }).catch(() => guideFor(loadConfig())));
       return;
     }
+    case 'relaunch': {
+      // Run by a glass that's out of date, from the new version: wait for that glass to exit, then
+      // open the same glass (its id, not a session) from here. No session binding changes.
+      const glass = assertSessionId(String(flags.glass ?? ''));
+      const after = Number(flags.after);
+      const deadline = Date.now() + 20000;
+      const alive = () => { try { process.kill(after, 0); return true; } catch { return false; } };
+      while (Date.now() < deadline && ((after > 0 && alive()) || (await isLive(socketPath(glass), 200)))) await new Promise((r) => setTimeout(r, 200));
+      await launchGlass(glass, typeof flags.cwd === 'string' ? flags.cwd : process.cwd());
+      return;
+    }
     case 'close': {
       const sid = sessionId(flags);
       try {

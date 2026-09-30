@@ -13,6 +13,8 @@ import { computeDesktops, desktopsFor } from '../core/layout';
 import { attachBuiltinViews } from '../core/mods';
 import { findProjectImages, IMAGE_FILE } from '../core/projectImages';
 import { GlassCore } from '../core/server';
+import { pendingUpdate, type Installed } from '../core/update';
+import { spawn } from 'node:child_process';
 import { WebFeed, type WebInput } from './webFeed';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
 
@@ -353,6 +355,35 @@ async function boot() {
   if (process.platform === 'darwin') try { app.dock?.setIcon(icon); } catch {}
   buildMenu();
   createWindow();
+  watchForUpdate();
+}
+
+// Updates: a glass running from an older plugin install offers to restart in the new version (a
+// pill in the top bar), and restarts on its own if the update removed its folder. It changes only
+// the glass itself; nothing reaches Claude.
+const ownRoot = resolve(__dirname, '..');
+let update: Installed | null = null;
+let relaunching = false;
+function watchForUpdate() {
+  const check = () => {
+    const u = pendingUpdate(ownRoot);
+    if (u?.root !== update?.root) { update = u; win?.webContents.send('glass:update', u); }
+    if (u && !existsSync(join(ownRoot, 'package.json'))) relaunchInto(u); // our files are gone
+  };
+  check();
+  setInterval(check, 30_000).unref();
+  ipcMain.handle('glass:getUpdate', () => update);
+  ipcMain.on('glass:applyUpdate', () => { if (update) relaunchInto(update); });
+}
+/** Hand off to the new version: its CLI waits for this process to exit, then opens this glass again. */
+function relaunchInto(u: Installed) {
+  if (relaunching) return;
+  relaunching = true;
+  // Run the new CLI with this Electron as Node; launchd's PATH may lack node/npm for a first-run build.
+  const PATH = [process.env.PATH, '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'].filter(Boolean).join(':');
+  spawn(process.execPath, [join(u.root, 'bin', 'claude-glass'), 'relaunch', '--glass', sessionId!, '--cwd', core.state.session.cwd || cwd, '--after', String(process.pid)],
+    { detached: true, stdio: 'ignore', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', PATH } }).unref();
+  void shutdown();
 }
 
 // Browser app: one CDP screencast per open browser window with an endpoint. Frames bypass the

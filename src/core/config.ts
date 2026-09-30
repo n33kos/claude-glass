@@ -98,7 +98,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
 
 /** What each global setting does, for `claude-glass settings` (Claude reads this). */
 export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
-  nestedView: 'true|false: one screen, newest window big, older ones spiral smaller',
+  nestedView: 'true|false: one screen, the focused window largest, the others smaller around it',
   nestedStyle: 'spiral|carousel: nested view arrangement (carousel: focused window centered, neighbors as small tiles either side)',
   defaultLayout: 'claude|full|split|main-left|main-left-nest|columns|grid: layout for new desktops',
   windowOpacity: '0.2..1: window glass opacity',

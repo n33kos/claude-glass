@@ -13,6 +13,9 @@ declare global {
       onPatch(fn: (p: any) => void): () => void;
       onFullscreen(fn: (on: boolean) => void): () => void;
       readDoc(id: string, path: string): Promise<{ ok: boolean; result?: { path: string; text: string }; error?: string }>;
+      getUpdate(): Promise<{ version: string } | null>;
+      applyUpdate(): void;
+      onUpdate(fn: (u: { version: string } | null) => void): () => void;
       projectImages(): Promise<{ ok: boolean; result?: { root: string; images: { path: string; rel: string; mtime: number; size: number }[] }; error?: string }>;
       openLink(url: string): void;
       revealFile(paths: string[]): void;

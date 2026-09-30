@@ -16,7 +16,11 @@ export interface TestRun {
   files?: { name: string; ok: boolean; count?: number }[]; // per test file, when the runner lists them
   output?: string; // the end of the run's output, for the expanded view
 }
-export interface TestsState { runs: TestRun[]; view?: 'summary' | 'details' }
+export interface TestsState {
+  runs: TestRun[];
+  view?: 'summary' | 'details';
+  running?: { command: string; runner: string; at: number; id?: string }; // a test command that started and hasn't finished
+}
 
 const RUNNERS: [string, RegExp][] = [
   ['vitest', /\bvitest\b/], ['jest', /\bjest\b/], ['pytest', /\bpytest\b|python\d? -m pytest/], ['go', /\bgo test\b/],
@@ -101,10 +105,16 @@ export const tests: AppDef<TestsState> = {
   },
   onHook(s, p) {
     const ev = p?.hook_event_name;
-    if ((ev !== 'PostToolUse' && ev !== 'PostToolUseFailure') || p.tool_name !== 'Bash') return s;
+    // A new session (or /clear) can't still be mid-run.
+    if (ev === 'SessionStart' && s.running) { const { running: _r, ...rest } = s; return rest; }
+    if ((ev !== 'PreToolUse' && ev !== 'PostToolUse' && ev !== 'PostToolUseFailure') || p.tool_name !== 'Bash') return s;
     const command = String(p.tool_input?.command ?? '');
     const runner = detectRunner(command);
     if (!runner) return s;
+    // Started: shown as running (in yellow) until its result comes in.
+    if (ev === 'PreToolUse') return { ...s, running: { command: command.slice(0, 300), runner, at: Date.now(), ...(p.tool_use_id ? { id: String(p.tool_use_id) } : {}) } };
+    const { running: _was, ...base } = s;
+    s = base;
     const r = p.tool_response ?? {};
     const output = `${r.stdout ?? ''}\n${r.stderr ?? ''}\n${ev === 'PostToolUseFailure' ? p.error ?? '' : ''}`;
     const res = parseResults(output);

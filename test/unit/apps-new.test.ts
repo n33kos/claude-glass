@@ -55,6 +55,16 @@ describe('agents', () => {
 });
 
 describe('tests', () => {
+  it('a test command that started is running until its result comes in', () => {
+    const start = { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npx vitest run' }, tool_use_id: 'r1' };
+    let s = feed(tests, [start]);
+    expect(s.running).toMatchObject({ command: 'npx vitest run', runner: 'vitest', id: 'r1' });
+    expect(s.runs).toHaveLength(0);
+    s = tests.onHook!(s, post('Bash', { command: 'npx vitest run' }, { stdout: 'Tests  1 failed | 3 passed (4)' }));
+    expect(s.running).toBeUndefined();
+    expect(s.runs[0]).toMatchObject({ passed: 3, failed: 1, ok: false });
+    expect(feed(tests, [{ ...start, tool_input: { command: 'ls' } }]).running).toBeUndefined(); // not a test command
+  });
   it('recognizes test commands, not others', () => {
     expect(detectRunner('npm test -- --reporter=dot')).toBe('npm');
     expect(detectRunner('npx vitest run 2>&1 | tail')).toBe('vitest');
