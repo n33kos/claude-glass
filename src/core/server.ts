@@ -189,7 +189,7 @@ export class GlassCore {
     return Object.values(APPS).filter((a) => !this.config.disabledApps?.includes(a.type)).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
       source: a.source,
-      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage) ? { permissions: a.permissions } : {}),
+      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage || a.permissions.sharedSignIn) ? { permissions: a.permissions } : {}),
       commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
       ...(a.settings ? { settings: Object.fromEntries(Object.entries(a.settings).map(([k, s]) => [k, { ...s, value: settingValues(a, this.config.appSettings?.[a.type])[k] }])) } : {}),
     }));

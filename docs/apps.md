@@ -156,7 +156,8 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 "permissions": {
   "network": ["http://127.0.0.1:3100", "ws://127.0.0.1:3100"],
   "microphone": true,
-  "storage": true
+  "storage": true,
+  "sharedSignIn": true
 }
 ```
 
@@ -165,6 +166,7 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 | `network` | fetch/WebSocket/scripts/images/frames to exactly these origins (http(s)/ws(s), no wildcards). Servers still apply their own CORS. |
 | `microphone` | `getUserMedia({ audio: true })` (never the camera), for the view and for pages it embeds from its `network` origins (give the inner iframe `allow="microphone"`). macOS will also ask the user once. |
 | `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
+| `sharedSignIn` | the sign-in of pages it embeds from its `network` origins follows the user to every glass: their `localStorage` and cookies, saved together in `~/.claude/claude-glass/app-storage.json` (owner-only) and given to a glass whose page is missing either. Only for sites made for many devices signed in at once (a pairing token, like vmux's). Leave it off for sites that rotate refresh tokens or keep sign-in elsewhere (IndexedDB): glasses would log each other out, or restore half a sign-in. Signing out in one glass doesn't reach the shared copy; **Reset data** clears it. |
 
 Pages an app embeds from its `network` origins are third-party inside the glass, so browsers
 would drop their `SameSite` cookies (a login cookie on a WebSocket, say). For declared origins

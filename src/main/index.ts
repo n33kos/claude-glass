@@ -362,8 +362,9 @@ async function boot() {
   buildMenu();
   createWindow();
   watchForUpdate();
-  // Embedded pages' sign-ins (vmux's token) follow you to every glass: saved each minute and on close.
-  const webOrigins = () => [...new Set(Object.values(APPS).flatMap((a) => a.permissions?.network ?? []).filter((o) => /^https?:/.test(o)))];
+  // Embedded pages' sign-ins follow you to every glass, for apps that opt in (permissions.sharedSignIn):
+  // saved each minute and on close.
+  const webOrigins = () => [...new Set(Object.values(APPS).filter((a) => a.permissions?.sharedSignIn).flatMap((a) => a.permissions!.network).filter((o) => /^https?:/.test(o)))];
   sharedStorage = shareAppStorage(win!, join(glassHome(), 'app-storage.json'), webOrigins);
   setInterval(() => void sharedStorage?.save(), 60_000).unref();
 }

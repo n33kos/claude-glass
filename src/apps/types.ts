@@ -62,9 +62,10 @@ export interface AppPermissions {
   network: string[]; // origins the view may reach (fetch, WebSocket, scripts, images, frames), e.g. "http://127.0.0.1:3100"
   microphone: boolean;
   storage: boolean; // its own persistent localStorage/IndexedDB (origin glass-app://<type>)
+  sharedSignIn: boolean; // its network origins' sign-in (localStorage + cookies) follows the user to every glass
 }
 
-export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false };
+export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false };
 
 /** Validate a manifest's permissions: explicit http(s)/ws(s) origins only, no wildcards. */
 export function parsePermissions(raw: unknown): AppPermissions {
@@ -77,7 +78,7 @@ export function parsePermissions(raw: unknown): AppPermissions {
     if (!/^(https?|wss?):$/.test(u.protocol) || u.hostname.includes('*')) throw new Error(`permissions.network: "${o}" must be an http(s) or ws(s) origin`);
     return `${u.protocol}//${u.host}`;
   });
-  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true };
+  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0 };
 }
 
 /**

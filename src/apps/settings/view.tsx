@@ -331,8 +331,8 @@ function AppSettings({ type, specs, stored }: { type: string; specs: Record<stri
   );
 }
 
-function permissionText(p: { network: string[]; microphone: boolean; storage: boolean }): string {
-  return [p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '']
+function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean }): string {
+  return [p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
     .filter(Boolean).join(' · ');
 }
 

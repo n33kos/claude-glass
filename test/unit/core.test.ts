@@ -447,9 +447,12 @@ describe('state colors', () => {
 
 describe('app permissions', () => {
   it('none by default; explicit origins only', () => {
-    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false });
+    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false });
     expect(parsePermissions({ network: ['http://127.0.0.1:3100/api', 'ws://127.0.0.1:3100'], microphone: true, storage: true }))
-      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true });
+      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false });
+    // Shared sign-in is opt-in, and means nothing without origins to share.
+    expect(parsePermissions({ network: ['http://localhost:3100'], sharedSignIn: true }).sharedSignIn).toBe(true);
+    expect(parsePermissions({ sharedSignIn: true }).sharedSignIn).toBe(false);
     expect(() => parsePermissions({ network: ['*'] })).toThrow();
     expect(() => parsePermissions({ network: ['file:///etc'] })).toThrow(/origin/);
     expect(() => parsePermissions({ network: ['https://*.example.com'] })).toThrow();
