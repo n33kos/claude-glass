@@ -117,7 +117,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .update-pill b { height: 20px; display: inline-flex; align-items: center; font-weight: var(--weight-medium); font-size: var(--text-size-xs); padding: 0 9px; border-radius: var(--radius-pill); background: var(--accent); color: var(--text-on-accent); }
 .update-pill:hover b { background: var(--gray-12); }
 .update-pill:disabled { opacity: .7; padding-right: 10px; }
-.pager { display: flex; gap: var(--space-3); align-items: center; }
+.pager { display: flex; gap: var(--space-3); align-items: center; margin-left: auto; }
+.update-pill + .pager { margin-left: 0; }
+/* The running version: there when you look for it, never asking for attention. */
+.version { margin-left: var(--space-4); font-size: var(--text-size-2xs); font-variant-numeric: tabular-nums; color: var(--text-3); opacity: .7; white-space: nowrap; }
 .pager button { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }
 .pager button.on { background: var(--text-1); transform: scale(1.25); }
 

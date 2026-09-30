@@ -48,6 +48,7 @@ a minute or two, once). Hooks do nothing until then, so Claude is never held up.
 `claude-glass` on their PATH; it hands every command to the installed version, so they open and
 drive the new one without a restart. A glass already running an older version shows a
 **Restart** pill in its top bar that reopens it in the new version, windows and history kept.
+The version a glass runs is in the top bar's right corner (`dev` when it runs from a checkout).
 
 ## Using the glass
 

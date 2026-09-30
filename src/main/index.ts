@@ -13,7 +13,7 @@ import { computeDesktops, desktopsFor } from '../core/layout';
 import { attachBuiltinViews } from '../core/mods';
 import { findProjectImages, IMAGE_FILE } from '../core/projectImages';
 import { GlassCore } from '../core/server';
-import { pendingUpdate, type Installed } from '../core/update';
+import { ownVersion, pendingUpdate, type Installed } from '../core/update';
 import { shareAppStorage } from './sharedStorage';
 import { glassHome } from '../core/paths';
 import { spawn } from 'node:child_process';
@@ -373,6 +373,7 @@ let sharedStorage: ReturnType<typeof shareAppStorage> | null = null;
 // pill in the top bar), and restarts on its own if the update removed its folder. It changes only
 // the glass itself; nothing reaches Claude.
 const ownRoot = resolve(__dirname, '..');
+ipcMain.handle('glass:version', () => ownVersion(ownRoot)); // before the window asks for it
 let update: Installed | null = null;
 let relaunching = false;
 function watchForUpdate() {

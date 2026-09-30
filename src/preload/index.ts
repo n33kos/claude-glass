@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('glass', {
   readDoc: (id: string, path: string) => ipcRenderer.invoke('glass:readDoc', id, path),
   projectImages: () => ipcRenderer.invoke('glass:projectImages'),
   getUpdate: () => ipcRenderer.invoke('glass:getUpdate'),
+  version: () => ipcRenderer.invoke('glass:version'),
   applyUpdate: () => ipcRenderer.send('glass:applyUpdate'),
   onUpdate: (fn: (u: { version: string } | null) => void) => {
     const h = (_e: unknown, u: { version: string } | null) => fn(u);

@@ -16,6 +16,8 @@ export async function launchGlass(sessionId: string, cwd: string, timeoutMs = 15
   const mainJs = join(__dirname, 'main.js');
   const log = openSync(logPath(sessionId), 'a');
   const args = [mainJs, '--session', sessionId, '--cwd', cwd];
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
   if (existsSync(packaged)) {
     // macOS: launch through LaunchServices (`open`), not as our child. Claude often runs inside
     // tmux (or a daemon), whose processes sit outside the user's GUI session: an app spawned from
@@ -24,11 +26,11 @@ export async function launchGlass(sessionId: string, cwd: string, timeoutMs = 15
     const bundle = join(__dirname, 'Claude Glass.app');
     const pass = ['CLAUDE_GLASS_HOME', 'CLAUDE_GLASS_RUNTIME', 'CLAUDE_GLASS_DEBUG_PORT', 'CLAUDE_GLASS_HIDDEN']
       .filter((k) => process.env[k] !== undefined).flatMap((k) => ['--env', `${k}=${process.env[k]}`]);
+    // `open` also hands the app our own environment: never ELECTRON_RUN_AS_NODE, which a glass sets
+    // to run this CLI when it restarts into a new version, or the new glass starts as plain Node.
     const out = logPath(sessionId);
-    spawn('/usr/bin/open', ['-n', '-a', bundle, '--stdout', out, '--stderr', out, ...pass, '--args', ...args], { detached: true, stdio: 'ignore' }).unref();
+    spawn('/usr/bin/open', ['-n', '-a', bundle, '--stdout', out, '--stderr', out, ...pass, '--args', ...args], { detached: true, stdio: 'ignore', env }).unref();
   } else {
-    const env = { ...process.env };
-    delete env.ELECTRON_RUN_AS_NODE;
     spawn(electronBin, args, { detached: true, stdio: ['ignore', log, log], env }).unref();
   }
   const deadline = Date.now() + timeoutMs;

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findProjectImages } from '../../src/core/projectImages';
-import { installedGlass, pendingUpdate } from '../../src/core/update';
+import { installedGlass, ownVersion, pendingUpdate } from '../../src/core/update';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { browser, currentWeb, normalizeEndpoint, type BrowserState } from '../../src/apps/browser';
 import { coerceSetting, parsePermissions, parseSettingSpecs, settingValues } from '../../src/apps/types';
@@ -520,6 +520,9 @@ describe('updates', () => {
     expect(pendingUpdate(now, dir)).toBeNull();
     expect(pendingUpdate('/Users/someone/claude-glass', dir)).toBeNull(); // a dev checkout
     expect(installedGlass(join(dir, 'nowhere'))).toBeNull();
+    writeFileSync(join(old, 'package.json'), JSON.stringify({ version: '1.4.0' }));
+    expect(ownVersion(old, dir)).toEqual({ version: '1.4.0', dev: false });
+    expect(ownVersion(join(__dirname, '../..'), dir)).toMatchObject({ dev: true });
   });
   it("an older version's launcher runs the installed version's CLI; the installed one runs its own", () => {
     const config = mkdtempSync(join(tmpdir(), 'cg-config-'));

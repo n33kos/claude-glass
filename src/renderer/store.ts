@@ -14,6 +14,7 @@ declare global {
       onFullscreen(fn: (on: boolean) => void): () => void;
       readDoc(id: string, path: string): Promise<{ ok: boolean; result?: { path: string; text: string }; error?: string }>;
       getUpdate(): Promise<{ version: string } | null>;
+      version?(): Promise<{ version: string; dev: boolean }>;
       applyUpdate(): void;
       onUpdate(fn: (u: { version: string } | null) => void): () => void;
       projectImages(): Promise<{ ok: boolean; result?: { root: string; images: { path: string; rel: string; mtime: number; size: number }[] }; error?: string }>;

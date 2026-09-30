@@ -23,10 +23,19 @@ export function installedGlass(dir = pluginsDir()): Installed | null {
   }
 }
 
+const isPluginInstall = (root: string, dir: string) => resolve(root).startsWith(join(dir, 'cache') + sep);
+
+/** The version this glass runs (from `ownRoot`'s package.json); `dev` when it's a checkout. */
+export function ownVersion(ownRoot: string, dir = pluginsDir()): { version: string; dev: boolean } {
+  let version = '?';
+  try { version = String(JSON.parse(readFileSync(join(ownRoot, 'package.json'), 'utf8')).version ?? '?'); } catch {}
+  return { version, dev: !isPluginInstall(ownRoot, dir) };
+}
+
 /** The version to move to, if this glass (running from `ownRoot`) is an older plugin install. */
 export function pendingUpdate(ownRoot: string, dir = pluginsDir()): Installed | null {
   const own = resolve(ownRoot);
-  if (!own.startsWith(join(dir, 'cache') + sep)) return null; // a checkout, not a plugin install
+  if (!isPluginInstall(own, dir)) return null; // a checkout, not a plugin install
   const now = installedGlass(dir);
   if (!now || now.root === own || !existsSync(join(now.root, 'bin', 'claude-glass'))) return null;
   return now;

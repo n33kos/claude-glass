@@ -496,6 +496,7 @@ export function App() {
             <button key={p.index} className={p.index === v ? 'on' : ''} onClick={() => setView(p.index)} title={`Desktop ${p.index + 1}`} />
           ))}
         </nav>
+        <Version />
       </header>
 
       {waiting?.kind === 'question' && <QuestionCard waiting={waiting} />}
@@ -589,6 +590,14 @@ function Wallpaper({ bg, colors, animate, light }: { bg: string; colors: string[
       <canvas ref={canvas} className="wallpaper-light" />
     </div>
   );
+}
+
+/** The version this glass runs, muted in the corner (dev when it's run from a checkout). */
+function Version() {
+  const [v, setV] = useState<{ version: string; dev: boolean } | null>(null);
+  useEffect(() => { void window.glass.version?.().then(setV); }, []);
+  if (!v) return null;
+  return <span className="version" title={v.dev ? 'Running from a checkout' : 'Installed plugin version'}>{v.version}{v.dev ? ' dev' : ''}</span>;
 }
 
 /** A newer Claude Glass is installed: a pill in the top bar restarts this glass in it. */
