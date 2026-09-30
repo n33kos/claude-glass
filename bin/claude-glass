@@ -1,12 +1,42 @@
 #!/usr/bin/env node
+// Always the installed version: a Claude session keeps the plugin's bin/ it started with on PATH,
+// so after a plugin update this launcher may be an older version's copy (old folders stay in the
+// plugin cache). If Claude Code's install record names another folder, hand the whole command to
+// that version's launcher. A checkout (dev) never forwards. Same rule as src/core/update.ts, kept
+// here in plain Node because it runs before anything is built.
+const { existsSync, readFileSync, realpathSync } = require('node:fs');
+const { homedir } = require('node:os');
+const { join, resolve, sep } = require('node:path');
+const { execSync } = require('node:child_process');
+
+const root = resolve(__dirname, '..');
+
+function installedRoot() {
+  try {
+    // Real paths: Node's __dirname already has symlinks resolved (~/.claude may be one).
+    const dir = realpathSync(join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'plugins'));
+    if (!root.startsWith(join(dir, 'cache') + sep)) return null; // a checkout, not a plugin install
+    const j = JSON.parse(readFileSync(join(dir, 'installed_plugins.json'), 'utf8'));
+    const all = j.plugins || j;
+    const entries = Object.entries(all).filter(([k]) => k.startsWith('claude-glass@')).flatMap(([, v]) => (Array.isArray(v) ? v : [v]));
+    const e = entries.find((x) => x && x.scope === 'user') || entries[0];
+    const now = e && e.installPath && existsSync(join(e.installPath, 'bin', 'claude-glass')) ? realpathSync(e.installPath) : null;
+    return now && now !== root ? now : null;
+  } catch {
+    return null;
+  }
+}
+
+const newer = process.env.CLAUDE_GLASS_FORWARDED ? null : installedRoot();
+if (newer) {
+  process.env.CLAUDE_GLASS_FORWARDED = '1'; // one hop at most, whatever the record says
+  require(join(newer, 'bin', 'claude-glass'));
+  return;
+}
+
 // The CLI runs from dist/, which a fresh install (plugin marketplace, git clone) doesn't have yet.
 // First use builds it: npm install + npm run build in the plugin folder, once. Hooks never wait for
 // that: without a build they do nothing, so Claude is never blocked.
-const { existsSync } = require('node:fs');
-const { join } = require('node:path');
-const { execSync } = require('node:child_process');
-
-const root = join(__dirname, '..');
 if (!existsSync(join(root, 'dist', 'cli.js'))) {
   const cmd = process.argv[2];
   if (cmd === 'hook' || cmd === 'session-start-hook') process.exit(0);

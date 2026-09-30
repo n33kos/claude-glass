@@ -44,6 +44,11 @@ claude --plugin-dir ~/claude-glass     # try it for one session
 The first `claude-glass` command installs and builds the app (`npm install && npm run build`,
 a minute or two, once). Hooks do nothing until then, so Claude is never held up.
 
+**Updating:** after `/plugin update`, sessions that started earlier still have the old version's
+`claude-glass` on their PATH; it hands every command to the installed version, so they open and
+drive the new one without a restart. A glass already running an older version shows a
+**Restart** pill in its top bar that reopens it in the new version, windows and history kept.
+
 ## Using the glass
 
 Ask Claude to "open the glass", run `/claude-glass:glass`, or from a shell inside the session:

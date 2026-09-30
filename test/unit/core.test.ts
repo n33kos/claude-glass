@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { findProjectImages } from '../../src/core/projectImages';
@@ -519,6 +520,26 @@ describe('updates', () => {
     expect(pendingUpdate(now, dir)).toBeNull();
     expect(pendingUpdate('/Users/someone/claude-glass', dir)).toBeNull(); // a dev checkout
     expect(installedGlass(join(dir, 'nowhere'))).toBeNull();
+  });
+  it("an older version's launcher runs the installed version's CLI; the installed one runs its own", () => {
+    const config = mkdtempSync(join(tmpdir(), 'cg-config-'));
+    const launcher = readFileSync(join(__dirname, '../../bin/claude-glass'), 'utf8');
+    const ver = (v: string) => {
+      const root = join(config, 'plugins', 'cache', 'n33kos', 'claude-glass', v);
+      mkdirSync(join(root, 'bin'), { recursive: true });
+      mkdirSync(join(root, 'dist'), { recursive: true });
+      writeFileSync(join(root, 'bin', 'claude-glass'), launcher);
+      writeFileSync(join(root, 'dist', 'cli.js'), `console.log('${v}', process.argv.slice(2).join(' '))`);
+      return root;
+    };
+    const old = ver('1.3.1'), now = ver('2.0.0');
+    writeFileSync(join(config, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: { 'claude-glass@n33kos': [{ scope: 'user', installPath: now, version: '2.0.0' }] } }));
+    const run = (root: string) => execFileSync(process.execPath, [join(root, 'bin', 'claude-glass'), 'open', '--x'], { env: { ...process.env, CLAUDE_CONFIG_DIR: config, CLAUDE_GLASS_FORWARDED: '' }, encoding: 'utf8' }).trim();
+    expect(run(old)).toBe('2.0.0 open --x');
+    expect(run(now)).toBe('2.0.0 open --x');
+    // A record pointing back at the old folder still ends in one CLI, not a loop.
+    writeFileSync(join(config, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'claude-glass@n33kos': { installPath: old, version: '1.3.1' } } }));
+    expect(run(now)).toBe('1.3.1 open --x');
   });
 });
 
