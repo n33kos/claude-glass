@@ -294,8 +294,10 @@ window list, per-desktop layouts, window instances, each app's own state slice, 
 per-session settings. It's saved (debounced) to `state.json`, and the renderer gets patches.
 
 **Launching.** `claude-glass open` starts the app through macOS LaunchServices (a renamed copy of
-Electron, `dist/Claude Glass.app`), so it has its own dock icon and ⌘Tab entry even when Claude runs
-inside tmux, and waits until the socket answers.
+Electron, `Claude Glass.app`), so it has its own dock icon and ⌘Tab entry even when Claude runs
+inside tmux, and waits until the socket answers. Every installed version shares one bundle,
+`~/.claude/claude-glass/app/<electron version>-<icon hash>/Claude Glass.app`, built once: macOS ties
+the microphone grant to the app, so updates don't ask again (only an Electron upgrade does).
 
 **Files**
 
@@ -318,7 +320,7 @@ two groups (tests use temp folders).
 
 ```sh
 npm install
-npm run build       # esbuild → dist/ (CLI, main, preload, renderer, built-in apps) + dist/Claude Glass.app
+npm run build       # esbuild → dist/ (CLI, main, preload, renderer, built-in apps) + the shared Claude Glass.app
 npm test            # unit + integration: the core runs in plain Node, driven by the real CLI and hook script
 npm run typecheck
 npm run e2e         # launches Electron via Playwright, checks behavior, writes screenshots to test/screenshots/

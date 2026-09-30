@@ -52,8 +52,9 @@ Tiling, dragging, desktops, and settings are conveniences for *viewing*, not way
 - `CLAUDE_CODE_SESSION_ID` is set in the Bash tool environment; plugin env vars
   (`CLAUDE_PLUGIN_ROOT`) are NOT. Plugin `bin/` is on the Bash PATH.
 - `require('electron')` from plain Node returns the Electron binary path (used by the CLI to spawn).
-- The launcher runs `dist/Claude Glass.app` (macOS), not plain Electron; behavior can differ. Test
-  fixes against the real glass too: `CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open` exposes it over
+- The launcher runs the shared `~/.claude/claude-glass/app/<electron>-<icon>/Claude Glass.app` (macOS,
+  named in `dist/app.json`), not plain Electron; behavior can differ. Don't make it per version:
+  macOS ties the mic grant to its signature. Test fixes against the real glass too: `CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open` exposes it over
   CDP (pages embedded in app frames are their own targets in `/json/list`).
 - Embedded pages (an app's declared origins inside its frame) have storage partitioned under the
   glass; `clearStorageData({ origin })` doesn't reach it, only code running in the live frame does.
