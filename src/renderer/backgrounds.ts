@@ -32,10 +32,17 @@ export const PRESETS: Record<string, Preset> = {
       { color: '#2d5fb8', x: 85, y: 80, rx: 36, ry: 36 },
     ],
   },
+  // Graphite Mono's own: neutral, so the only color on screen is content and signals. The default.
   graphite: {
-    base: 'linear-gradient(180deg, #23262e, #15171c)',
-    blobs: [{ color: '#3a3f4b', x: 50, y: 0, rx: 56, ry: 56 }],
+    base: 'linear-gradient(180deg, #0f0f11, #09090a)',
+    blobs: [{ color: '#26262b', x: 30, y: 0, rx: 60, ry: 55 }, { color: '#18181b', x: 90, y: 100, rx: 50, ry: 50 }],
   },
+};
+
+/** Light theme: one pale wallpaper for every preset (a dark preset under light windows would fight them). */
+export const LIGHT: Preset = {
+  base: 'linear-gradient(180deg, #f3f3f5, #e4e4e8)',
+  blobs: [{ color: '#ffffff', x: 30, y: 0, rx: 60, ry: 55 }, { color: '#d9d9df', x: 90, y: 100, rx: 50, ry: 50 }],
 };
 
 
@@ -52,9 +59,9 @@ export const BACKGROUNDS: Record<string, string> = Object.fromEntries(
  * session) recolor the light: they cycle over the preset's blobs (aurora's four when the preset has
  * fewer). An image wallpaper gets the colored light over it only when there are colors.
  */
-export function wallpaper(bg: string, colors: string[] = []): { style: CSSProperties; blobs: Blob[] } {
+export function wallpaper(bg: string, colors: string[] = [], light = false): { style: CSSProperties; blobs: Blob[] } {
   const image = !!bg && bg.startsWith('/');
-  const p = PRESETS[bg] ?? PRESETS.aurora;
+  const p = light && !image ? LIGHT : PRESETS[bg] ?? PRESETS.graphite;
   const slots = colors.length > p.blobs.length || (image && colors.length) ? PRESETS.aurora.blobs : p.blobs;
   const lit = colors.length ? slots.map((b, i) => ({ ...b, color: colors[i % colors.length] })) : image ? [] : p.blobs;
   return {

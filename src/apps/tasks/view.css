@@ -1,19 +1,19 @@
-/* Tasks: Claude's to-do list. */
-.tk-empty { height: 100%; display: grid; place-items: center; color: var(--ink-faint); font-family: var(--sans); padding: 20px; text-align: center; }
-.tasks { height: 100%; overflow: auto; font-family: var(--sans); padding: 16px 20px 20px; }
-.tk-head { position: sticky; top: -16px; margin: -16px -20px 12px; padding: 16px 20px 12px; background: #141722; border-bottom: 1px solid var(--line); z-index: 1; }
-.tk-count { font-size: 13px; color: var(--ink-dim); } .tk-count b { color: var(--ink); font-size: 15px; }
-.tk-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); margin: 8px 0 0; overflow: hidden; }
-.tk-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--ok), #6ee7a8); border-radius: 3px; transition: width .5s ease; }
-.tk-now { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sky); }
-.tk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.tk-item { display: flex; gap: 10px; align-items: flex-start; padding: 7px 8px; border-radius: 8px; font-size: 13.5px; line-height: 1.4; transition: background .3s; }
-.tk-item.in_progress { background: rgba(127, 200, 255, 0.08); }
-.tk-mark { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.28); display: grid; place-items: center; font-size: 11px; color: #0d1a12; }
+/* Tasks: Claude's to-do list. Tokens only (docs/design.md). */
+.tk-empty { height: 100%; display: grid; place-items: center; color: var(--text-3); padding: var(--space-6); text-align: center; }
+.tasks { height: 100%; overflow: auto; padding: var(--space-5) var(--space-6) var(--space-6); }
+.tk-head { position: sticky; top: calc(-1 * var(--space-5)); margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)) var(--space-4); padding: var(--space-5) var(--space-6) var(--space-4); background: var(--surface-overlay); border-bottom: 1px solid var(--border); z-index: 1; }
+.tk-count { font-size: var(--text-size-md); color: var(--text-2); } .tk-count b { color: var(--text-1); font-size: var(--text-size-lg); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.tk-bar { height: 6px; border-radius: var(--radius-pill); background: var(--surface-hover); margin: var(--space-3) 0 0; overflow: hidden; }
+.tk-bar i { display: block; height: 100%; background: var(--ok); border-radius: var(--radius-pill); transition: width .5s ease; }
+.tk-now { margin-top: 10px; display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-size-md); color: var(--accent); }
+.tk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.tk-item { display: flex; gap: 10px; align-items: flex-start; padding: 7px var(--space-3); border-radius: var(--radius-md); font-size: var(--text-size-md); line-height: 1.4; transition: background var(--dur-3); }
+.tk-item.in_progress { background: var(--accent-soft); }
+.tk-mark { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--border-strong); display: grid; place-items: center; font-size: var(--text-size-xs); color: var(--text-on-accent); }
 .tk-item.completed .tk-mark { background: var(--ok); border-color: var(--ok); }
-.tk-item.in_progress .tk-mark { border-color: var(--sky); border-top-color: transparent; animation: tk-spin 1s linear infinite; }
-.tk-item.completed .tk-text { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.25); }
-.tk-text small { display: block; color: var(--ink-faint); font-size: 12px; text-decoration: none; }
-.tk-spin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--sky); border-top-color: transparent; animation: tk-spin 1s linear infinite; }
+.tk-item.in_progress .tk-mark { border-color: var(--accent); border-top-color: transparent; animation: tk-spin 1s linear infinite; }
+.tk-item.completed .tk-text { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+.tk-text small { display: block; color: var(--text-3); font-size: var(--text-size-sm); text-decoration: none; }
+.tk-spin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--accent); border-top-color: transparent; animation: tk-spin 1s linear infinite; }
 @keyframes tk-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .tk-spin, .tk-item.in_progress .tk-mark { animation: none; } }

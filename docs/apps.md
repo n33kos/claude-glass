@@ -96,9 +96,11 @@ the shell.
 Props: `state` (your app's state), `meta` (`id`, `type`, `title`), `size` (`width`, `height`),
 `session` (`cwd`, `activity: 'idle' | 'working'`, `ended`, `waiting`).
 
-The stylesheet gives you the glass's tokens: `--ink`, `--ink-dim`, `--ink-faint`, `--sky`,
-`--ok`, `--warn`, `--bad`, `--line`, `--sans`, `--mono`. The page background is transparent so
-the window's glass shows through.
+The stylesheet gives you the glass's design tokens and bundled fonts (Graphite Mono, in
+[design.md](design.md)): roles like `--text-1/2/3`, `--surface-*`, `--border`, `--accent`,
+`--ok/--warn/--bad` and scales for type, space, radius and motion. Use roles, not raw colors, and
+your app follows the glass's theme (dark or light) for free. The page background is transparent so
+the window's glass shows through. Your content and icon can be any color.
 
 Images the glass stored (e.g. from `claude-glass show`) are at `glass-file://f<absolute path>`.
 

@@ -896,7 +896,7 @@ try {
     // Crowd the launcher (grouping off): icons shrink to fit, and it never runs off the window.
     await cli(env, 'settings', 'set', 'launcherGroup', 'false');
     const made = [];
-    for (let i = 0; i < 16; i++) made.push((await cli(env, 'new', 'markdown', '--title', `Crowd ${i}`, '--no-open')).trim());
+    for (let i = 0; i < 30; i++) made.push((await cli(env, "new", "markdown", "--title", `Crowd ${i}`)).trim()); // open: the launcher holds open windows
     await sleep(500);
     const fit = await page.evaluate(() => ({ dock: document.querySelector('.dock').getBoundingClientRect().width, win: innerWidth, tile: document.querySelector('.dock-item .tile').getBoundingClientRect().width }));
     check(fit.dock <= fit.win && fit.tile < 38, `a crowded launcher shrinks its icons and stays on screen (${Math.round(fit.tile)}px icons, launcher ${Math.round(fit.dock)} of ${fit.win})`);
@@ -908,7 +908,7 @@ try {
     const group = page.locator('.dock-item.group[data-dock-group="markdown"]');
     const count = Number(await group.locator('.count').innerText());
     const icons = await page.locator('.dock-item').count();
-    check(count >= 16 && icons < count, `launcher groups an app's windows under one icon (markdown ×${count}, ${icons} icons)`);
+    check(count >= 30 && icons < count, `launcher groups an app's windows under one icon (markdown ×${count}, ${icons} icons)`);
     await group.click();
     await sleep(300);
     const listed = await page.locator('.launcher-menu button').count();
@@ -919,6 +919,24 @@ try {
     const openNow = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows.map((w) => w.id));
     check(openNow.includes(made[7]) && (await page.locator('.launcher-menu').count()) === 0, `picking a window from the group opens it and closes the menu (${made[7]})`);
     for (const id of made) await cli(env, 'window', 'close', id);
+    await sleep(500);
+    // Closed windows leave the launcher; the Apps button lists them (and apps to start).
+    const inLauncher = await page.locator(`.dock-item[data-dock-id="${made[3]}"], .dock-item.group[data-dock-group="markdown"]`).count();
+    await page.locator('.dock-item[data-apps]').click();
+    await sleep(300);
+    const md = page.locator('.apps-tile[data-app="markdown"]');
+    const badge = Number(await md.locator('.count').innerText().catch(() => '0'));
+    const tiles = await page.locator('.apps-tile').count();
+    await md.hover();
+    await sleep(250);
+    const closedRows = await page.locator('.apps-sub .apps-row', { hasText: 'Crowd' }).count();
+    await page.screenshot({ path: join(shots, '13c-apps.png') });
+    check(inLauncher === 0 && badge >= 30 && closedRows === 30 && tiles > 3, `closed windows leave the launcher; Apps badges markdown (${badge}) and hovering lists them (${closedRows}), among ${tiles} apps`);
+    await page.locator('.apps-sub .apps-row', { hasText: 'Crowd 3' }).first().click();
+    await sleep(500);
+    const reopened = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows.map((w) => w.id));
+    check(reopened.includes(made[3]) && (await page.locator('.apps-menu').count()) === 0, `picking a closed window in Apps reopens it (${made[3]})`);
+    for (const id of made) await cli(env, 'window', 'delete', id);
   }
 
   // Corner docks: dock at a corner (CLI or the corner's drop target); hover the corner to pull it,
@@ -988,8 +1006,16 @@ try {
     check(taller > Bt.height + 50, `dragging a bottom dock's inner edge resizes it (${Math.round(Bt.height)} → ${Math.round(taller)}px)`);
     await away();
     await sleep(400);
-    const fillets = await page.locator('.edge-fillet').count();
-    check(fillets >= 1, `open docks meeting at an inside corner get a rounded fillet (${fillets})`);
+    // No backing (Graphite Mono): nothing solid behind the docks; hovering an open dock frames it and
+    // shows the lock pill, which says what a click does.
+    check((await page.locator('.edge-rail, .edge-fillet').count()) === 0, 'docks have no solid backing');
+    await page.mouse.move(R.x + R.width / 2, R.y + 16, { steps: 4 });
+    await sleep(400);
+    const lock = await page.locator('.edge-cap.right.open').evaluate((e) => ({ kept: e.getAttribute('aria-pressed'), title: e.getAttribute('title'), opacity: getComputedStyle(e).opacity }));
+    const framed = await page.locator('.edge-panel.right.hover').count();
+    check(lock.kept === 'true' && lock.title?.startsWith('Release') && lock.opacity === '1' && framed === 1, `hovering a kept dock frames it and shows its lock (${lock.title})`);
+    await away();
+    await sleep(400);
     const pinHidden = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '0');    await page.mouse.move(R.x + R.width / 2, R.y + 16, { steps: 3 }); // over its title bar (a synthetic jump into a frame isn't seen)
     await sleep(400);
     const pinShown = await page.locator('.edge-cap.right.open.kept').evaluate((e) => getComputedStyle(e).opacity === '1');    check(pinHidden && pinShown, 'a kept dock\'s pin stays hidden until the pointer is over the dock');
@@ -1053,7 +1079,9 @@ try {
     await cli(env, 'background', 'reset');
     await sleep(2000);
     check((await blobColor()) === before, 'background reset brings back the usual light');
-    // State colors (on by default): done → green; a new prompt → back to the user's own light.
+    // State colors (off by default now; the signal layer says the same): done → green; a new prompt
+    // → back to the user's own light.
+    await cli(env, 'settings', 'set', 'stateColors', 'true');
     await hook(env, { hook_event_name: 'Stop' });
     await sleep(2000);
     const done = await blobColor();
@@ -1063,6 +1091,45 @@ try {
     await sleep(2000);
     const working = await blobColor();
     check(working !== done, `state colors: working goes back to the user's own light (${working})`);
+    await cli(env, 'settings', 'set', 'stateColors', 'false');
+  }
+
+  // The signal layer: Claude spotlights a window (light behind it, its edge lit), alerts one, shows
+  // progress; each spotlight/alert fades on its own. Then light mode.
+  {
+    await sleep(400);
+    const target = JSON.parse(await cli(env, 'view', '--json')).desktops[0].windows[0].id;
+    await cli(env, 'signal', 'spotlight', target);
+    await sleep(900);
+    const spot = await page.evaluate((id) => {
+      const g = document.querySelector('.sig-glow.sig-spotlight'), r = document.querySelector('.sig-ring.sig-spotlight');
+      const w = document.querySelector(`.stage [data-window="${id}"]`)?.getBoundingClientRect(), rr = r?.getBoundingClientRect();
+      return { glow: !!g && Number(getComputedStyle(g).opacity) > 0.2, ringOn: !!rr && !!w && Math.abs(rr.left - w.left) < 2 && Math.abs(rr.width - w.width) < 2 };
+    }, target);
+    await page.screenshot({ path: join(shots, '17-signal-spotlight.png') });
+    check(spot.glow && spot.ringOn, `a spotlight lights behind the window and rings it (${JSON.stringify(spot)})`);
+    await sleep(5000);
+    check((await page.locator('.sig-glow.sig-spotlight').count()) === 0, 'the spotlight fades on its own');
+    await cli(env, 'signal', 'progress', '0.4', '--label', 'Migrating apps');
+    await sleep(700);
+    const bar = await page.evaluate(() => ({ w: document.querySelector('.sig-bar i')?.getBoundingClientRect().width, W: innerWidth, label: document.querySelector('.sig-bar span')?.textContent }));
+    await page.screenshot({ path: join(shots, '17b-signal-progress.png') });
+    check(Math.abs(bar.w / bar.W - 0.4) < 0.03 && bar.label?.includes('Migrating apps'), `progress shows a hairline bar with its label (${Math.round((bar.w / bar.W) * 100)}%, "${bar.label}")`);
+    await cli(env, 'signal', 'progress', '1');
+    await sleep(500);
+    check((await page.locator('.sig-bar').count()) === 0, 'progress at 1 ends it');
+    let bad = false;
+    try { await cli(env, 'signal', 'alert', 'nope'); } catch { bad = true; }
+    check(bad, 'an alert at a window that does not exist is refused');
+    // Light mode: the shell and app frames switch together.
+    await cli(env, 'settings', 'set', 'theme', 'light');
+    await sleep(900);
+    const themes = await page.evaluate(() => document.documentElement.dataset.theme);
+    const frameTheme = await appFrame(page, 'terminal').locator('html').getAttribute('data-theme').catch(() => null);
+    await page.screenshot({ path: join(shots, '18-light.png') });
+    check(themes === 'light' && frameTheme === 'light', `light mode switches the shell and app frames (${themes}, frame ${frameTheme})`);
+    await cli(env, 'settings', 'set', 'theme', 'dark');
+    await sleep(500);
   }
 
   // Two windows in one sidebar: drag the gap between them to change their shares.

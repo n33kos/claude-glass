@@ -37,6 +37,10 @@ right now.
   every tool call; each move should read as a presenter shifting the user's attention on purpose.
 - Run \`claude-glass view\` before re-ranking (the user may have moved things), and leave windows
   the user docked at an edge or corner alone.
+- Signals: the chrome has no color, so the wallpaper light is the one place color means something.
+  Spotlight the window you're about to talk about when moving it would disrupt the layout, alert the
+  one that broke, and show progress for long work with a known end. Done, failed tests and waiting
+  on you are signaled for you. Use them sparingly: one at a time, and never instead of saying it.
 
 Work visibly: hooks only see your dedicated tools. Change files with Edit/Write (never sed, python,
 or heredocs through Bash; those edits never reach "changes"), write plans to plan files, and Read
@@ -53,6 +57,9 @@ images you want to discuss.
   claude-glass window move <id> <index>      move to 0 to bring something to the user's attention
   claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
   claude-glass catalog                       all apps and commands
+  claude-glass signal spotlight|alert <window>   the wallpaper light points at a window ("look here") or
+                                             flags one that broke; it fades on its own after a few seconds
+  claude-glass signal progress <0..1> [--label L] | clear   long work with a known end (1 or clear ends it)
   claude-glass background --colors "#hex,…" | reset   optional: tint this glass's light yourself
   claude-glass preset list | apply <name>    the user's saved frames (docks, layouts, settings), each
                                              with a description; apply one when the user asks, or pick

@@ -1,0 +1,176 @@
+/* Claude Glass design tokens: the one source of styles for the shell and every app view (the SDK
+   stylesheet includes this, so custom apps get it too). docs/design.md explains the language.
+
+   Three layers:
+   1. Primitives (--gray-*, --blue-* ...): raw values. Only this file uses them.
+   2. Semantic roles (--text-*, --surface-*, --border-*, --accent-*, --ok-* ...): what things are.
+      Components use these, never raw colors, so a theme is one block of overrides.
+   3. Scales (--font-*, --text-size-*, --weight-*, --space-*, --radius-*, --shadow-*, --dur-*):
+      the steps to pick from. Off-scale values are a smell.
+
+   Graphite Mono: the chrome has no hue at all. The accent is white (black in light mode), so the
+   only color on screen means something: a status mark, an app's own content or icon, or the
+   signal layer (the wallpaper light Claude uses to point and to report). Weights stop at
+   semibold (600). Depth is one translucent material and one shadow per level. Radii derive from
+   one number (--radius-lg for windows; inside, radius - padding). */
+
+@import './fonts.css';
+
+:root {
+  color-scheme: dark;
+
+  /* ---- 1. primitives --------------------------------------------------------------------- */
+  /* Neutrals: true gray, darkest to lightest. */
+  --gray-0: #09090a;  --gray-1: #0e0e10;  --gray-2: #141416;  --gray-3: #1a1a1d;
+  --gray-4: #222226;  --gray-5: #2c2c31;  --gray-6: #3a3a40;  --gray-7: #55565d;
+  --gray-8: #6f7077;  --gray-9: #9a9ba2;  --gray-10: #c2c3c8; --gray-11: #e3e3e6; --gray-12: #f6f6f7;
+  /* Hues: status, charts and signals only. */
+  --blue: #8ab4ff;    --green: #5fd39a;   --red: #ff7b7b;     --amber: #f0c35a;
+  --violet: #a894f4;  --pink: #ec8fb4;    --teal: #5fcfc6;    --orange: #f2a36b;
+  /* The tint that fills and lines are made of: white on dark, black on light. */
+  --ink-rgb: 255, 255, 255;
+
+  /* ---- 2. semantic roles ------------------------------------------------------------------ */
+  /* Text */
+  --text-1: var(--gray-11);          /* primary: body, titles */
+  --text-2: var(--gray-9);           /* secondary: labels, metadata */
+  --text-3: var(--gray-8);           /* tertiary: hints, timestamps */
+  --text-disabled: var(--gray-7);
+  --text-on-accent: var(--gray-0);   /* on the solid accent or a status fill */
+  --text-link: var(--gray-12);       /* links are underlined text, not a color */
+
+  /* Surfaces, back to front. Windows are translucent over the wallpaper (their opacity is a
+     setting: --glass); everything inside a window layers on top with light tints. */
+  --surface-base: var(--gray-0);                     /* behind everything */
+  /* A window: rgba(var(--glass-rgb), var(--glass)), written where it's used, since --glass (the
+     opacity setting) is set per window and a token here would freeze the root's value. */
+  --glass-rgb: 22, 22, 24;
+  --surface-chrome: rgba(16, 16, 18, 0.84);          /* launcher, dock tabs */
+  --surface-bar: rgba(0, 0, 0, 0.25);                /* the top bar, over the wallpaper */
+  --surface-overlay: rgba(24, 24, 27, 0.97);         /* menus, popovers, cards over content */
+  --surface-raised: rgba(var(--ink-rgb), 0.04);      /* a card or row inside a window */
+  --surface-sunken: rgba(0, 0, 0, 0.28);             /* inputs, wells, code */
+  --surface-hover: rgba(var(--ink-rgb), 0.075);
+  --surface-pressed: rgba(var(--ink-rgb), 0.12);
+  --surface-selected: var(--accent-soft);
+
+  /* Borders */
+  --border-subtle: rgba(var(--ink-rgb), 0.06);
+  --border: rgba(var(--ink-rgb), 0.1);
+  --border-strong: rgba(var(--ink-rgb), 0.16);
+  --border-focus: var(--accent-line);
+
+  /* Accent: interaction and focus (selection, the primary action, the thing that's live). */
+  --accent: var(--gray-12);
+  --accent-soft: rgba(var(--ink-rgb), 0.09);    /* selected rows, tinted backgrounds */
+  --accent-line: rgba(var(--ink-rgb), 0.32);    /* selection rings, focus */
+  --accent-text: var(--gray-12);                /* text on --accent-soft */
+
+  /* Status: only for status (a result, a state), never decoration. Prefer a mark (a 6px dot) or a
+     word; soft fills and lines are for the rare verdict. */
+  --ok: var(--green);    --ok-soft: rgba(95, 211, 154, 0.11);   --ok-line: rgba(95, 211, 154, 0.3);   --ok-text: #c6f1db;
+  --warn: var(--amber);  --warn-soft: rgba(240, 195, 90, 0.12); --warn-line: rgba(240, 195, 90, 0.38); --warn-text: #f8e2ae;
+  --bad: var(--red);     --bad-soft: rgba(255, 123, 123, 0.11); --bad-line: rgba(255, 123, 123, 0.34); --bad-text: #ffd0d0;
+  --info: var(--blue);   --info-soft: rgba(138, 180, 255, 0.12); --info-line: rgba(138, 180, 255, 0.36); --info-text: #d7e5ff;
+  --add-bg: rgba(95, 211, 154, 0.11);          /* diff: added line */
+  --del-bg: rgba(255, 123, 123, 0.11);         /* diff: removed line */
+
+  /* Signals: the wallpaper light's vocabulary (see the signal layer). Each color means one thing. */
+  --signal-look: var(--blue);        /* spotlight: "look here" */
+  --signal-wait: var(--amber);       /* waiting on you */
+  --signal-done: var(--green);       /* finished */
+  --signal-fail: var(--red);         /* this broke */
+  --signal-progress: #c8c9ff;        /* long work underway */
+  --signal-base: 0.55;               /* peak opacity of a signal's light (times the user's strength, --signal-gain) */
+
+  /* Categorical: for charts and diagrams that need to tell series apart (in this order). */
+  --cat-1: var(--blue); --cat-2: var(--violet); --cat-3: var(--teal); --cat-4: var(--orange);
+  --cat-5: var(--pink); --cat-6: var(--amber);
+
+  /* Scrollbars */
+  --scrollbar: rgba(var(--ink-rgb), 0.14);
+
+  /* ---- 3. scales -------------------------------------------------------------------------- */
+  /* Type */
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  --font-mono: 'Geist Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+  --text-size-2xs: 10.5px;  /* all-caps labels */
+  --text-size-xs: 11px;     /* metadata, badges */
+  --text-size-sm: 12px;     /* secondary text, controls */
+  --text-size-md: 13px;     /* body (the default) */
+  --text-size-lg: 14px;     /* emphasized body, card titles */
+  --text-size-xl: 16px;     /* section titles */
+  --text-size-2xl: 20px;    /* a view's headline */
+  --text-size-3xl: 26px;    /* one big number or verdict per view, at most */
+  --weight-regular: 400;
+  --weight-medium: 500;     /* labels, buttons */
+  --weight-semibold: 600;   /* titles, verdicts: the heaviest the glass goes */
+  --leading-tight: 1.2;
+  --leading-normal: 1.45;
+  --leading-relaxed: 1.6;
+  --tracking-tight: -0.012em;  /* large sizes */
+  --tracking-caps: 0.06em;     /* all-caps labels */
+
+  /* Space (4px grid, with 2 and 6 for tight spots) */
+  --space-0: 2px; --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 12px;
+  --space-5: 16px; --space-6: 20px; --space-7: 24px; --space-8: 32px;
+
+  /* Radius: windows set --radius-lg; what sits inside a window's padding is concentric with it
+     (radius - padding, floored), which lands on --radius-md for cards and --radius-sm for controls. */
+  --radius-xs: 4px;    /* badges, tiny chips */
+  --radius-sm: 6px;    /* buttons, inputs, rows */
+  --radius-md: 8px;    /* cards and tiles inside a window */
+  --radius-lg: 12px;   /* windows, popovers, the launcher */
+  --radius-xl: 16px;   /* only outside windows (sheets, the launcher's outer edge) */
+  --radius-pill: 999px;
+
+  /* Elevation: one shadow per level. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);                                       /* chips, tiles */
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.32);                                      /* windows */
+  --shadow-3: 0 16px 44px rgba(0, 0, 0, 0.45);                                     /* menus, drags */
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);                      /* a glass edge */
+
+  /* Motion */
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --dur-1: 120ms;  /* hover, press */
+  --dur-2: 200ms;  /* small moves, fades */
+  --dur-3: 320ms;  /* layout: windows, docks */
+
+  /* Controls */
+  --control-h-sm: 24px;
+  --control-h-md: 28px;
+
+  /* ---- legacy names (custom apps written before the token language) ----------------------- */
+  --ink: var(--text-1); --ink-dim: var(--text-2); --ink-faint: var(--text-3);
+  --line: var(--border); --line-strong: var(--border-strong); --sky: var(--accent);
+  --sans: var(--font-sans); --mono: var(--font-mono); --radius-win: var(--radius-lg);
+}
+
+/* ---- light theme: the same roles, inverted. Only semantic tokens change. ------------------- */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --gray-0: #ffffff;  --gray-1: #f7f7f8;  --gray-2: #f1f1f3;  --gray-3: #e9e9ec;
+  --gray-4: #dedee2;  --gray-5: #cfcfd4;  --gray-6: #b4b4ba;  --gray-7: #93949b;
+  --gray-8: #75767d;  --gray-9: #55565c;  --gray-10: #37383d; --gray-11: #1d1d20; --gray-12: #0b0b0c;
+  --blue: #2f6fe4;    --green: #1f9a5e;   --red: #d93b3b;     --amber: #b7791f;
+  --violet: #6e51d8;  --pink: #c73d78;    --teal: #138a86;    --orange: #c7621c;
+  --ink-rgb: 0, 0, 0;
+  --text-on-accent: #ffffff;
+  --glass-rgb: 250, 250, 251;
+  --surface-base: #ececef;
+  --surface-chrome: rgba(250, 250, 251, 0.86);
+  --surface-bar: rgba(255, 255, 255, 0.45);
+  --surface-overlay: rgba(255, 255, 255, 0.98);
+  --surface-sunken: rgba(0, 0, 0, 0.05);
+  --ok-soft: rgba(31, 154, 94, 0.1);    --ok-line: rgba(31, 154, 94, 0.3);    --ok-text: #11643c;
+  --warn-soft: rgba(183, 121, 31, 0.1); --warn-line: rgba(183, 121, 31, 0.35); --warn-text: #7a4f12;
+  --bad-soft: rgba(217, 59, 59, 0.09);  --bad-line: rgba(217, 59, 59, 0.3);   --bad-text: #8f2323;
+  --info-soft: rgba(47, 111, 228, 0.1); --info-line: rgba(47, 111, 228, 0.32); --info-text: #1d4aa0;
+  --add-bg: rgba(31, 154, 94, 0.1);   --del-bg: rgba(217, 59, 59, 0.09);
+  --signal-progress: #7b7fe8;
+  --signal-base: 0.4;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.05), 0 10px 28px rgba(30, 30, 40, 0.12);
+  --shadow-3: 0 18px 44px rgba(30, 30, 40, 0.2);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}

@@ -18,6 +18,7 @@ export interface GlassProps<S = any> {
     waiting: { kind: 'question' | 'permission'; summary: string; tool?: string; toolUseId?: string } | null;
   };
   settings: Record<string, unknown>; // the app's own settings (manifest "settings"), defaults filled in
+  theme?: 'dark' | 'light'; // the glass's theme; the SDK sets it on the page, so the tokens follow
 }
 
 type Listener = (p: GlassProps) => void;
@@ -36,6 +37,7 @@ window.addEventListener('message', (e) => {
   if (!m || m.glass !== 1) return;
   if (m.kind === 'props') {
     props = m.props as GlassProps;
+    document.documentElement.dataset.theme = props.theme ?? 'dark'; // design tokens switch on it
     for (const fn of listeners) fn(props);
   } else if (m.kind === 'frame') {
     lastFrames.set(m.source, m.data);

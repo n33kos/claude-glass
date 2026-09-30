@@ -18,8 +18,9 @@ await Promise.all([
   build({ ...common, entryPoints: ['src/main/index.ts'], outfile: 'dist/main.js', platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: ['src/preload/index.ts'], outfile: 'dist/preload.js', platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: ['src/sdk/glass-app.ts'], outfile: 'dist/sdk/glass-app.js', platform: 'browser', format: 'iife' }),
-  build({ ...common, entryPoints: ['src/sdk/glass-app.css'], outfile: 'dist/sdk/glass-app.css', sourcemap: false }),
-  build({ ...common, entryPoints: ['src/renderer/index.tsx'], outfile: 'dist/renderer/index.js', platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'css', '.svg': 'dataurl' } }),
+  // The bundled fonts land next to each stylesheet that uses them (the SDK's for app views, the shell's).
+  build({ ...common, entryPoints: ['src/sdk/glass-app.css'], outfile: 'dist/sdk/glass-app.css', sourcemap: false, loader: { '.woff2': 'file' }, assetNames: 'fonts/[name]' }),
+  build({ ...common, entryPoints: ['src/renderer/index.tsx'], outfile: 'dist/renderer/index.js', platform: 'browser', format: 'iife', jsx: 'automatic', loader: { '.css': 'css', '.svg': 'dataurl', '.woff2': 'file' }, assetNames: 'fonts/[name]' }),
   ...FRAME_APPS.map(buildApp),
 ]);
 cpSync('src/renderer/index.html', 'dist/renderer/index.html');

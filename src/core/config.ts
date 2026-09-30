@@ -7,9 +7,14 @@ import type { GlobalConfig } from './types';
 
 export const DEFAULT_CONFIG: GlobalConfig = {
   autoStart: false,
-  background: 'aurora',
+  background: 'graphite',
   backgroundColors: [],
-  stateColors: true,
+  stateColors: false, // the signal layer says the same things, more precisely
+  theme: 'dark',
+  signals: true,
+  signalStrength: 'normal',
+  signalDone: true,
+  signalFailed: true,
   statePalettes: DEFAULT_PALETTES,
   defaultLayout: 'grid',
   windowOpacity: 0.78,
@@ -74,7 +79,12 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'nestedView':
     case 'stateColors':
     case 'selectToInteract':
+    case 'signals':
+    case 'signalDone':
+    case 'signalFailed':
     case 'toolReminders': return value === true || value === 'true';
+    case 'signalStrength': if (value !== 'subtle' && value !== 'normal' && value !== 'strong') throw new Error('signalStrength must be subtle, normal or strong'); return value;
+    case 'theme': if (value !== 'dark' && value !== 'light' && value !== 'system') throw new Error('theme must be dark, light or system'); return value;
     case 'statePalettes': return parsePalettes(value);
     case 'disabledApps': {
       const list = Array.isArray(value) ? value : String(value ?? '').split(',');
@@ -108,6 +118,11 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   backgroundColors: 'up to 4 hex colors ("#2b6f8f,#7a3d8c"): the user\'s own wallpaper light; empty = the preset\'s (change only if asked)',
   animateBackground: 'true|false: drift the wallpaper light',
   waitingGlow: 'true|false: amber edge glow while Claude waits on the user',
+  theme: 'dark|light|system: the glass\'s theme (system follows macOS)',
+  signals: 'true|false: the signal layer (the wallpaper light points at windows and reports done, failed, progress)',
+  signalStrength: 'subtle|normal|strong: how bright signals get',
+  signalDone: 'true|false: a green bloom when a long turn is done',
+  signalFailed: 'true|false: red behind Tests when a test run fails',
   launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
   launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',
   launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',

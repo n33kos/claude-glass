@@ -1,105 +1,103 @@
-/* Diagrams. Everything sizes from the layout in view.tsx; this file is the look: accent-lit cards,
-   gradient wires with a slow flowing highlight, and staggered entrances. --a is each element's accent. */
-.dg-empty { height: 100%; display: grid; place-items: center; color: var(--ink-faint); font-family: var(--sans); padding: 24px; text-align: center; line-height: 1.5; }
-.diagram { height: 100%; overflow: hidden; font-family: var(--sans); color: var(--ink); display: flex; flex-direction: column; }
-.dg-title { margin: 0; flex: none; display: flex; align-items: flex-start; font-weight: 680; letter-spacing: -0.015em;
-  background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.72)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Diagrams. Everything sizes from the layout in view.tsx; this file is the look: cards tinted by
+   their tone (--a, a token like var(--cat-1) or var(--ok)), wires with a slow flowing highlight,
+   staggered entrances. Calm by design (docs/design.md): flat tints, one shadow, no glows. */
+.dg-empty { height: 100%; display: grid; place-items: center; color: var(--text-3); padding: var(--space-7); text-align: center; line-height: var(--leading-normal); }
+.diagram { height: 100%; overflow: hidden; color: var(--text-1); display: flex; flex-direction: column; }
+.dg-title { margin: 0; flex: none; display: flex; align-items: flex-start; font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); color: var(--text-1); }
 .dg-stage { position: relative; flex: none; }
 .dg-stage:has(.dg-sequence-scroll) { overflow: auto; }
 .dg-svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
 
+/* A card's tint: the tone mixed into the raised surface. */
+.dg-node, .dg-actor, .dg-band, .dg-col, .dg-stat { --tint: color-mix(in srgb, var(--a) 12%, var(--gray-2)); --edge: color-mix(in srgb, var(--a) 38%, transparent); }
+
 /* Cards */
-.dg-node { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: .25em; padding: .7em .95em; border-radius: .9em; min-width: 0;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--a) 22%, #141826), color-mix(in srgb, var(--a) 7%, #10131d));
-  border: 1px solid color-mix(in srgb, var(--a) 45%, transparent);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 .8em 2em -.6em color-mix(in srgb, var(--a) 45%, transparent), 0 .3em 1em rgba(0, 0, 0, 0.35);
-  animation: dg-in .5s cubic-bezier(.2, .8, .2, 1) both; }
-.dg-node::before { content: ''; position: absolute; inset: 0 0 auto; height: 45%; border-radius: inherit; background: linear-gradient(rgba(255, 255, 255, 0.07), transparent); pointer-events: none; }
-.dg-node b { font-size: 1.08em; font-weight: 640; line-height: 1.22; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-.dg-node small { font-size: .84em; color: var(--ink-dim); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.dg-node { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: .25em; padding: .7em .95em; border-radius: var(--radius-lg); min-width: 0;
+  background: var(--tint); border: 1px solid var(--edge); box-shadow: var(--inner-highlight), var(--shadow-1);
+  animation: dg-in .5s var(--ease) both; }
+.dg-node b { font-size: 1.08em; font-weight: var(--weight-semibold); line-height: 1.22; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.dg-node small { font-size: .84em; color: var(--text-2); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .dg-node.muted { opacity: .6; }
 .dg-node.root { border-width: 1.5px; }
 .dg-node.root b { font-size: 1.2em; }
-.dg-badge { position: absolute; top: -.7em; left: -.7em; width: 1.75em; height: 1.75em; border-radius: 50%; display: grid; place-items: center; font-size: .8em; font-weight: 750; color: #0b1020;
-  background: var(--a); box-shadow: 0 0 0 3px #10131d, 0 0 1em color-mix(in srgb, var(--a) 70%, transparent); }
+.dg-badge { position: absolute; top: -.7em; left: -.7em; width: 1.75em; height: 1.75em; border-radius: 50%; display: grid; place-items: center; font-size: .8em; font-weight: var(--weight-semibold); color: var(--text-on-accent);
+  background: var(--a); box-shadow: 0 0 0 3px var(--gray-1); font-variant-numeric: tabular-nums; }
 @keyframes dg-in { from { opacity: 0; transform: translateY(.5em) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* Wires: a soft base line plus a moving highlight along it */
-.dg-wire .base { fill: none; stroke: color-mix(in srgb, var(--a) 55%, transparent); stroke-width: 2; stroke-linecap: round; }
+.dg-wire .base { fill: none; stroke: color-mix(in srgb, var(--a) 50%, transparent); stroke-width: 2; stroke-linecap: round; }
 .dg-wire .base.dashed { stroke-dasharray: 6 6; }
-.dg-wire .flow { fill: none; stroke: var(--a); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 10 90; filter: drop-shadow(0 0 3px var(--a)); animation: dg-flow 2.6s linear infinite; }
+.dg-wire .flow { fill: none; stroke: var(--a); stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 10 90; animation: dg-flow 2.6s linear infinite; }
 @keyframes dg-flow { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 
 /* sequence */
 .dg-life { stroke: color-mix(in srgb, var(--a) 35%, transparent); stroke-width: 1.5; stroke-dasharray: 3 6; }
-.dg-actor { position: absolute; transform: translateX(-50%); display: flex; align-items: center; padding: 0 1.1em; border-radius: .8em; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--a) 28%, #151a28), color-mix(in srgb, var(--a) 10%, #10131d)); border: 1px solid color-mix(in srgb, var(--a) 55%, transparent);
-  box-shadow: 0 .6em 1.6em -.6em color-mix(in srgb, var(--a) 60%, transparent); animation: dg-in .5s both; }
-.dg-say { position: absolute; padding: .25em .75em; border-radius: 1em; font-size: .92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #141826; border: 1px solid color-mix(in srgb, var(--a) 40%, transparent); animation: dg-fade .5s both; }
-.dg-say.reply { color: var(--ink-dim); font-style: italic; }
+.dg-actor { position: absolute; transform: translateX(-50%); display: flex; align-items: center; padding: 0 1.1em; border-radius: var(--radius-lg); font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--tint); border: 1px solid var(--edge); box-shadow: var(--shadow-1); animation: dg-in .5s both; }
+.dg-say { position: absolute; padding: .25em .75em; border-radius: var(--radius-pill); font-size: .92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--gray-2); border: 1px solid color-mix(in srgb, var(--a) 35%, transparent); animation: dg-fade .5s both; }
+.dg-say.reply { color: var(--text-2); font-style: italic; }
 @keyframes dg-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* layers */
 .dg-layers { display: flex; flex-direction: column; height: 100%; }
-.dg-band { display: flex; align-items: center; gap: 1.2em; padding: .6em 1.1em .6em 1.3em; border-radius: .9em; position: relative; overflow: hidden; animation: dg-in .5s both;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--a) 20%, #131724), color-mix(in srgb, var(--a) 5%, #10131d) 70%); border: 1px solid color-mix(in srgb, var(--a) 35%, transparent); }
-.dg-band::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--a); box-shadow: 0 0 12px var(--a); }
+.dg-band { display: flex; align-items: center; gap: 1.2em; padding: .6em 1.1em .6em 1.3em; border-radius: var(--radius-lg); position: relative; overflow: hidden; animation: dg-in .5s both;
+  background: var(--tint); border: 1px solid var(--edge); }
+.dg-band::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--a); }
 .dg-band header { flex: none; display: flex; flex-direction: column; gap: .15em; }
-.dg-band header b { font-size: 1.15em; }
-.dg-band header small { font-size: .85em; color: var(--ink-dim); }
+.dg-band header b { font-size: 1.15em; font-weight: var(--weight-semibold); }
+.dg-band header small { font-size: .85em; color: var(--text-2); }
 .dg-band.narrow { flex-direction: column; align-items: stretch; justify-content: center; gap: .5em; }
 .dg-chips { flex: 1; display: flex; flex-wrap: wrap; gap: .5em; align-content: center; min-width: 0; }
-.dg-chip { padding: .4em .85em; border-radius: .6em; font-size: .95em; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1); white-space: nowrap; }
-.dg-chip[style] { background: color-mix(in srgb, var(--a) 16%, transparent); border-color: color-mix(in srgb, var(--a) 45%, transparent); }
+.dg-chip { padding: .4em .85em; border-radius: var(--radius-md); font-size: .95em; background: var(--surface-hover); border: 1px solid var(--border); white-space: nowrap; }
+.dg-chip[style] { background: color-mix(in srgb, var(--a) 14%, transparent); border-color: color-mix(in srgb, var(--a) 40%, transparent); }
 
 /* timeline */
 .dg-axis { fill: none; stroke-width: 3; stroke-linecap: round; opacity: .8; }
-.dg-stem { fill: none; stroke: color-mix(in srgb, var(--a) 60%, transparent); stroke-width: 1.5; stroke-dasharray: 2 4; }
-.dg-dot { position: absolute; width: 1em; height: 1em; margin: -.5em 0 0 -.5em; border-radius: 50%; background: var(--a); box-shadow: 0 0 0 .3em #10131d, 0 0 1.2em var(--a); }
+.dg-stem { fill: none; stroke: color-mix(in srgb, var(--a) 55%, transparent); stroke-width: 1.5; stroke-dasharray: 2 4; }
+.dg-dot { position: absolute; width: 1em; height: 1em; margin: -.5em 0 0 -.5em; border-radius: 50%; background: var(--a); box-shadow: 0 0 0 .3em var(--gray-1); }
 .dg-event { text-align: center; align-items: center; }
-.dg-when { font: 700 .82em var(--mono); color: var(--a); letter-spacing: .02em; }
+.dg-when { font: var(--weight-medium) .82em var(--font-mono); color: var(--a); }
 
 /* compare */
 .dg-compare { display: grid; gap: 1em; height: 100%; }
 .dg-compare.stacked { grid-auto-rows: 1fr; }
-.dg-col { position: relative; display: flex; flex-direction: column; min-height: 0; border-radius: 1em; overflow: hidden; animation: dg-in .5s both;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--a) 12%, #131724), #10131d 60%); border: 1px solid color-mix(in srgb, var(--a) 30%, transparent); }
-.dg-col.pick { border-color: color-mix(in srgb, var(--a) 70%, transparent); box-shadow: 0 0 2.4em -.8em var(--a); }
-.dg-col header { position: relative; padding: 1em 1.1em .9em; border-bottom: 1px solid color-mix(in srgb, var(--a) 25%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--a) 26%, transparent), transparent); }
-.dg-col header::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--a); box-shadow: 0 0 12px var(--a); }
-.dg-col header b { display: block; font-size: 1.25em; }
-.dg-col header small { font-size: .85em; color: var(--ink-dim); }
-.dg-ribbon { float: right; font-size: .7em; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: .25em .6em; border-radius: 1em; background: var(--a); color: #0b1020; }
+.dg-col { position: relative; display: flex; flex-direction: column; min-height: 0; border-radius: var(--radius-xl); overflow: hidden; animation: dg-in .5s both;
+  --tint: color-mix(in srgb, var(--a) 8%, var(--gray-2)); background: var(--tint); border: 1px solid color-mix(in srgb, var(--a) 28%, transparent); }
+.dg-col.pick { border-color: color-mix(in srgb, var(--a) 65%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--a) 40%, transparent), var(--shadow-2); }
+.dg-col header { position: relative; padding: 1em 1.1em .9em; border-bottom: 1px solid color-mix(in srgb, var(--a) 22%, transparent);
+  background: color-mix(in srgb, var(--a) 12%, transparent); }
+.dg-col header::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--a); }
+.dg-col header b { display: block; font-size: 1.25em; font-weight: var(--weight-semibold); }
+.dg-col header small { font-size: .85em; color: var(--text-2); }
+.dg-ribbon { float: right; font-size: .7em; font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-caps); padding: .25em .6em; border-radius: var(--radius-pill); background: var(--a); color: var(--text-on-accent); }
 .dg-col ul { flex: 1; margin: 0; padding: 1.1em 1.2em 1.2em; list-style: none; display: flex; flex-direction: column; gap: .75em; overflow: auto; }
-.dg-col li { display: flex; gap: .7em; align-items: flex-start; line-height: 1.35; font-size: 1.08em; padding: .55em .7em; border-radius: .6em; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); }
-.dg-col li i { flex: none; width: 1.35em; height: 1.35em; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .78em; font-weight: 800; color: #0b1020; background: var(--a); margin-top: .1em; }
-.dg-col li small { display: block; color: var(--ink-dim); font-size: .85em; }
+.dg-col li { display: flex; gap: .7em; align-items: flex-start; line-height: 1.35; font-size: 1.08em; padding: .55em .7em; border-radius: var(--radius-md); background: var(--surface-raised); border: 1px solid var(--border-subtle); }
+.dg-col li i { flex: none; width: 1.35em; height: 1.35em; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .78em; font-weight: var(--weight-semibold); color: var(--text-on-accent); background: var(--a); margin-top: .1em; }
+.dg-col li small { display: block; color: var(--text-2); font-size: .85em; }
 
 /* compare as rows (short windows): option on the left, its points as chips */
 .dg-compare.rows { grid-template-columns: 1fr; }
 .dg-row { flex-direction: row; align-items: stretch; }
-.dg-row header { flex: none; display: flex; flex-direction: column; justify-content: center; gap: .3em; border-bottom: 0; border-right: 1px solid color-mix(in srgb, var(--a) 25%, transparent);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--a) 24%, transparent), transparent); }
+.dg-row header { flex: none; display: flex; flex-direction: column; justify-content: center; gap: .3em; border-bottom: 0; border-right: 1px solid color-mix(in srgb, var(--a) 22%, transparent); }
 .dg-row header::before { right: auto; bottom: 0; width: 3px; height: auto; }
 .dg-row header { padding-right: 5.5em; overflow: hidden; }
 .dg-row .dg-ribbon { float: none; position: absolute; top: .7em; right: .7em; }
 .dg-row .dg-chips { padding: .6em 1em; overflow: hidden; }
 .dg-point { display: inline-flex; align-items: center; gap: .5em; white-space: normal; }
-.dg-point i { flex: none; width: 1.3em; height: 1.3em; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .75em; font-weight: 800; color: #0b1020; background: var(--a); }
+.dg-point i { flex: none; width: 1.3em; height: 1.3em; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .75em; font-weight: var(--weight-semibold); color: var(--text-on-accent); background: var(--a); }
 /* cycle */
-.dg-ring { fill: none; stroke: rgba(255, 255, 255, 0.06); stroke-width: 1.5; }
-.dg-center { position: absolute; transform: translate(-50%, -50%); text-align: center; font-weight: 700; letter-spacing: -0.01em; color: rgba(255, 255, 255, 0.85); line-height: 1.2; }
+.dg-ring { fill: none; stroke: var(--border-subtle); stroke-width: 1.5; }
+.dg-center { position: absolute; transform: translate(-50%, -50%); text-align: center; font-weight: var(--weight-semibold); color: var(--text-1); line-height: var(--leading-tight); }
 
 /* stats */
 .dg-stats { display: grid; }
-.dg-stat { position: relative; display: flex; flex-direction: column; justify-content: center; gap: .2em; padding: 1em 1.2em; border-radius: 1em; overflow: hidden; animation: dg-in .5s both;
-  background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--a) 26%, transparent), transparent 60%), #11141f; border: 1px solid color-mix(in srgb, var(--a) 35%, transparent); }
-.dg-stat-label { text-transform: uppercase; letter-spacing: .07em; color: var(--ink-dim); font-weight: 600; }
-.dg-stat-value { font-weight: 760; letter-spacing: -0.03em; line-height: 1.05; background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--a) 60%, #fff)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.dg-delta { align-self: flex-start; font-weight: 700; padding: .15em .6em; border-radius: 1em; color: #4ade80; background: rgba(74, 222, 128, 0.12); }
+.dg-stat { position: relative; display: flex; flex-direction: column; justify-content: center; gap: .2em; padding: 1em 1.2em; border-radius: var(--radius-xl); overflow: hidden; animation: dg-in .5s both;
+  background: var(--tint); border: 1px solid var(--edge); }
+.dg-stat-label { text-transform: uppercase; letter-spacing: var(--tracking-caps); color: var(--text-2); font-weight: var(--weight-medium); }
+.dg-stat-value { font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: 1.05; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.dg-delta { align-self: flex-start; font-weight: var(--weight-medium); padding: .15em .6em; border-radius: var(--radius-pill); color: var(--ok); background: var(--ok-soft); }
 .dg-delta.down { color: var(--a); background: color-mix(in srgb, var(--a) 14%, transparent); }
-.dg-stat small { color: var(--ink-faint); font-size: .85em; }
+.dg-stat small { color: var(--text-3); font-size: .85em; }
 .dg-spark { width: 100%; height: 2.2em; margin-top: .3em; }
 .dg-spark polyline { fill: none; stroke: var(--a); stroke-width: 2; vector-effect: non-scaling-stroke; }
 

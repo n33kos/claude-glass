@@ -14,6 +14,8 @@ import { attachBuiltinViews } from '../core/mods';
 import { findProjectImages, IMAGE_FILE } from '../core/projectImages';
 import { GlassCore } from '../core/server';
 import { pendingUpdate, type Installed } from '../core/update';
+import { shareAppStorage } from './sharedStorage';
+import { glassHome } from '../core/paths';
 import { spawn } from 'node:child_process';
 import { WebFeed, type WebInput } from './webFeed';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
@@ -77,7 +79,9 @@ if (process.env.CLAUDE_GLASS_DEBUG_PORT) app.commandLine.appendSwitch('remote-de
 protocol.registerSchemesAsPrivileged([
   { scheme: 'glass-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   { scheme: 'glass-html', privileges: { standard: true, secure: true } },
-  { scheme: 'glass-app', privileges: { standard: true, secure: true } },
+  // corsEnabled: fonts always load with CORS, and app frames are sandboxed (origin "null"); the
+  // SDK's font files answer with an open Access-Control-Allow-Origin (see the handler).
+  { scheme: 'glass-app', privileges: { standard: true, secure: true, corsEnabled: true } },
 ]);
 
 const MIME: Record<string, string> = {
@@ -258,6 +262,7 @@ async function boot() {
     if (!existsSync(path)) return new Response('not found', { status: 404 });
     const type = MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
     const headers: Record<string, string> = { 'content-type': type };
+    if (url.hostname === 'sdk' && /\.woff2$/.test(path)) headers['access-control-allow-origin'] = '*'; // the bundled fonts, for sandboxed frames
     if (type.startsWith('text/html')) headers['content-security-policy'] = appCsp(APPS[url.hostname]?.permissions ?? NO_PERMISSIONS);
     return new Response(readFileSync(path), { headers });
   });
@@ -322,6 +327,7 @@ async function boot() {
       if (!origins.some((o) => f.url.startsWith(o))) continue;
       await f.executeJavaScript('try { localStorage.clear(); sessionStorage.clear(); } catch {}').catch(() => {});
     }
+    sharedStorage?.forget(origins); // and the copy other glasses would restore
     return true;
   });
   ipcMain.handle('glass:lastFrame', (_e, id: string) => lastFrames.get(id) ?? null);
@@ -356,7 +362,12 @@ async function boot() {
   buildMenu();
   createWindow();
   watchForUpdate();
+  // Embedded pages' sign-ins (vmux's token) follow you to every glass: saved each minute and on close.
+  const webOrigins = () => [...new Set(Object.values(APPS).flatMap((a) => a.permissions?.network ?? []).filter((o) => /^https?:/.test(o)))];
+  sharedStorage = shareAppStorage(win!, join(glassHome(), 'app-storage.json'), webOrigins);
+  setInterval(() => void sharedStorage?.save(), 60_000).unref();
 }
+let sharedStorage: ReturnType<typeof shareAppStorage> | null = null;
 
 // Updates: a glass running from an older plugin install offers to restart in the new version (a
 // pill in the top bar), and restarts on its own if the update removed its folder. It changes only
@@ -503,6 +514,7 @@ function buildMenu() {
 async function shutdown() {
   if (quitting) return;
   quitting = true;
+  try { await Promise.race([sharedStorage?.save(), new Promise((r) => setTimeout(r, 800))]); } catch {} // sign-ins, for the next glass
   for (const s of streams.values()) s.stop();
   for (const f of webFeeds.values()) f.destroy();
   try { await core?.close(); } catch {}

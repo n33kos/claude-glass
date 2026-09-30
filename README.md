@@ -90,9 +90,11 @@ overflow spills onto the next desktop.
 - Drag a title bar to reorder; a dashed placeholder shows where it lands. Hold it at a side edge to
   move it to the next desktop.
 - **Docks**: drag a window (or its launcher icon) onto a dock target, in the middle of a screen
-  edge or in a corner, to dock it there. Hover the edge (or corner) to pull the dock out and click
-  to open it, or set docks to open on hover. Its pin button keeps it open, and the layout makes
-  room; on a kept dock the pin stays out of sight until you hover the dock. Drag its inner edge to
+  edge or in a corner, to dock it there. A closed dock is a small capsule of its apps' icons; hover
+  the edge (or corner) and click to open it, or set docks to open on hover. Docked windows float on
+  the wallpaper like any window. Hover an open dock and a lock on its inner edge keeps it open (or
+  releases it); kept open, the layout makes room, and a dock that slides out on hover comes over
+  kept ones. Drag its inner edge to
   resize it (a corner dock resizes both ways from its inner corner), the gap between two of its
   windows to share it differently, and a window out of it to undock. Corner docks suit apps that
   want a fixed, modest size: a kept corner takes the end of its side's column and the edge dock
@@ -113,12 +115,21 @@ overflow spills onto the next desktop.
   `claude-glass preset save|apply|list|default`, and `claude-glass open --preset <name>`. Claude sees
   the list with descriptions, so "set up the glass for this" can pick one. Presets are JSON files in
   `~/.claude/claude-glass/presets/`, easy to edit or share.
-- **Launcher** (the bar along the bottom): click an icon to show a window, drag to reorder, drag
-  onto a dock target to dock it. An app's windows share one icon with a count; click it to pick
-  one from a list (turn grouping off in Settings for an icon per window). It can auto-hide.
-- **Background**: presets or your own image; pick the light colors yourself. With **state colors**
-  on (default), the light follows the session: amber while Claude waits on you, green when it's
-  your turn, graphite when the session ends.
+- **Launcher** (the bar along the bottom): the open windows, with each app's own icon. Click to
+  show one, drag to reorder, drag onto a dock target to dock it. An app's windows share one icon
+  with a count; click it to pick one (turn grouping off in Settings for an icon per window). The
+  **Apps** button beside Settings shows every app that isn't on screen: a count means closed windows
+  (hover to pick one to reopen), and a click reopens the latest or starts the app. It can
+  auto-hide.
+- **Sign-ins follow you**: pages an app embeds (like vmux's relay) keep their sign-in in one shared
+  place, so a new glass starts signed in.
+- **Look**: Graphite Mono, a neutral frame with no hue, so the only color on screen means
+  something ([docs/design.md](docs/design.md)). Dark or light (or follow macOS). Wallpaper presets or
+  your own image, and your own light colors.
+- **Signals**: the wallpaper light is how the glass points and reports. Amber rises while Claude
+  waits on you, a green bloom when a long turn is done, red behind a window that broke (a failing
+  test run), blue behind a window Claude wants you to look at, and a hairline bar for long work.
+  One at a time, and each fades back to graphite. Claude sends its own with `claude-glass signal`.
 - **Waiting on you**: when Claude asks a question or needs a permission, the top bar says so, a
   read-only card shows the question, and the edges glow. You answer in Claude Code, as always.
 
@@ -141,6 +152,7 @@ claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
 claude-glass catalog                       every app and its commands
 claude-glass settings [set <key> <value>]  (Claude changes settings only when you ask)
 claude-glass preset list | apply <name>     your saved frames, with descriptions
+claude-glass signal spotlight|alert <window> | progress <0..1> [--label L] | clear
 claude-glass background --colors "#hex,…" | reset
 ```
 
@@ -168,10 +180,12 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `selectToInteract` | **true** / false | click a window to use it; scrolling over the others switches desktops |
 | `wheelDesktops` | **true** / false | scrolling outside windows switches desktops |
 | `windowOpacity` | 0.2–1 (**0.78**) | window glass opacity |
-| `background` | **aurora** / dune / tide / graphite / an image path | wallpaper |
+| `background` | aurora / dune / tide / **graphite** / an image path | wallpaper (light theme uses its own pale one) |
 | `backgroundColors` | up to 4 hex colors | your own wallpaper light (empty: the preset's) |
 | `animateBackground` | **true** / false | drift the wallpaper light |
-| `stateColors` | **true** / false | the light follows the session |
+| `theme` | **dark** / light / system | the glass's theme |
+| `signals` | **true** / false | the signal layer: the light points at windows and shows done, failed, progress |
+| `stateColors` | true / **false** | the whole light also follows the session (the signal layer says the same, more precisely) |
 | `statePalettes` | JSON per state | colors for working / waiting / idle / ended (`[]`: your own) |
 | `waitingGlow` | **true** / false | amber edge glow while Claude waits on you |
 | `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |

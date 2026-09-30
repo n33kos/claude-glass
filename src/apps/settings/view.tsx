@@ -19,11 +19,11 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 /** The user's own wallpaper light: four pickers over the preset's colors; empty = the preset's. */
 function LightColors({ config }: { config: ViewProps['config'] }) {
   const own = config.backgroundColors ?? [];
-  const preset = (PRESETS[config.background] ?? PRESETS.aurora).blobs.map((b) => b.color);
+  const preset = (PRESETS[config.background] ?? PRESETS.graphite).blobs.map((b) => b.color);
   const shown = Array.from({ length: 4 }, (_, i) => own.length ? own[i % own.length] : preset[i % preset.length]);
   return (
     <label className="s-row">
-      <span>Light colors{own.length ? '' : ' (preset)'}</span>
+      <span>Wallpaper light{own.length ? '' : ' (the wallpaper\'s own)'}</span>
       <span className="s-inline">
         {shown.map((c, i) => (
           <input key={i} type="color" className="s-color" value={c} aria-label={`Light color ${i + 1}`}
@@ -44,7 +44,7 @@ function StateColors({ config }: { config: ViewProps['config'] }) {
   const setMood = (m: Mood, colors: string[]) => setConfig('statePalettes', { ...palettes, [m]: colors });
   return (
     <>
-      <Toggle label="Light follows what Claude is doing" on={on} onChange={(v) => setConfig('stateColors', v)} />
+      <Toggle label="Also tint the whole wallpaper by what Claude is doing (the older style)" on={on} onChange={(v) => setConfig('stateColors', v)} />
       {on && MOODS.map((m) => {
         const p = palettes[m];
         return (
@@ -93,16 +93,16 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Open images Claude reads" on={s.autoOpen.images} onChange={(v) => setSession('autoOpen.images', v)} />
       <Toggle label="Open the browser for web searches and pages" on={s.autoOpen.web !== false} onChange={(v) => setSession('autoOpen.web', v)} />
       <label className="s-row">
-        <span>Window opacity {s.windowOpacity != null ? `(${Math.round(s.windowOpacity * 100)}%)` : '(global)'}</span>
+        <span>Window opacity for this session {s.windowOpacity != null ? `(${Math.round(s.windowOpacity * 100)}%)` : '(same as all sessions)'}</span>
         <span className="s-inline">
           <input type="range" min={0.2} max={1} step={0.02} value={s.windowOpacity ?? config.windowOpacity}
             onChange={(e) => setSession('windowOpacity', Number(e.target.value))} />
-          {s.windowOpacity != null && <button className="s-link" onClick={() => setSession('windowOpacity', undefined)}>Use global</button>}
+          {s.windowOpacity != null && <button className="s-link" onClick={() => setSession('windowOpacity', undefined)}>Reset</button>}
         </span>
       </label>
       {s.backgroundColors && (
         <label className="s-row">
-          <span>Background light set by Claude</span>
+          <span>Wallpaper tint Claude set for this session</span>
           <span className="s-inline">
             {s.backgroundColors.map((c, i) => <i key={i} className="s-dot" style={{ background: c }} />)}
             <button className="s-link" onClick={() => setSession('backgroundColors', [])}>Clear</button>
@@ -114,18 +114,65 @@ export function SettingsView({ glass, config }: ViewProps) {
 
       <h3>All sessions</h3>
 
-      <h4>Sessions</h4>
-      <Toggle label="Open Claude Glass when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
+      <h4>Appearance</h4>
       <label className="s-row">
-        <span>One glass per (applies to new sessions)</span>
-        <select value={config.scope} onChange={(e) => setConfig('scope', e.target.value)}>
-          <option value="session">Session</option>
-          <option value="folder">Project folder</option>
+        <span>Theme</span>
+        <select value={config.theme ?? 'dark'} onChange={(e) => setConfig('theme', e.target.value)}>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="system">Match macOS</option>
         </select>
       </label>
+      <label className="s-row">
+        <span>Window opacity ({Math.round(config.windowOpacity * 100)}%)</span>
+        <input type="range" min={0.2} max={1} step={0.02} value={config.windowOpacity} onChange={(e) => setConfig('windowOpacity', Number(e.target.value))} />
+      </label>
+      <div className="s-row s-col">
+        <span>Wallpaper{(config.theme ?? 'dark') === 'light' ? ' (light theme uses a pale one)' : ''}</span>
+        <div className="swatches">
+          {Object.entries(BACKGROUNDS).sort(([a], [b]) => Number(b === 'graphite') - Number(a === 'graphite')).map(([name, css]) => (
+            <button key={name} title={name} className={config.background === name ? 'on' : ''} style={{ backgroundImage: css }} onClick={() => setConfig('background', name)} aria-label={`${name} wallpaper`} />
+          ))}
+        </div>
+        <form className="s-inline" onSubmit={(e) => { e.preventDefault(); if (bgPath.startsWith('/')) setConfig('background', bgPath); }}>
+          <input type="text" placeholder="/absolute/path/to/image.jpg" value={bgPath} onChange={(e) => setBgPath(e.target.value)} />
+          <button type="submit" className="s-btn">Use image</button>
+        </form>
+      </div>
+      <LightColors config={config} />
+      <Toggle label="Let the wallpaper light drift slowly" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
 
-      <h4>Windows &amp; layout</h4>
-      <Toggle label="Nested view: the focused window largest, the others smaller around it (scroll to move focus)" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />
+      <h4>Signals</h4>
+      <p className="s-note">The chrome has no color, so the wallpaper light is where the glass points and reports: amber while Claude waits on you, blue behind a window it wants you to look at, red behind one that broke, green when a long turn is done, a hairline bar for long work. One at a time; each fades back.</p>
+      <Toggle label="Signals" on={config.signals !== false} onChange={(v) => setConfig('signals', v)} />
+      {config.signals !== false && (
+        <div className="s-sub">
+          <label className="s-row">
+            <span>Strength</span>
+            <select value={config.signalStrength ?? 'normal'} onChange={(e) => setConfig('signalStrength', e.target.value)}>
+              <option value="subtle">Subtle</option>
+              <option value="normal">Normal</option>
+              <option value="strong">Strong</option>
+            </select>
+          </label>
+          <Toggle label="Green bloom when a long turn is done" on={config.signalDone !== false} onChange={(v) => setConfig('signalDone', v)} />
+          <Toggle label="Red behind Tests when a run fails" on={config.signalFailed !== false} onChange={(v) => setConfig('signalFailed', v)} />
+          <Toggle label="Amber edge glow while Claude waits on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
+          <div className="s-row">
+            <span>Preview</span>
+            <span className="s-inline">
+              <button className="s-btn" onClick={() => dispatch({ type: 'signal', kind: 'spotlight', target: 'settings' })}>Look here</button>
+              <button className="s-btn" onClick={() => window.dispatchEvent(new CustomEvent('glass:preview-signal', { detail: 'alert' }))}>Broke</button>
+              <button className="s-btn" onClick={() => window.dispatchEvent(new CustomEvent('glass:preview-signal', { detail: 'done' }))}>Done</button>
+              <button className="s-btn" onClick={() => { void dispatch({ type: 'signal', kind: 'progress', value: 0.6, label: 'Preview' }); setTimeout(() => void dispatch({ type: 'signal', kind: 'clear' }), 3500); }}>Progress</button>
+            </span>
+          </div>
+          <StateColors config={config} />
+        </div>
+      )}
+
+      <h4>Windows &amp; desktops</h4>
+      <Toggle label="Nested view: one screen, the focused window largest and the others smaller around it" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />
       {config.nestedView && (
         <label className="s-row s-sub">
           <span>Arrangement</span>
@@ -135,38 +182,17 @@ export function SettingsView({ glass, config }: ViewProps) {
           </select>
         </label>
       )}
-      <label className="s-row">
-        <span>Layout for new desktops</span>
-        <select value={config.defaultLayout} disabled={config.nestedView} onChange={(e) => setConfig('defaultLayout', e.target.value)}>
-          <option value="claude">Claude decides</option>
-          {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
-        </select>
-      </label>
-      <Toggle label="Remind Claude to read and edit with its own tools (so you see the work here)" on={config.toolReminders} onChange={(v) => setConfig('toolReminders', v)} />
-      <Toggle label="Click a window to use it (scrolling over the others switches desktops)" on={config.selectToInteract !== false} onChange={(v) => setConfig('selectToInteract', v)} />
-      <Toggle label="Scroll outside windows to switch desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />
-
-      <h4>Look</h4>
-      <label className="s-row">
-        <span>Window opacity ({Math.round(config.windowOpacity * 100)}%)</span>
-        <input type="range" min={0.2} max={1} step={0.02} value={config.windowOpacity} onChange={(e) => setConfig('windowOpacity', Number(e.target.value))} />
-      </label>
-      <div className="s-row s-col">
-        <span>Background</span>
-        <div className="swatches">
-          {Object.entries(BACKGROUNDS).map(([name, css]) => (
-            <button key={name} title={name} className={config.background === name ? 'on' : ''} style={{ backgroundImage: css }} onClick={() => setConfig('background', name)} aria-label={`${name} background`} />
-          ))}
-        </div>
-        <form className="s-inline" onSubmit={(e) => { e.preventDefault(); if (bgPath.startsWith('/')) setConfig('background', bgPath); }}>
-          <input type="text" placeholder="/absolute/path/to/image.jpg" value={bgPath} onChange={(e) => setBgPath(e.target.value)} />
-          <button type="submit" className="s-btn">Use image</button>
-        </form>
-      </div>
-      <LightColors config={config} />
-      <StateColors config={config} />
-      <Toggle label="Drift the background light" on={config.animateBackground} onChange={(v) => setConfig('animateBackground', v)} />
-      <Toggle label="Glow the edges while Claude is waiting on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
+      {!config.nestedView && (
+        <label className="s-row">
+          <span>Layout for new desktops</span>
+          <select value={config.defaultLayout} onChange={(e) => setConfig('defaultLayout', e.target.value)}>
+            <option value="claude">Claude decides</option>
+            {LAYOUT_NAMES.map((l) => <option key={l} value={l}>{LAYOUTS[l].label}</option>)}
+          </select>
+        </label>
+      )}
+      <Toggle label="Click a window to use it (scrolling over the others moves between desktops)" on={config.selectToInteract !== false} onChange={(v) => setConfig('selectToInteract', v)} />
+      <Toggle label="Scroll outside windows to move between desktops" on={config.wheelDesktops} onChange={(v) => setConfig('wheelDesktops', v)} />
 
       <h4>Docks</h4>
       <p className="s-note">Drag a window onto a target at an edge or corner to dock it there.</p>
@@ -179,15 +205,26 @@ export function SettingsView({ glass, config }: ViewProps) {
       </label>
 
       <h4>Launcher</h4>
-      <Toggle label="Auto-hide the launcher (shows at the bottom edge)" on={config.launcherAutoHide} onChange={(v) => setConfig('launcherAutoHide', v)} />
+      <Toggle label="Auto-hide (shows at the bottom edge)" on={config.launcherAutoHide} onChange={(v) => setConfig('launcherAutoHide', v)} />
       <Toggle label="Group an app's windows under one icon" on={config.launcherGroup !== false} onChange={(v) => setConfig('launcherGroup', v)} />
       <label className="s-row">
-        <span>Launcher order</span>
+        <span>Order</span>
         <select value={config.launcherOrder} onChange={(e) => setConfig('launcherOrder', e.target.value)}>
           <option value="windows">Match window order</option>
-          <option value="fixed">Fixed by app type</option>
+          <option value="fixed">Fixed by app</option>
         </select>
       </label>
+
+      <h4>Claude</h4>
+      <Toggle label="Open Claude Glass when a Claude session starts" on={config.autoStart} onChange={(v) => setConfig('autoStart', v)} />
+      <label className="s-row">
+        <span>One glass per (applies to new sessions)</span>
+        <select value={config.scope} onChange={(e) => setConfig('scope', e.target.value)}>
+          <option value="session">Session</option>
+          <option value="folder">Project folder</option>
+        </select>
+      </label>
+      <Toggle label="Remind Claude to read and edit with its own tools (so you see the work here)" on={config.toolReminders} onChange={(v) => setConfig('toolReminders', v)} />
 
       <h3>Apps</h3>
       <p className="s-note">Turned-off apps are hidden and Claude can't use them. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>).</p>

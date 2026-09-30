@@ -34,6 +34,16 @@ export interface Waiting {
   since: number;
 }
 
+/** A signal Claude sends through the wallpaper light (docs/design.md, "The signal layer"). */
+export interface Signal {
+  kind: 'spotlight' | 'alert' | 'progress';
+  target?: string; // a window id (spotlight, alert)
+  value?: number; // progress, 0..1 (1 = finished: it clears)
+  label?: string; // progress: what's underway
+  at: number;
+  seq: number;
+}
+
 export interface SessionSettings {
   windowMode?: 'live' | 'history'; // history = a new window for every edit, plan, image, search and page
   historyLimit?: number; // history mode keeps this many history windows (default 12); older ones are deleted
@@ -55,6 +65,11 @@ export interface GlobalConfig {
   launcherGroup: boolean; // an app's windows share one launcher icon, with a menu to pick one
   dockOpen: 'click' | 'hover'; // a hidden dock slides out when its tab is clicked, or on hover
   waitingGlow: boolean; // faint amber edge glow while Claude waits on the user
+  theme: 'dark' | 'light' | 'system'; // the design tokens' theme (system: follow macOS)
+  signals: boolean; // the signal layer: the wallpaper light points at windows and reports (done, failed, progress)
+  signalStrength: 'subtle' | 'normal' | 'strong'; // how bright signals get
+  signalDone: boolean; // automatic: a green bloom after a long turn
+  signalFailed: boolean; // automatic: red behind Tests when a run fails
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
@@ -85,6 +100,9 @@ export interface GlassState {
   tuckKeep?: Dock[];
   // Dock sizes the user dragged (px: width for left/right and corners, height for top/bottom).
   tuckSize?: Partial<Record<Dock, number>>;
+  // The signal layer: Claude's latest signal (the wallpaper light points at a window, flags one that
+  // broke, or shows progress). The renderer plays it once and lets it decay; `seq` replays a repeat.
+  signal?: Signal;
   // Corner docks' heights the user dragged (px).
   tuckHeight?: Partial<Record<Corner, number>>;
   // How a dock's windows share its length (fractions summing to 1, in dock order). Ignored once
@@ -110,7 +128,8 @@ export type Action =
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
   | { type: 'tuck.keep'; edge: Dock; keep: boolean }
   | { type: 'tuck.split'; edge: Dock; shares: number[] } // one share per window in the dock
-  | { type: 'tuck.size'; edge: Dock; size?: number; height?: number }; // height: corners only
+  | { type: 'tuck.size'; edge: Dock; size?: number; height?: number } // height: corners only
+  | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
   op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'preset' | 'quit';

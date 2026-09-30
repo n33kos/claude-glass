@@ -1,33 +1,34 @@
-/* Files: most recent first, or a folder tree. Changed = green, only read = blue. */
-.fl-empty { height: 100%; display: grid; place-items: center; color: var(--ink-faint); font-family: var(--sans); padding: 20px; text-align: center; }
-.files { height: 100%; display: flex; flex-direction: column; font-family: var(--sans); }
-.fl-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
-.fl-sum { flex: 1; font-size: 12.5px; color: var(--ink-dim); }
-.fl-sum b { color: var(--ink); } .fl-sum b.e { color: var(--ok); } .fl-sum b.r { color: var(--sky); }
-.fl-modes { display: flex; background: rgba(255, 255, 255, 0.06); border-radius: 7px; padding: 2px; }
-.fl-modes button { padding: 3px 10px; border-radius: 5px; font-size: 12px; color: var(--ink-dim); cursor: pointer; background: none; }
-.fl-modes button.on { background: rgba(255, 255, 255, 0.14); color: var(--ink); }
-.fl-list { flex: 1; overflow: auto; padding: 10px 14px 16px; }
-.fl-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 13px; }
-.fl-row:hover { background: rgba(255, 255, 255, 0.05); }
+/* Files: most recent first, or a folder tree. Changed = ok (green), only read = accent; touched in
+   the last two minutes = warn (a state: "just now"). Tokens only (docs/design.md). */
+.fl-empty { height: 100%; display: grid; place-items: center; color: var(--text-3); padding: var(--space-6); text-align: center; }
+.files { height: 100%; display: flex; flex-direction: column; }
+.fl-bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px var(--space-4); border-bottom: 1px solid var(--border); }
+.fl-sum { flex: 1; font-size: var(--text-size-sm); color: var(--text-2); }
+.fl-sum b { color: var(--text-1); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; } .fl-sum b.e { color: var(--ok); } .fl-sum b.r { color: var(--accent); }
+.fl-modes { display: flex; background: var(--surface-sunken); border-radius: var(--radius-md); padding: var(--space-0); }
+.fl-modes button { padding: 3px 10px; border-radius: var(--radius-sm); font-size: var(--text-size-sm); font-weight: var(--weight-medium); color: var(--text-2); cursor: pointer; background: none; }
+.fl-modes button.on { background: var(--surface-pressed); color: var(--text-1); }
+.fl-list { flex: 1; overflow: auto; padding: 10px var(--space-4) var(--space-5); }
+.fl-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-size-md); }
+.fl-row:hover { background: var(--surface-hover); }
 /* Changed files open their diff in Changes. */
 .fl-row.edited { cursor: pointer; }
-.fl-row.edited:hover { background: rgba(95, 208, 143, 0.10); }.fl-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.fl-row.edited .fl-dot { background: var(--ok); } .fl-row.read .fl-dot { background: var(--sky); }
-.fl-name { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fl-name small { margin-left: 8px; color: var(--ink-faint); font-size: 11px; }
-.fl-row.recent { background: rgba(255, 214, 120, 0.07); }
-.fl-row.recent .fl-when { color: #ffd678; }
-.fl-row.recent .fl-dot { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), 0 0 8px currentColor; }
+.fl-row.edited:hover { background: var(--ok-soft); }
+.fl-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.fl-row.edited .fl-dot { background: var(--ok); } .fl-row.read .fl-dot { background: var(--accent); }
+.fl-name { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--text-size-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-name small { margin-left: var(--space-3); color: var(--text-3); font-size: var(--text-size-xs); }
+.fl-row.recent { background: var(--warn-soft); }
+.fl-row.recent .fl-when { color: var(--warn); }
 .fl-tree .fl-row { padding-top: 3px; padding-bottom: 3px; }
-.fl-dir { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; font: 12.5px var(--mono); color: var(--ink-dim); }
-.fl-dir:hover { background: rgba(255, 255, 255, 0.05); }
-.fl-dir.recent .fl-dirname { color: #ffd678; }
-.fl-caret { width: 12px; font-size: 10px; color: var(--ink-faint); transition: transform .15s; }
+.fl-dir { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font: var(--text-size-sm) var(--font-mono); color: var(--text-2); }
+.fl-dir:hover { background: var(--surface-hover); }
+.fl-dir.recent .fl-dirname { color: var(--warn); }
+.fl-caret { width: 12px; font-size: 10px; color: var(--text-3); transition: transform var(--dur-1); }
 .fl-caret.open { transform: rotate(90deg); }
 .fl-dirname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fl-dircount { display: flex; gap: 8px; font: 11px var(--sans); color: var(--ink-faint); white-space: nowrap; }
-.fl-dircount b { font-weight: 500; color: var(--ok); }
-.fl-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
-.fl-badge.e { background: rgba(62, 207, 142, 0.14); color: var(--ok); } .fl-badge.r { background: rgba(127, 200, 255, 0.12); color: var(--sky); }
-.fl-when { font-size: 11px; color: var(--ink-faint); min-width: 56px; text-align: right; }
+.fl-dircount { display: flex; gap: var(--space-3); font: var(--text-size-xs) var(--font-sans); color: var(--text-3); white-space: nowrap; }
+.fl-dircount b { font-weight: var(--weight-medium); color: var(--ok); }
+.fl-badge { font-size: var(--text-size-xs); padding: 1px 7px; border-radius: var(--radius-pill); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fl-badge.e { background: var(--ok-soft); color: var(--ok); } .fl-badge.r { background: var(--accent-soft); color: var(--accent); }
+.fl-when { font-size: var(--text-size-xs); color: var(--text-3); min-width: 56px; text-align: right; }

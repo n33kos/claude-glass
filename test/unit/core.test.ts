@@ -489,6 +489,26 @@ describe('presets', () => {
   });
 });
 
+describe('signals', () => {
+  it('one at a time; spotlight and alert need a window; progress ends at 1; clear removes it', () => {
+    let s = reduce(fresh(), { type: 'signal', kind: 'spotlight', target: 'terminal' }).state;
+    expect(s.signal).toMatchObject({ kind: 'spotlight', target: 'terminal', seq: 1 });
+    s = reduce(s, { type: 'signal', kind: 'spotlight', target: 'terminal' }).state;
+    expect(s.signal?.seq).toBe(2); // a repeat replays
+    expect(() => reduce(s, { type: 'signal', kind: 'alert' })).toThrow(/needs a window/);
+    expect(() => reduce(s, { type: 'signal', kind: 'alert', target: 'nope' })).toThrow(/no such window/);
+    expect(() => reduce(s, { type: 'signal', kind: 'glow' as any })).toThrow(/spotlight, alert, progress or clear/);
+    s = reduce(s, { type: 'signal', kind: 'progress', value: 0.4, label: 'Migrating' }).state;
+    expect(s.signal).toMatchObject({ kind: 'progress', value: 0.4, label: 'Migrating' });
+    expect(reduce(s, { type: 'signal', kind: 'progress', value: 1 }).state.signal).toBeUndefined();
+    expect(reduce(s, { type: 'signal', kind: 'clear' }).state.signal).toBeUndefined();
+    // A signal at a window that's deleted goes with it.
+    let t = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    t = reduce(t, { type: 'signal', kind: 'alert', target: 'notes' }).state;
+    expect(reduce(t, { type: 'instance.delete', id: 'notes' }).state.signal).toBeUndefined();
+  });
+});
+
 describe('updates', () => {
   it('an older plugin install sees the new version; the current one and a checkout never do', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cg-plugins-'));

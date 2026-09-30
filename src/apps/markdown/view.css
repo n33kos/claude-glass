@@ -1,18 +1,18 @@
 @import '../shared/markdown.css';
 
-/* ---- markdown viewer ---- */
+/* ---- markdown viewer (tokens only: docs/design.md) ---- */
 .markdown { height: 100%; overflow: auto; padding: 18px 26px 26px; }
-.markdown .md { max-width: 72ch; font-size: 14px; line-height: 1.6; }
-.markdown .md h1 { font-size: 22px; line-height: 1.25; margin: 0 0 .6em; letter-spacing: -0.01em; }
+.markdown .md { max-width: 72ch; font-size: var(--text-size-lg); line-height: var(--leading-relaxed); }
+.markdown .md h1 { font-size: 22px; line-height: 1.25; margin: 0 0 .6em; letter-spacing: var(--tracking-tight); }
 .markdown .md h2 { font-size: 17px; margin: 1.4em 0 .5em; }
 .markdown .md h3 { font-size: 14.5px; margin: 1.2em 0 .4em; }
-.md-source { font: 11px var(--mono); color: var(--ink-faint); margin-bottom: 12px; }
+.md-source { font: var(--text-size-xs) var(--font-mono); color: var(--text-3); margin-bottom: var(--space-4); }
 /* Following links: back / home bar, and a note when a link can't open here. */
-.md-nav { position: sticky; top: -18px; z-index: 1; display: flex; align-items: center; gap: 8px; margin: -18px -26px 12px; padding: 8px 26px; background: #161924; border-bottom: 1px solid var(--line); }
+.md-nav { position: sticky; top: -18px; z-index: 1; display: flex; align-items: center; gap: var(--space-3); margin: -18px -26px var(--space-4); padding: var(--space-3) 26px; background: var(--surface-overlay); border-bottom: 1px solid var(--border); }
 .markdown .md :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 52px; } /* land below the nav bar */
-.md-nav button { padding: 3px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); color: var(--ink); font-size: 12px; cursor: pointer; }
-.md-nav button:hover { background: rgba(255, 255, 255, 0.16); }
-.md-nav .md-source { margin: 0 0 0 4px; }
-.md-note { margin-bottom: 12px; padding: 6px 10px; border-radius: 6px; background: rgba(242, 196, 107, 0.12); color: #f2c46b; font-size: 12px; }
+.md-nav button { padding: 3px 10px; border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-1); font-size: var(--text-size-sm); font-weight: var(--weight-medium); cursor: pointer; }
+.md-nav button:hover { background: var(--surface-pressed); }
+.md-nav .md-source { margin: 0 0 0 var(--space-1); }
+.md-note { margin-bottom: var(--space-4); padding: var(--space-2) 10px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn-text); font-size: var(--text-size-sm); }
 .markdown .md a { cursor: pointer; }
-.md-empty { color: var(--ink-faint); padding: 18px 4px; font-family: var(--sans); height: 100%; display: grid; place-items: center; text-align: center; padding: 20px; }
+.md-empty { color: var(--text-3); height: 100%; display: grid; place-items: center; text-align: center; padding: var(--space-6); }

@@ -1,24 +1,24 @@
-/* ---- terminal ------------------------------------------------------------------ */
-.terminal { height: 100%; display: flex; flex-direction: column; font: 12px/1.5 var(--mono); }
-.t-filters { display: flex; gap: 6px; padding: 7px 10px; border-bottom: 1px solid var(--line); overflow-x: auto; flex: none; font-family: var(--sans); }
-.t-filters button { padding: 2px 9px; border-radius: 999px; font-size: 11px; background: rgba(127, 200, 255, 0.14); border: 1px solid rgba(127, 200, 255, 0.3); color: #cfe9ff; white-space: nowrap; }
-.t-filters button.off { background: transparent; border-color: var(--line); color: var(--ink-faint); text-decoration: line-through; }
-.t-scroll { flex: 1; overflow: auto; padding: 8px 12px 14px; }
+/* ---- terminal (tokens only: docs/design.md) ------------------------------------- */
+.terminal { height: 100%; display: flex; flex-direction: column; font: var(--text-size-sm)/var(--leading-normal) var(--font-mono); }
+.t-filters { display: flex; gap: var(--space-2); padding: 7px 10px; border-bottom: 1px solid var(--border); overflow-x: auto; flex: none; font-family: var(--font-sans); }
+.t-filters button { padding: var(--space-0) 9px; border-radius: var(--radius-pill); font-size: var(--text-size-xs); background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-text); white-space: nowrap; }
+.t-filters button.off { background: transparent; border-color: var(--border); color: var(--text-3); text-decoration: line-through; }
+.t-scroll { flex: 1; overflow: auto; padding: var(--space-3) var(--space-4) var(--space-4); }
 .t-entry { padding: 3px 0; }
-.t-cmd { display: flex; gap: 8px; align-items: baseline; }
+.t-cmd { display: flex; gap: var(--space-3); align-items: baseline; }
 .t-mark { width: 12px; flex: none; color: var(--ok); text-align: center; }
 .t-error .t-mark { color: var(--bad); }
 .t-locked .t-mark { color: var(--warn); }
-.t-await { margin-left: auto; flex: none; font-size: 11px; color: var(--warn); }
-.t-bash { color: #f1f4fb; word-break: break-all; }
+.t-await { margin-left: auto; flex: none; font-size: var(--text-size-xs); color: var(--warn); }
+.t-bash { color: var(--gray-12); word-break: break-all; }
 .t-bash::first-letter { color: var(--ok); }
-.t-tool { color: var(--ink-dim); word-break: break-all; }
-.t-tool b { color: #cfe9ff; font-weight: 600; }
-.t-dur { margin-left: auto; color: var(--ink-faint); font-size: 11px; flex: none; }
-.t-out { margin: 2px 0 2px 20px; padding: 0 0 0 10px; border-left: 1px solid var(--line); color: #b4bccd; white-space: pre-wrap; word-break: break-all; font: inherit; }
-.t-more { margin-left: 30px; color: var(--sky); font: 11px var(--sans); cursor: pointer; }
-.t-agent { color: #c9b3ff; padding: 3px 0; }
+.t-tool { color: var(--text-2); word-break: break-all; }
+.t-tool b { color: var(--accent-text); font-weight: var(--weight-medium); }
+.t-dur { margin-left: auto; color: var(--text-3); font-size: var(--text-size-xs); flex: none; }
+.t-out { margin: var(--space-0) 0 var(--space-0) var(--space-6); padding: 0 0 0 10px; border-left: 1px solid var(--border); color: var(--gray-10); white-space: pre-wrap; word-break: break-all; font: inherit; }
+.t-more { margin-left: 30px; color: var(--text-link); font: var(--text-size-xs) var(--font-sans); cursor: pointer; }
+.t-agent { color: var(--violet); padding: 3px 0; }
 .t-log { color: var(--warn); padding: 3px 0; }
 .spin { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--warn); border-right-color: transparent; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.t-empty { color: var(--ink-faint); padding: 18px 4px; font-family: var(--sans); }
+.t-empty { color: var(--text-3); padding: var(--space-5) var(--space-1); font-family: var(--font-sans); }

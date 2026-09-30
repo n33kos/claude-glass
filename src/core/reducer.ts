@@ -134,7 +134,8 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       requireInstance(s, a.id);
       // Hooks write to these on every event: they can be closed, not deleted.
       if (a.id === 'terminal' || a.id === 'conversation') throw new Error(`"${a.id}" can be closed but not deleted`);
-      const t = untuck(s, a.id);
+      const t0 = untuck(s, a.id);
+      const t = t0.signal?.target === a.id ? (({ signal: _s, ...rest }) => rest as GlassState)(t0) : t0; // a signal at a deleted window goes with it
       const { [a.id]: _i, ...instances } = t.instances;
       const { [a.id]: _a, ...appState } = t.appState;
       return { state: { ...t, instances, appState, order: t.order.filter((x) => x !== a.id), autoOpened: t.autoOpened.filter((x) => x !== a.id) } };
@@ -233,6 +234,24 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
 
     case 'session.update':
       return { state: { ...s, session: { ...s.session, ...a.patch } } };
+
+    case 'signal': {
+      // Claude's signals. One at a time: a new one replaces the last. The renderer plays and decays it.
+      if (a.kind === 'clear') { const { signal: _s, ...rest } = s; return { state: rest as GlassState }; }
+      if (a.kind !== 'spotlight' && a.kind !== 'alert' && a.kind !== 'progress') throw new Error('signal must be spotlight, alert, progress or clear');
+      if (a.kind !== 'progress') {
+        if (!a.target) throw new Error(`signal ${a.kind} needs a window id`);
+        requireInstance(s, a.target);
+      }
+      const value = a.kind === 'progress' ? Math.max(0, Math.min(1, Number(a.value ?? 0))) : undefined;
+      if (a.kind === 'progress' && !Number.isFinite(value)) throw new Error('signal progress needs a value between 0 and 1');
+      if (a.kind === 'progress' && value! >= 1) { const { signal: _s, ...rest } = s; return { state: rest as GlassState }; }
+      const signal = {
+        kind: a.kind, at: Date.now(), seq: (s.signal?.seq ?? 0) + 1,
+        ...(a.target ? { target: a.target } : {}), ...(value != null ? { value } : {}), ...(a.label ? { label: String(a.label).slice(0, 120) } : {}),
+      };
+      return { state: { ...s, signal } };
+    }
 
     case 'ui.viewDesktop':
       return { state: { ...s, ui: { ...s.ui, viewingDesktop: Math.max(0, Math.floor(a.index)) } } };

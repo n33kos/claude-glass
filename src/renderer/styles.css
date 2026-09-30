@@ -1,19 +1,19 @@
-/* Claude Glass — dark glass over a wallpaper. System type (SF Pro / SF Mono) on purpose:
-   this is a macOS-native surface. One signature element: the presence pill in the top bar. */
+/* Claude Glass: dark glass over a wallpaper. Every value comes from the design tokens
+   (src/sdk/tokens.css, docs/design.md); the shell and app views share them. */
 
-@import './tokens.css';
+@import '../sdk/tokens.css';
 
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 /* clip, not hidden: nothing may scroll the shell. Focus landing in something off-screen (the
-   auto-hidden dock, a hidden edge panel) would otherwise scroll the page and shove it upward. */
+   auto-hidden launcher, a hidden dock) would otherwise scroll the page and shove it upward. */
 html, body, #root, .glass, .stage { overflow: clip; }
-body { font: 13px/1.45 var(--sans); color: var(--ink); background: #0b0d14; overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; }
+body { font: var(--weight-regular) var(--text-size-md)/var(--leading-normal) var(--font-sans); color: var(--text-1); background: var(--surface-base); overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: default; padding: 0; }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-pill); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 .glass { position: relative; isolation: isolate; height: 100%; display: flex; flex-direction: column; }
@@ -21,180 +21,237 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* Wallpaper: base gradient + the light, painted on one small canvas scaled up (backgrounds.ts). */
 .wallpaper { position: absolute; inset: 0; z-index: -1; overflow: hidden; background-size: cover; }
 .wallpaper-light { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* ---- the signal layer (SignalLayer.tsx) ---------------------------------------------------
+   A glow between the wallpaper and the windows, and a ring over the target window. Each signal
+   plays once and decays to graphite; only "waiting" and "progress" hold. Colors: --signal-*. */
+/* The glass sets --signal-gain (the user's strength); computed here, where it's set. */
+.glass { --signal-strength: calc(var(--signal-base) * var(--signal-gain, 1)); }
+.sig-glow { position: absolute; z-index: -1; pointer-events: none; border-radius: 50%; filter: blur(64px); opacity: 0; }
+.sig-glow.at { transition: none; }
+.sig-glow.wash { left: -10%; right: -10%; bottom: -40%; height: 70%; }
+.sig-spotlight { background: var(--signal-look); animation: sig-spot 5.2s var(--ease) forwards; }
+.sig-alert { background: var(--signal-fail); animation: sig-alert 4.6s var(--ease) forwards; }
+.sig-done { left: 15%; right: 15%; top: 15%; bottom: 10%; background: var(--signal-done); animation: sig-done 3.6s var(--ease) forwards; }
+.sig-wait { left: -15%; right: -15%; bottom: -45%; height: 75%; background: var(--signal-wait); animation: sig-breathe 3.2s ease-in-out infinite; }
+.sig-progress { bottom: -35%; width: 40%; height: 60%; background: var(--signal-progress); opacity: calc(var(--signal-strength) * .6); transition: left .8s var(--ease); }
+@keyframes sig-spot { 0% { opacity: 0; } 12% { opacity: var(--signal-strength); } 72% { opacity: var(--signal-strength); } 100% { opacity: 0; } }
+@keyframes sig-alert { 0% { opacity: 0; } 8% { opacity: var(--signal-strength); } 16% { opacity: calc(var(--signal-strength) * .4); } 26% { opacity: var(--signal-strength); } 70% { opacity: calc(var(--signal-strength) * .7); } 100% { opacity: 0; } }
+@keyframes sig-done { 0% { opacity: 0; transform: scale(.7); } 25% { opacity: calc(var(--signal-strength) * .8); transform: scale(1); } 100% { opacity: 0; transform: scale(1.2); } }
+@keyframes sig-breathe { 0%, 100% { opacity: calc(var(--signal-strength) * .45); } 50% { opacity: calc(var(--signal-strength) * .85); } }
+.sig-ring { position: absolute; z-index: 45; pointer-events: none; border-radius: var(--radius-lg); opacity: 0; }
+.sig-ring.sig-spotlight { box-shadow: 0 0 0 1.5px var(--signal-look); background: none; filter: none; animation: sig-spot 5.2s var(--ease) forwards; }
+.sig-ring.sig-alert { box-shadow: 0 0 0 1.5px var(--signal-fail); background: none; filter: none; animation: sig-alert 4.6s var(--ease) forwards; }
+.sig-ring { --signal-strength: 1; }
+/* Progress: a hairline under the top bar, with what's underway. */
+.sig-bar { position: absolute; z-index: 44; left: 0; right: 0; top: 40px; height: 2px; background: var(--border-subtle); pointer-events: none; }
+.sig-bar i { display: block; height: 100%; background: var(--signal-progress); transition: width .8s var(--ease); }
+.sig-bar span { position: absolute; right: var(--space-5); top: var(--space-2); font: var(--text-size-xs) var(--font-mono); color: var(--text-2);
+  padding: var(--space-0) var(--space-3); border-radius: var(--radius-pill); background: var(--surface-overlay); box-shadow: 0 0 0 1px var(--border); }
+@media (prefers-reduced-motion: reduce) {
+  .sig-spotlight, .sig-alert, .sig-done { animation: none; opacity: calc(var(--signal-strength) * .6); }
+  .sig-wait { animation: none; opacity: calc(var(--signal-strength) * .6); }
+}
+
+/* Light theme: the light tints the pale wallpaper instead of glowing on it. */
+[data-theme='light'] .wallpaper-light { mix-blend-mode: multiply; opacity: .55; }
 
 /* ---- top bar ------------------------------------------------------------------ */
 .topbar {
   height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between;
-  padding: 0 16px 0 84px; -webkit-app-region: drag;
-  background: rgba(10, 12, 20, 0.4); /* no backdrop blur on always-on surfaces: see .window */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 var(--space-5) 0 84px; -webkit-app-region: drag;
+  background: var(--surface-bar); /* no backdrop blur on always-on surfaces: see .window */
+  border-bottom: 1px solid var(--border-subtle);
 }
 .topbar button { -webkit-app-region: no-drag; }
 /* macOS fullscreen hides the traffic lights, so their inset goes too. */
-.fullscreen .topbar { padding-left: 16px; }
-.session { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.project { font-weight: 600; font-size: 13px; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fullscreen .topbar { padding-left: var(--space-5); }
+.session { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.project { font-weight: var(--weight-semibold); font-size: var(--text-size-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Presence (Graphite Mono): a neutral pill. Working: the text lifts to --text-1 and the dot beats
+   white. Waiting: an amber hairline and dot, the one status color it uses. Ended: a gray dot. */
 .presence {
-  display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 8px; border-radius: 999px;
-  font-size: 12px; color: var(--ink-dim); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line);
-  transition: color .3s, background .3s, border-color .3s;
+  display: inline-flex; align-items: center; gap: 7px; height: 24px; padding: 0 11px 0 9px; border-radius: var(--radius-pill);
+  font-size: var(--text-size-sm); color: var(--text-2); background: var(--surface-hover);
+  transition: color var(--dur-3), box-shadow var(--dur-3);
 }
-.presence i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); }
-.presence-working { color: #d9efff; background: rgba(127, 200, 255, 0.14); border-color: rgba(127, 200, 255, 0.35); }
-.presence-working i { background: var(--sky); box-shadow: 0 0 0 0 rgba(127, 200, 255, 0.7); animation: pulse 1.6s ease-out infinite; }
-.presence-ended i { background: var(--warn); }
+.presence i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--gray-7); }
+.presence-working { color: var(--text-1); }
+.presence-working i { background: var(--accent); animation: beat 1.6s var(--ease) infinite; }
+.presence-ended i { background: var(--gray-7); }
 .presence { max-width: min(62vw, 720px); white-space: nowrap; overflow: hidden; }
-.presence-waiting { color: #ffe7b3; background: rgba(242, 196, 107, 0.16); border-color: rgba(242, 196, 107, 0.45); }
-.presence-waiting i { flex: none; background: var(--warn); animation: pulse-warn 2.2s ease-out infinite; }
-.presence-detail { color: rgba(255, 231, 179, 0.72); overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 11.5px; }
-.presence-detail::before { content: '·'; margin-right: 7px; color: rgba(255, 231, 179, 0.5); font-family: var(--sans); }
-@keyframes pulse-warn { 0% { box-shadow: 0 0 0 0 rgba(242, 196, 107, 0.6); } 100% { box-shadow: 0 0 0 9px rgba(242, 196, 107, 0); } }
+.presence-waiting { color: var(--text-1); box-shadow: inset 0 0 0 1px var(--warn-line); }
+.presence-waiting i { background: var(--warn); animation: beat 2.2s ease-in-out infinite; }
+.presence-detail { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: var(--text-size-xs); }
+.presence-detail::before { content: '·'; margin-right: var(--space-2); color: var(--text-3); font-family: var(--font-sans); }
+@keyframes beat { 50% { opacity: .35; } }
 
 /* Waiting on the user: faint amber edge glow (setting) + a read-only question card. */
 .glass.waiting-glow::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 60;
-  box-shadow: inset 0 0 0 3px rgba(242, 196, 107, 0.8), inset 0 0 28px 6px rgba(242, 196, 107, 0.45);
+  box-shadow: inset 0 0 0 2px var(--warn-line), inset 0 0 26px 4px var(--warn-soft);
   animation: glow-breathe 3.2s ease-in-out infinite;
 }
 @keyframes glow-breathe { 50% { opacity: .7; } }
 .question-card {
   position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 50; pointer-events: none;
-  width: min(560px, calc(100% - 32px)); max-height: 60%; overflow: hidden; padding: 12px 16px 10px; border-radius: 12px;
-  background: rgba(24, 22, 18, 0.92); backdrop-filter: blur(20px); border: 1px solid rgba(242, 196, 107, 0.4);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  width: min(560px, calc(100% - 32px)); max-height: 60%; overflow: hidden; padding: var(--space-4) var(--space-5) 10px; border-radius: var(--radius-lg);
+  background: var(--surface-overlay); border: 1px solid var(--warn-line); box-shadow: var(--shadow-3);
 }
-.qc-q + .qc-q { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-.qc-header { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--warn); }
-.qc-text { margin: 3px 0 6px; font-size: 14px; font-weight: 600; }
-.qc-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
-.qc-options li { display: flex; gap: 8px; font-size: 12.5px; }
-.qc-options li::before { content: '–'; color: var(--ink-faint); }
-.qc-label { color: var(--ink); white-space: nowrap; }
-.qc-desc { color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.qc-foot { margin: 8px 0 0; font-size: 11px; color: rgba(255, 231, 179, 0.7); }
+.qc-q + .qc-q { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.qc-header { font-size: var(--text-size-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--warn); }
+.qc-text { margin: var(--space-1) 0 var(--space-2); font-size: var(--text-size-lg); font-weight: var(--weight-semibold); }
+.qc-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.qc-options li { display: flex; gap: var(--space-3); font-size: var(--text-size-sm); }
+.qc-options li::before { content: '–'; color: var(--text-3); }
+.qc-label { color: var(--text-1); white-space: nowrap; }
+.qc-desc { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qc-foot { margin: var(--space-3) 0 0; font-size: var(--text-size-xs); color: var(--text-3); }
 @media (prefers-reduced-motion: reduce) { .presence-waiting i, .glass.waiting-glow::after { animation: none; } }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(127, 200, 255, 0.6); } 100% { box-shadow: 0 0 0 9px rgba(127, 200, 255, 0); } }
 @media (prefers-reduced-motion: reduce) { .presence-working i { animation: none; } }
 
 /* A newer version is installed: restart into it. */
-.update-pill { margin-left: auto; margin-right: 14px; display: inline-flex; align-items: center; gap: 7px; padding: 3px 4px 3px 10px; border-radius: 999px;
-  font-size: 12px; color: #d6eeff; background: rgba(127, 200, 255, 0.12); border: 1px solid rgba(127, 200, 255, 0.35); cursor: pointer; }
-.update-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--sky); }
-.update-pill b { font-weight: 600; padding: 1px 9px; border-radius: 999px; background: rgba(127, 200, 255, 0.25); color: #fff; }
-.update-pill:hover b { background: rgba(127, 200, 255, 0.4); }
+/* Spec: a quiet pill, one white action inside it. */
+.update-pill { margin-left: auto; margin-right: var(--space-4); display: inline-flex; align-items: center; gap: var(--space-2); height: 24px; padding: 0 var(--space-0) 0 11px; border-radius: var(--radius-pill);
+  font-size: var(--text-size-sm); color: var(--text-1); background: var(--surface-hover); cursor: pointer; }
+.update-pill i { display: none; }
+.update-pill b { height: 20px; display: inline-flex; align-items: center; font-weight: var(--weight-medium); font-size: var(--text-size-xs); padding: 0 9px; border-radius: var(--radius-pill); background: var(--accent); color: var(--text-on-accent); }
+.update-pill:hover b { background: var(--gray-12); }
 .update-pill:disabled { opacity: .7; padding-right: 10px; }
-.pager { display: flex; gap: 8px; align-items: center; }
-.pager button { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.28); transition: background .2s, transform .2s; }
-.pager button.on { background: #fff; transform: scale(1.25); }
+.pager { display: flex; gap: var(--space-3); align-items: center; }
+.pager button { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }
+.pager button.on { background: var(--text-1); transform: scale(1.25); }
 
 /* ---- stage & windows ---------------------------------------------------------- */
 .stage { position: relative; flex: 1; overflow: clip; } /* clip, not hidden: hidden still scrolls (focus in a tucked frame) */
-.strip { position: absolute; inset: 0; transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
-.empty { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, 0.7); font-size: 14px; }
+.strip { position: absolute; inset: 0; transition: transform .45s var(--ease); }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-2); font-size: var(--text-size-lg); }
 
 .window {
   position: absolute; left: 0; top: 0; display: flex; flex-direction: column; overflow: hidden;
-  border-radius: var(--radius-win);
+  border-radius: var(--radius-lg);
   background: rgba(var(--glass-rgb), var(--glass, .78));
   /* No backdrop-filter: blurring the live wallpaper behind every window re-ran each frame and kept
      the GPU process at ~40% of a core (vs ~19% without), enough to starve other GPU-heavy apps and
      stall WindowServer. The wallpaper is soft already; plain translucency reads the same. */
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 18px 50px rgba(0, 0, 0, 0.35);
-  transition: transform .38s cubic-bezier(.2, .8, .2, 1), width .38s cubic-bezier(.2, .8, .2, 1), height .38s cubic-bezier(.2, .8, .2, 1), box-shadow .2s;
+  /* The edge is a hairline shadow, not a border, so the selected window's white line replaces it
+     without shifting anything. */
+  box-shadow: 0 0 0 1px var(--border), var(--inner-highlight), var(--shadow-2);
+  transition: transform .38s var(--ease), width .38s var(--ease), height .38s var(--ease), box-shadow var(--dur-2);
 }
-.window.dragging { transition: width .2s, height .2s; z-index: 20; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); opacity: .92; }
-.window.drop-target { box-shadow: 0 0 0 2px var(--sky), 0 18px 50px rgba(0, 0, 0, 0.35); }
-/* Select to interact: the selected window is ringed; the others' bodies sit under a clear shield
-   that takes the first click (selects) and lets the wheel walk desktops. */
-.window.selected { box-shadow: 0 0 0 2px rgba(127, 200, 255, 0.75), 0 18px 50px rgba(0, 0, 0, 0.35); }
+.window.dragging { transition: width var(--dur-2), height var(--dur-2); z-index: 20; box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-3); opacity: .92; }
+.window.drop-target { box-shadow: 0 0 0 1px var(--accent), var(--shadow-2); }
+/* Select to interact (spec: "the selected window gets its traffic lights and a white hairline; the
+   others go quiet"). The others' bodies sit under a clear shield that takes the first click
+   (selects) and lets the wheel walk desktops. */
+.window.selected { box-shadow: 0 0 0 1px var(--accent-line), var(--inner-highlight), var(--shadow-2); }
 .body-shield { position: absolute; left: 0; right: 0; top: 36px; bottom: 0; z-index: 3; cursor: pointer; }
 
 .titlebar {
-  position: relative; height: 36px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px;
-  border-bottom: 1px solid var(--line); cursor: grab;
+  position: relative; height: 36px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border-subtle); cursor: grab;
 }
 .window.dragging .titlebar { cursor: grabbing; }
 .lights { display: flex; gap: 7px; }
-.light { width: 12px; height: 12px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); position: relative; }
-.light.close { background: #ff5f57; }
-.light.front { background: #5fb4ff; }
-.light.layout { background: #28c840; }
-.light::after { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; line-height: 12px; font-weight: 700; color: rgba(0, 0, 0, 0.55); opacity: 0; }
+/* Quiet by default: gray dots. The selected window's lights (and any lights under the pointer) take
+   macOS's colors, which read as window controls. */
+.light { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-pressed); position: relative; transition: background var(--dur-1); }
+:is(.window.selected, .lights:hover) .light.close { background: #ff5f57; }
+:is(.window.selected, .lights:hover) .light.front { background: #5fb4ff; }
+:is(.window.selected, .lights:hover) .light.layout { background: #28c840; }
+.light::after { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; line-height: 12px; font-weight: var(--weight-semibold); color: rgba(0, 0, 0, 0.55); opacity: 0; }
 .lights:hover .light::after { opacity: 1; }
 .light.close::after { content: '×'; }
 .light.front::after { content: '↑'; }
 .light.layout::after { content: '⊞'; font-size: 8px; }
-.wtitle { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 7px; align-items: center; }
-.wtitle em { font-style: normal; color: var(--ink-dim); font-weight: 500; }
+.wtitle { font-weight: var(--weight-medium); font-size: var(--text-size-sm); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: var(--space-2); align-items: center; transition: color var(--dur-1); }
+.window.selected .wtitle { color: var(--text-1); }
+.wtitle em { font-style: normal; font-weight: var(--weight-medium); }
 .body { flex: 1; min-height: 0; position: relative; user-select: text; }
 
 .layout-menu {
-  position: absolute; top: 32px; left: 8px; z-index: 30; padding: 6px; border-radius: 10px; min-width: 210px;
-  background: rgba(30, 33, 46, 0.96); border: 1px solid var(--line-strong); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-  display: flex; flex-direction: column; gap: 2px; cursor: default;
+  position: absolute; top: 32px; left: var(--space-3); z-index: 30; padding: var(--space-2); border-radius: var(--radius-md); min-width: 210px;
+  background: var(--surface-overlay); border: 1px solid var(--border-strong); box-shadow: var(--shadow-3);
+  display: flex; flex-direction: column; gap: var(--space-0); cursor: default;
 }
-.layout-menu button { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; text-align: left; }
-.layout-menu button:hover { background: rgba(255, 255, 255, 0.08); }
-.layout-menu button.on { background: rgba(127, 200, 255, 0.16); }
-.layout-menu svg rect { fill: rgba(255, 255, 255, 0.22); }
-.layout-menu button.on svg rect { fill: var(--sky); }
+.layout-menu button { display: flex; align-items: center; gap: 10px; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); text-align: left; }
+.layout-menu button:hover { background: var(--surface-hover); }
+.layout-menu button.on { background: var(--surface-selected); }
+.layout-menu svg rect { fill: var(--border-strong); }
+.layout-menu button.on svg rect { fill: var(--accent); }
 
-/* ---- dock ---------------------------------------------------------------------- */
-/* Deliberately not the macOS dock: a dark, squarer bar with a sky top edge, no magnify, and
-   a bar (not a dot) under running apps, so it never reads as the real desktop. */
-.dock-wrap { flex: none; display: flex; justify-content: center; padding: 2px 0 10px; z-index: 40; pointer-events: none; }
+/* ---- launcher (class names still say "dock") ------------------------------------ */
+/* Deliberately not the macOS dock: a dark, squarer bar, no magnify, and a bar (not a dot) under
+   running apps, so it never reads as the real desktop. */
+.dock-wrap { flex: none; display: flex; justify-content: center; padding: var(--space-0) 0 10px; z-index: 40; pointer-events: none; }
+/* Spec: neutral graphite, concentric (bar 16 = tiles 10 + padding 6), apps keep their own icons. */
 .dock {
-  pointer-events: auto; display: flex; align-items: flex-end; gap: 5px; padding: 6px 8px 9px; border-radius: 12px;
-  background: rgba(12, 14, 22, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.10); border-top-color: rgba(127, 200, 255, 0.35);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  pointer-events: auto; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2) 9px; border-radius: calc(var(--radius-lg) + 4px);
+  background: var(--surface-chrome); box-shadow: 0 0 0 1px var(--border), var(--inner-highlight), var(--shadow-2);
 }
 .dock-item { position: relative; display: flex; flex-direction: column; align-items: center; }
+/* A tile: an app's image icon fills it; an app without one shows its glyph on a neutral tile. */
 .dock-item .tile {
-  width: var(--tile, 38px); height: var(--tile, 38px); border-radius: 8px; display: grid; place-items: center; font-size: calc(var(--tile, 38px) * .45); font-weight: 600;
-  background: linear-gradient(180deg, #3a4157, #252a3a); border: 1px solid rgba(255, 255, 255, 0.12);
-  transition: transform .15s ease-out, filter .15s, opacity .25s;
+  width: var(--tile, 38px); height: var(--tile, 38px); border-radius: calc(var(--radius-lg) + 4px - 6px); display: grid; place-items: center; font-size: calc(var(--tile, 38px) * .45); font-weight: var(--weight-medium);
+  background: var(--gray-5); border: 1px solid var(--border);
+  transition: transform var(--dur-1) ease-out, filter var(--dur-1), opacity var(--dur-2);
 }
-.dock-item:hover .tile { transform: translateY(-2px); filter: brightness(1.15); }
+.dock-item:hover .tile { transform: translateY(-2px); filter: brightness(1.12); }
 .dock-autohide .dock-wrap {
   position: absolute; left: 0; right: 0; bottom: 0; transform: translateY(calc(100% + 2px));
-  transition: transform .22s cubic-bezier(.2, .8, .2, 1) .25s;
+  transition: transform .22s var(--ease) .25s;
 }
 .dock-autohide .dock-hot:hover ~ .dock-wrap, .dock-autohide .dock-wrap:has(.dock:hover) { transform: none; transition-delay: 0s; }
 .dock-hot { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; z-index: 39; }
 .dock-item.off-screen .tile { opacity: .55; filter: saturate(.7); }
 .dock-item.off-screen:hover .tile { opacity: 1; filter: none; }
-.tile-terminal { background: linear-gradient(180deg, #2b2f3a, #13151b) !important; color: #9ef0b5; font-family: var(--mono); }
-.tile-conversation { background: linear-gradient(180deg, #5aa9ff, #2f6fe0) !important; font-size: 17px; }
-.tile-diff { background: linear-gradient(180deg, #3fcf8e, #1f8f5f) !important; color: #fff; }
-.tile-markdown { background: linear-gradient(180deg, #f6d27a, #d99a2b) !important; color: #3a2a06; }
-.tile-image { background: linear-gradient(180deg, #ff8fb1, #d64f7f) !important; color: #fff; }
-.tile-html { background: linear-gradient(180deg, #b392ff, #6f4fd6) !important; color: #fff; }
-.tile-settings { background: linear-gradient(180deg, #9aa1b2, #5d6474) !important; color: #fff; }
 .dock-item .label {
-  position: absolute; bottom: 52px; padding: 3px 8px; border-radius: 6px; white-space: nowrap; font-size: 11.5px;
-  background: rgba(20, 22, 30, 0.9); border: 1px solid var(--line); opacity: 0; pointer-events: none; transition: opacity .12s;
+  position: absolute; bottom: 52px; padding: 3px var(--space-3); border-radius: var(--radius-sm); white-space: nowrap; font-size: var(--text-size-xs);
+  background: var(--surface-overlay); border: 1px solid var(--border); box-shadow: var(--shadow-1); opacity: 0; pointer-events: none; transition: opacity var(--dur-1);
 }
 .dock-item:hover .label { opacity: 1; }
-.running { position: absolute; bottom: -6px; width: 14px; height: 3px; border-radius: 2px; background: var(--sky); }
-.dock-sep { width: 1px; align-self: stretch; margin: 4px 4px; background: rgba(255, 255, 255, 0.18); }
-.dock-sep.screen { margin: 7px 3px; background: rgba(127, 200, 255, 0.32); }
+.running { position: absolute; bottom: -6px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--gray-10); }
+.dock-sep { width: 1px; height: 22px; margin: 0 var(--space-0); background: var(--border); }
+.dock-sep.screen { height: 16px; background: var(--border-subtle); }
 /* Launcher groups: an app's windows under one icon, with a count; the menu lists them. */
-.dock-item .count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
-  display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1; color: #0b0d14; background: #cfe9ff;
-  box-shadow: 0 0 0 2px rgba(12, 14, 22, 0.9); pointer-events: none; }
+.dock-item .count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 var(--space-1); border-radius: var(--radius-pill);
+  display: grid; place-items: center; font-size: 10px; font-weight: var(--weight-semibold); line-height: 1; font-variant-numeric: tabular-nums;
+  color: var(--text-on-accent); background: var(--accent-text); box-shadow: 0 0 0 2px var(--surface-chrome); pointer-events: none; }
 .dock-item.menu-open .label { opacity: 0 !important; }
-.dock-item.menu-open .tile { filter: brightness(1.15); }
+.dock-item.menu-open .tile { filter: brightness(1.12); }
 .launcher-menu { position: fixed; z-index: 45; transform: translateX(-50%); pointer-events: auto; min-width: 200px; max-width: 340px; max-height: 60vh; overflow: auto;
-  padding: 5px; border-radius: 10px; display: flex; flex-direction: column; gap: 1px;
-  background: rgba(20, 23, 34, 0.96); border: 1px solid var(--line-strong); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
-.launcher-menu button { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 6px 9px; border-radius: 6px; text-align: left; touch-action: none; }
-.launcher-menu button:hover { background: rgba(255, 255, 255, 0.08); }
-.launcher-menu button.here .lm-title::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 7px 1px 0; border-radius: 50%; background: var(--sky); }
+  padding: 5px; border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 1px;
+  background: var(--surface-overlay); border: 1px solid var(--border-strong); box-shadow: var(--shadow-3); }
+.launcher-menu button { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 9px; border-radius: var(--radius-sm); text-align: left; touch-action: none; }
+.launcher-menu button:hover { background: var(--surface-hover); }
+.launcher-menu button.here .lm-title::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 7px 1px 0; border-radius: 50%; background: var(--accent); }
 .launcher-menu button.lifted { opacity: .4; }
 .lm-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lm-where { flex: none; font-size: 11px; color: var(--ink-faint); }
+.lm-where { flex: none; font-size: var(--text-size-xs); color: var(--text-3); }
+/* The system corner's Apps button: a neutral tile (it's the system's, not an app's). */
+.dock-item .tile.tile-apps { background: var(--surface-hover); color: var(--text-2); border-color: var(--border); }
+.dock-item.sys:hover .tile-apps, .dock-item.sys.menu-open .tile-apps { color: var(--text-1); background: var(--surface-pressed); }
+/* Apps: a popover of app icons above its button. A count means closed windows to reopen; hovering
+   lists them above the grid. */
+.apps-menu { position: fixed; z-index: 900; bottom: 76px; transform: translateX(-50%); width: min(380px, calc(100vw - 32px)); padding: var(--space-3);
+  border-radius: var(--radius-lg); background: var(--surface-overlay); box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-3); animation: apps-in var(--dur-2) var(--ease); }
+@keyframes apps-in { from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(.98); } }
+.apps-none { margin: var(--space-3); color: var(--text-3); text-align: center; }
+.apps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-1); }
+.apps-tile { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-1) var(--space-3); border-radius: var(--radius-md); cursor: pointer; }
+.apps-tile:hover, .apps-tile.on { background: var(--surface-hover); }
+.apps-icon { position: relative; flex: none; display: grid; place-items: center; }
+.apps-icon.big, .apps-icon.big .app-icon { width: 40px; height: 40px; border-radius: 10px; font-size: 22px; }
+.apps-icon .count { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 var(--space-1); border-radius: var(--radius-pill);
+  display: grid; place-items: center; font-size: 10px; font-weight: var(--weight-semibold); line-height: 1; font-variant-numeric: tabular-nums;
+  color: var(--text-on-accent); background: var(--accent); box-shadow: 0 0 0 2px var(--surface-overlay); }
+.apps-name { min-width: 0; max-width: 100%; font-size: var(--text-size-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.apps-sub { position: absolute; left: 0; right: 0; bottom: calc(100% + var(--space-3)); max-height: 40vh; overflow: auto; padding: var(--space-2);
+  border-radius: var(--radius-lg); background: var(--surface-overlay); box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-3); }
+.apps-sub h4 { margin: var(--space-1) var(--space-2) var(--space-2); font: var(--weight-medium) var(--text-size-2xs) var(--font-mono); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-3); }
+.apps-row { width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); text-align: left; cursor: pointer; }
+.apps-row:hover { background: var(--surface-hover); }
+.apps-row small { flex: none; font-size: var(--text-size-xs); color: var(--text-3); }
+.apps-row.new { color: var(--text-2); border-top: 1px solid var(--border-subtle); border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin-top: var(--space-1); }
 /* An auto-hidden launcher stays up while its menu is open. */
 .dock-autohide .dock-wrap:has(.launcher-menu) { transform: none; transition-delay: 0s; }
 
@@ -203,124 +260,108 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .lightbox:active { cursor: grabbing; }
 .lightbox:focus { outline: none; }
 .lightbox img { max-width: 92vw; max-height: 88vh; object-fit: contain; transform-origin: center; will-change: transform;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); border-radius: 4px; pointer-events: auto; }
-.lb-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px;
-  padding: 6px 8px 6px 14px; border-radius: 10px; background: rgba(20, 22, 30, 0.85); color: var(--ink-dim); font-size: 12px; cursor: default; }
-.lb-zoom { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-.lb-bar button { width: 24px; height: 22px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); }
+  box-shadow: var(--shadow-3); border-radius: var(--radius-xs); pointer-events: auto; }
+.lb-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); border-radius: var(--radius-md); background: var(--surface-overlay); color: var(--text-2); font-size: var(--text-size-sm); cursor: default; }
+.lb-zoom { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.lb-bar button { width: 24px; height: 22px; border-radius: var(--radius-sm); background: var(--surface-hover); }
 @keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
 
 
 /* ---- settings ------------------------------------------------------------------ */
-.settings { height: 100%; overflow: auto; padding: 8px 20px 20px; max-width: 620px; }
-.settings h4 { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 14px 2px 6px; }
-.settings h3 + h4 { margin-top: 4px; }
+.settings { height: 100%; overflow: auto; padding: var(--space-3) var(--space-6) var(--space-6); }
+.settings h4 { font-size: var(--text-size-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-3); margin: var(--space-4) var(--space-0) var(--space-2); }
+.settings h3 + h4 { margin-top: var(--space-1); }
 .s-row select:disabled { opacity: .45; }
-.settings h3 { font-size: 13px; font-weight: 600; color: var(--ink-dim); margin: 22px 0 6px; }
-.s-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.05); margin-bottom: 6px; }
+.settings h3 { font-size: var(--text-size-md); font-weight: var(--weight-semibold); color: var(--text-2); margin: 22px 0 var(--space-2); }
+.s-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: 9px var(--space-4); border-radius: var(--radius-md); background: var(--surface-raised); margin-bottom: var(--space-2); }
 .s-row.s-col { flex-direction: column; align-items: stretch; }
-.s-inline { display: flex; gap: 8px; align-items: center; }
-.s-row select, .s-row input[type=text] { background: rgba(0, 0, 0, 0.25); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; flex: 1; }
-.s-row input[type=range] { accent-color: var(--sky); }
-.s-btn, .s-link { padding: 4px 10px; border-radius: 6px; background: rgba(127, 200, 255, 0.18); color: #d6eeff; cursor: pointer; white-space: nowrap; }
-.s-link { background: none; color: var(--sky); padding: 0; }
-.switch { width: 36px; height: 21px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); position: relative; transition: background .2s; flex: none; }
-.switch i { position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
-.switch.on { background: #34c759; }
-.switch.on i { transform: translateX(15px); }
-.s-color { width: 30px; height: 30px; padding: 0; border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.s-inline { display: flex; gap: var(--space-3); align-items: center; }
+.s-row select, .s-row input[type=text] { height: var(--control-h-md); background: var(--surface-sunken); color: var(--text-1); border: 0; box-shadow: inset 0 0 0 1px var(--border); border-radius: var(--radius-sm); padding: 0 var(--space-3); flex: 1; font: inherit; }
+.s-row select:focus-visible, .s-row input[type=text]:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent-line); }
+.s-row input[type=range] { accent-color: var(--accent); }
+/* Buttons (spec): secondary fill, 28px, 6px radius; hover steps up one level. */
+.s-btn, .s-link { height: var(--control-h-md); display: inline-flex; align-items: center; padding: 0 var(--space-4); border-radius: var(--radius-sm); background: var(--surface-hover); color: var(--text-1); cursor: pointer; white-space: nowrap; font-weight: var(--weight-medium); transition: background var(--dur-1); }
+.s-btn:hover { background: var(--surface-pressed); }
+.s-link { height: auto; background: none; color: var(--text-link); padding: 0; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 2px; }
+/* Toggle (spec): off is a fill with a light knob; on is the white accent with a dark knob. */
+.switch { width: 34px; height: 20px; border-radius: var(--radius-pill); background: var(--surface-pressed); position: relative; transition: background var(--dur-2); flex: none; }
+.switch i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--gray-10); transition: transform var(--dur-2), background var(--dur-2); }
+.switch.on { background: var(--accent); }
+.switch.on i { transform: translateX(14px); background: var(--text-on-accent); }
+.s-color { width: 30px; height: 30px; padding: 0; border: 2px solid var(--border-strong); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
 .s-color::-webkit-color-swatch-wrapper { padding: 0; } .s-color::-webkit-color-swatch { border: none; border-radius: 50%; }
-.s-sub { margin-left: 22px; padding-top: 8px; padding-bottom: 8px; }
-div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom: 8px; }
+.s-sub { margin-left: 22px; padding-top: var(--space-3); padding-bottom: var(--space-3); }
+div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: var(--space-3); padding-bottom: var(--space-3); }
 .s-num { width: 70px; }
-.s-preset > span:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.s-preset-desc { font-size: 12.5px; color: var(--ink-dim); }
-.s-dim { color: var(--ink-dim); font-size: 13px; }
-.s-dot {display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.25); }
-.swatches { display: flex; gap: 8px; }
-.swatches button { width: 54px; height: 34px; border-radius: 7px; border: 2px solid transparent; background-size: cover; cursor: pointer; }
-.swatches button.on { border-color: #fff; }
-.s-foot { color: var(--ink-faint); font: 11px var(--mono); margin-top: 16px; }
-.s-note { color: var(--ink-faint); font-size: 12px; margin: 2px 2px 8px; }
-.s-note code, .s-app code { font: 11px var(--mono); color: var(--ink-dim); }
-.s-reset { margin-left: 10px; font-size: 11px; }
-.s-perms { display: block; margin-top: 3px; font-size: 11px; color: var(--warn); }
-.s-app b { font-weight: 400; margin-right: 4px; }
-.s-app-status { color: var(--ok); font-size: 12px; text-align: right; }
+.s-preset > span:first-child { display: flex; flex-direction: column; gap: var(--space-0); min-width: 0; }
+.s-preset-desc { font-size: var(--text-size-sm); color: var(--text-2); }
+.s-dim { color: var(--text-2); font-size: var(--text-size-md); }
+.s-dot {display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border-strong); }
+.swatches { display: flex; gap: var(--space-3); }
+.swatches button { width: 54px; height: 34px; border-radius: var(--radius-sm); border: 2px solid transparent; background-size: cover; cursor: pointer; }
+.swatches button.on { border-color: var(--text-1); }
+.s-foot { color: var(--text-3); font: var(--text-size-xs) var(--font-mono); margin-top: var(--space-5); }
+.s-note { color: var(--text-3); font-size: var(--text-size-sm); margin: var(--space-0) var(--space-0) var(--space-3); }
+.s-note code, .s-app code { font: var(--text-size-xs) var(--font-mono); color: var(--text-2); }
+.s-reset { margin-left: 10px; font-size: var(--text-size-xs); }
+.s-perms { display: block; margin-top: 3px; font-size: var(--text-size-xs); color: var(--warn); }
+.s-app b { font-weight: var(--weight-regular); margin-right: var(--space-1); }
+.s-app-status { color: var(--ok); font-size: var(--text-size-sm); text-align: right; }
 .s-app-bad .s-app-status { color: var(--bad); }
-.app-missing { padding: 20px; color: var(--ink-faint); }
+.app-missing { padding: var(--space-6); color: var(--text-3); }
 
 /* App views in sandboxed frames (built-in and mods). */
 .appframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
 .window { transition-property: transform, width, height, box-shadow, opacity; }
 /* Nested view (spiral): counters for windows scrolled past / too deep to show. */
-.nest-badge { position: absolute; z-index: 30; transform: translateX(-50%); padding: 3px 10px; border-radius: 999px; font-size: 11px;
-  background: rgba(20, 23, 34, 0.85); border: 1px solid var(--line); color: var(--ink-dim); }
+.nest-badge { position: absolute; z-index: 30; transform: translateX(-50%); padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--text-size-xs);
+  background: var(--surface-overlay); border: 1px solid var(--border); color: var(--text-2); }
 .nest-badge.top { top: 4px; cursor: pointer; }
 .nest-badge.bottom { bottom: 4px; transform: none; }
 
-/* ---- edge sidebars (stored as "tucked") -------------------------------------------- */
+/* ---- docks (stored as "tucked") -------------------------------------------------- */
 /* Drop strips shown while dragging a window. */
 .tuck-zone { position: absolute; z-index: 40; display: grid; place-items: center; pointer-events: none;
-  background: rgba(127, 200, 255, 0.10); border: 1px dashed rgba(127, 200, 255, 0.35); transition: background .15s; }
-.tuck-zone span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: rgba(207, 233, 255, 0.7); }
-.tuck-zone.on { background: rgba(127, 200, 255, 0.32); }
+  background: var(--accent-soft); border: 1px dashed var(--accent-line); transition: background var(--dur-1); }
+.tuck-zone span { font-size: var(--text-size-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--accent-text); }
+.tuck-zone.on { background: var(--accent-line); }
 .tuck-zone.left, .tuck-zone.right { top: 0; bottom: 0; width: 44px; }
 .tuck-zone.left { left: 0; } .tuck-zone.right { right: 0; }
 .tuck-zone.left span, .tuck-zone.right span { writing-mode: vertical-rl; }
 .tuck-zone.top, .tuck-zone.bottom { left: 44px; right: 44px; height: 44px; }
 .tuck-zone.top { top: 0; } .tuck-zone.bottom { bottom: 0; }
-/* The drawer pull. The rail is black and runs from just off the screen edge; its size/position are
-   set inline per state (idle: a short thin strip around the capsule; near: longer and thicker;
-   open: backs the whole drawer, reaching in under its windows). The capsule holds the pinned apps'
-   icons with the rail's thickness as its margin, flush to the edge like a camera bevel; hovering
-   eases it off the edge, and it hides under the drawer when open. */
-.edge-rail { position: absolute; z-index: 35; background: #000; pointer-events: none;
-  transition: top .32s cubic-bezier(.2, .8, .2, 1), left .32s cubic-bezier(.2, .8, .2, 1), width .32s cubic-bezier(.2, .8, .2, 1), height .32s cubic-bezier(.2, .8, .2, 1); }
-.edge-rail.left { border-radius: 0 999px 999px 0; } .edge-rail.right { border-radius: 999px 0 0 999px; }
-.edge-rail.top { border-radius: 0 0 999px 999px; } .edge-rail.bottom { border-radius: 999px 999px 0 0; }
-/* Corner rails lie along the top/bottom edge from the corner; only their inner end is round. */
-.edge-rail.top-left { border-radius: 0 0 999px 0; } .edge-rail.top-right { border-radius: 0 0 0 999px; }
-.edge-rail.bottom-right { border-radius: 999px 0 0 0; } .edge-rail.bottom-left { border-radius: 0 999px 0 0; }
-/* Open: the rail grows into a solid backing behind the whole dock (same black as when closed). */
-.edge-rail.open.left { border-radius: 0 22px 22px 0; } .edge-rail.open.right { border-radius: 22px 0 0 22px; }
-.edge-rail.open.top { border-radius: 0 0 22px 22px; } .edge-rail.open.bottom { border-radius: 22px 22px 0 0; }
-.edge-rail.open.top-left { border-radius: 0 0 22px 0; } .edge-rail.open.top-right { border-radius: 0 0 0 22px; }
-.edge-rail.open.bottom-right { border-radius: 22px 0 0 0; } .edge-rail.open.bottom-left { border-radius: 0 22px 0 0; }
-/* Where two open backings meet at an inside corner: a fillet (drawn inline as a radial gradient)
-   rounds it. It waits for the rails to finish growing, so it never shows ahead of them. */
-.edge-fillet { position: absolute; z-index: 35; pointer-events: none; animation: fillet-in .18s ease-out .3s both; }
-/* While a dock is resized, backings and fillets follow the pointer exactly (no easing to lag behind). */
-.edge-fillet.live { animation: none; }
-.edge-rail.live { transition: none; }
-@keyframes fillet-in { from { opacity: 0; } to { opacity: 1; } }
-/* The capsule is placed by its center (inline left/top), so every state move animates. */
-.edge-cap { position: absolute; z-index: 37; translate: -50% -50%; display: flex; gap: 6px; align-items: center; padding: 7px; background: #000;
-  color: rgba(255, 255, 255, 0.85); font-size: 22px; line-height: 1; cursor: pointer;
-  transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), border-radius .2s, background .2s; }
+/* The pull. No backing: docked windows float like any window. Closed, a dock is a small capsule of
+   graphite chrome holding its apps' own icons, just in from the edge; hovering the edge brightens it
+   (it never moves under the pointer). Placed by its center (inline left/top), so moves animate. */
+.edge-cap { position: absolute; z-index: 37; translate: -50% -50%; display: flex; gap: 6px; align-items: center; padding: 7px;
+  border-radius: calc(var(--radius-md) + 7px); background: var(--surface-chrome); box-shadow: 0 0 0 1px var(--border), var(--shadow-2);
+  color: var(--text-1); line-height: 1; cursor: pointer;
+  transition: left var(--dur-3) var(--ease), top var(--dur-3) var(--ease), background var(--dur-1), box-shadow var(--dur-1), opacity var(--dur-2); }
 .edge-cap > span { display: grid; place-items: center; width: 34px; height: 34px; }
-.edge-cap .app-icon { width: 30px; height: 30px; }
+.edge-cap .app-icon { width: 34px; height: 34px; border-radius: var(--radius-md); }
 .edge-cap.left, .edge-cap.right { flex-direction: column; }
-.edge-cap.left { border-radius: 0 18px 18px 0; } .edge-cap.right { border-radius: 18px 0 0 18px; }
-.edge-cap.top { border-radius: 0 0 18px 18px; } .edge-cap.bottom { border-radius: 18px 18px 0 0; }
-.edge-cap.top-left { border-radius: 0 0 18px 0; } .edge-cap.top-right { border-radius: 0 0 0 18px; }
-.edge-cap.bottom-right { border-radius: 18px 0 0 0; } .edge-cap.bottom-left { border-radius: 0 18px 0 0; }
-/* Open: a small round keep-open pin on the dock's inner edge. On a kept dock it's out of sight
-   until the pointer is over the dock (or the pin's spot), so a kept dock reads as quiet furniture. */
-.edge-cap.open { padding: 6px; border-radius: 999px; background: rgba(12, 14, 22, 0.88); border: 1px solid var(--line);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); color: var(--ink-faint);
-  transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), border-radius .2s, background .2s, opacity .2s; }
-.edge-cap.open:hover { color: var(--ink); border-color: var(--sky); }
-.edge-cap.open.kept { color: rgba(127, 200, 255, 0.8); }
-.edge-cap.open.kept:not(.hover) { opacity: 0; }.edge-cap svg { display: block; transition: transform .2s; }
-/* With an auto-hidden dock, the closed bottom pull sits above the dock's trigger strip (the whole
-   rest of the edge raises the dock), and fades out while the dock is up so they never overlap. */
-.dock-autohide :is(.edge-cap.bottom, .edge-cap.bottom-left, .edge-cap.bottom-right):not(.open) { z-index: 41; transition: left .3s cubic-bezier(.2, .8, .2, 1), top .3s cubic-bezier(.2, .8, .2, 1), opacity .15s; }
+.edge-cap.near { background: var(--surface-overlay); box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-3); }
+/* Open: the lock on the dock's inner edge, shown while the pointer is over the dock: open (click
+   to keep the dock open) or closed and lit (kept open; click to release). */
+.edge-cap.open { width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: var(--radius-pill); color: var(--text-2);
+  background: var(--surface-overlay); box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-2); opacity: 0; }
+.edge-cap.open.hover, .edge-cap.open:hover { opacity: 1; }
+.edge-cap.open:hover { color: var(--text-1); box-shadow: 0 0 0 1px var(--accent-line), var(--shadow-2); }
+.edge-cap.open.kept { color: var(--text-1); }
+.edge-cap svg { display: block; flex: none; }
+/* An open dock, hovered: a faint frame around it says it's one unit (and what the pill acts on). */
+.edge-panel.open.hover::before { content: ''; position: absolute; inset: -6px; border-radius: calc(var(--radius-lg) + 6px); pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--border); animation: dock-frame var(--dur-2) ease-out both; }
+@keyframes dock-frame { from { opacity: 0; } }
+/* With an auto-hidden launcher, the closed bottom pull sits above the launcher's trigger strip (the
+   whole rest of the edge raises it), and fades out while it's up so they never overlap. */
+.dock-autohide :is(.edge-cap.bottom, .edge-cap.bottom-left, .edge-cap.bottom-right):not(.open) { z-index: 41; }
 .dock-autohide :is(.edge-hot.bottom-left, .edge-hot.bottom-right) { z-index: 41; }
-.dock-autohide:has(.dock-hot:hover, .dock:hover) :is(.edge-cap.bottom:not(.open), .edge-rail.bottom:not(.open)) { opacity: 0; pointer-events: none; }
+.dock-autohide:has(.dock-hot:hover, .dock:hover) .edge-cap.bottom:not(.open) { opacity: 0; pointer-events: none; }
 /* Placed inline (left/top); hidden, a dock waits just off its edge (a corner dock, off both). */
-.edge-panel { position: absolute; z-index: 36; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; opacity: 0; pointer-events: none; }
-.edge-panel .window { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }
+.edge-panel { position: absolute; z-index: 36; transition: transform .28s var(--ease), opacity var(--dur-2); opacity: 0; pointer-events: none; }
+.edge-panel .window { box-shadow: var(--inner-highlight), var(--shadow-3); }
 .edge-panel.left { transform: translateX(calc(-100% - 24px)); }
 .edge-panel.right { transform: translateX(calc(100% + 24px)); }
 .edge-panel.top { transform: translateY(calc(-100% - 24px)); }
@@ -330,33 +371,35 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 .edge-panel.bottom-right { transform: translate(calc(100% + 24px), calc(100% + 24px)); }
 .edge-panel.bottom-left { transform: translate(calc(-100% - 24px), calc(100% + 24px)); }
 .edge-panel.open { transform: none; opacity: 1; pointer-events: auto; }
+/* A dock slid out on hover (not kept) comes over kept-open ones, never beneath them. */
+.edge-panel.open:not(.kept) { z-index: 38; }
+.edge-cap.open:not(.kept) { z-index: 39; }
 
-/* While anything is dragged (window, dock icon, sidebar edge), app frames ignore the pointer: they'd
+/* While anything is dragged (window, launcher icon, dock edge), app frames ignore the pointer: they'd
    swallow the moves and the drop, and pointer capture doesn't stop that. */
 .stage.dragging-any iframe, body.frames-off iframe { pointer-events: none; }
 
-/* Dock: crowded docks scroll with faded ends; dragging icons reorders or tucks. */
+/* Launcher: a crowded one scrolls with faded ends; dragging icons reorders or docks. */
 .dock.crowded { max-width: calc(100vw - 32px); overflow-x: auto; scrollbar-width: none;
   mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
 .dock.crowded::-webkit-scrollbar { display: none; }
 .dock-item { touch-action: none; }
 .dock-item.lifted .tile { opacity: .3; }
-.dock-item.drop-before::before, .dock.drop-end::after { content: ''; align-self: stretch; width: 3px; margin: 0 -1px; border-radius: 2px; background: var(--sky); }
-.dock-item.drop-before::before { position: absolute; left: -5px; top: 0; bottom: 6px; }
+.dock-item.drop-before::before, .dock.drop-end::after { content: ''; align-self: stretch; width: 3px; margin: 0 -1px; border-radius: 2px; background: var(--accent); }
+.dock-item.drop-before::before { position: absolute; left: -5px; top: 0; bottom: var(--space-2); }
 .dock-ghost { position: fixed; z-index: 1000; pointer-events: none; transform: translate(-50%, -60%) scale(1.1); filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)); }
-.dock-ghost .tile { width: 42px; height: 42px; border-radius: 9px; display: grid; place-items: center; font-size: 19px; font-weight: 600;
-  background: linear-gradient(180deg, #3a4157, #252a3a); border: 1px solid rgba(255, 255, 255, 0.2); }
+.dock-ghost .tile { width: 42px; height: 42px; border-radius: var(--radius-md); display: grid; place-items: center; font-size: 19px; font-weight: var(--weight-medium);
+  background: var(--gray-5); border: 1px solid var(--border-strong); }
 
-/* Image app icons: fill a dock tile; sit inline in title bars, edge tabs and Settings. */
+/* Image app icons: fill a launcher tile; sit inline in title bars, dock tabs and Settings. */
 .app-icon { width: 1em; height: 1em; object-fit: contain; vertical-align: -0.15em; }
 /* Image icons are full-tile artwork (their own color and shape): no tile color or border behind them. */
-.dock-item .tile.has-img, .dock-ghost .tile:has(.app-icon) { background: none !important; border-color: transparent; padding: 0; overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
-.wtitle em .app-icon { width: 16px; height: 16px; border-radius: 4px; vertical-align: -3px; }
+.dock-item .tile.has-img, .dock-ghost .tile:has(.app-icon) { background: none !important; border-color: transparent; padding: 0; overflow: hidden; box-shadow: var(--shadow-1); }
+.wtitle em .app-icon { width: 16px; height: 16px; border-radius: var(--radius-xs); vertical-align: -3px; }
 .tile .app-icon { width: 100%; height: 100%; }
-/* Keep-open handle on a panel's inner edge. */
-.edge-panel.kept .window { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+.edge-panel.kept .window { box-shadow: var(--inner-highlight), var(--shadow-2); }
 
-/* Edge sidebars: hovering anywhere along an edge reveals its sidebar; a kept sidebar resizes from
+/* Docks: hovering anywhere along an edge (or a corner) reveals its dock; a kept dock resizes from
    its inner edge and lights up as a drop target. */
 .edge-hot { position: absolute; z-index: 34; }
 .edge-hot.left, .edge-hot.right { top: 0; bottom: 0; width: 10px; }
@@ -379,20 +422,20 @@ div.s-sub { padding: 0; } div.s-sub > .s-row { padding-top: 8px; padding-bottom:
 .edge-resize.corner { width: 16px; height: 16px; z-index: 2; }
 .edge-resize.top-left { right: -14px; bottom: -14px; cursor: nwse-resize; } .edge-resize.bottom-right { left: -14px; top: -14px; cursor: nwse-resize; }
 .edge-resize.top-right { left: -14px; bottom: -14px; cursor: nesw-resize; } .edge-resize.bottom-left { right: -14px; top: -14px; cursor: nesw-resize; }
-.edge-resize:hover, .edge-panel.resizing .edge-resize { background: rgba(127, 200, 255, 0.25); border-radius: 4px; }
-/* The gap between two windows in a sidebar: drag it to change their shares. */
-.edge-split { position: absolute; z-index: 4; border-radius: 4px; }
+.edge-resize:hover, .edge-panel.resizing .edge-resize { background: var(--accent-soft); border-radius: var(--radius-xs); }
+/* The gap between two windows in a dock: drag it to change their shares. */
+.edge-split { position: absolute; z-index: 4; border-radius: var(--radius-xs); }
 .edge-split.rows { cursor: row-resize; } .edge-split.cols { cursor: col-resize; }
-.edge-split:hover, .edge-split:active { background: rgba(127, 200, 255, 0.25); }
+.edge-split:hover, .edge-split:active { background: var(--accent-soft); }
 .edge-panel.resizing { transition: none; }
-.edge-panel.drop-on::after { content: ''; position: absolute; inset: -4px; z-index: -1; border-radius: calc(var(--radius-win) + 4px);
-  box-shadow: 0 0 0 2px rgba(127, 200, 255, 0.55); pointer-events: none; }
-/* Placeholder slot where a dragged window will land (layout or sidebar). */
-.drop-ghost { position: absolute; left: 0; top: 0; border-radius: var(--radius-win); pointer-events: none;
-  background: rgba(127, 200, 255, 0.10); border: 2px dashed rgba(127, 200, 255, 0.6); transition: transform .18s, width .18s, height .18s; }
-/* Pin targets shown mid-edge while dragging. */
+.edge-panel.drop-on::after { content: ''; position: absolute; inset: -4px; z-index: -1; border-radius: calc(var(--radius-lg) + 4px);
+  box-shadow: 0 0 0 2px var(--accent-line); pointer-events: none; }
+/* Placeholder slot where a dragged window will land (layout or dock). */
+.drop-ghost { position: absolute; left: 0; top: 0; border-radius: var(--radius-lg); pointer-events: none;
+  background: var(--accent-soft); border: 2px dashed var(--accent-line); transition: transform .18s, width .18s, height .18s; }
+/* Dock targets shown mid-edge and in the corners while dragging. */
 .pin-target { position: absolute; z-index: 41; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%;
-  display: grid; place-items: center; color: #cfe9ff; background: rgba(20, 23, 34, 0.78); border: 2px dashed rgba(127, 200, 255, 0.55);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); pointer-events: none; transition: transform .12s, background .12s; }
+  display: grid; place-items: center; color: var(--accent-text); background: var(--surface-overlay); border: 2px dashed var(--accent-line);
+  box-shadow: var(--shadow-2); pointer-events: none; transition: transform var(--dur-1), background var(--dur-1); }
 .pin-target svg { fill: currentColor; }
-.pin-target.on { transform: scale(1.15); background: rgba(127, 200, 255, 0.35); border-style: solid; color: #fff; }
+.pin-target.on { transform: scale(1.15); background: var(--accent-line); border-style: solid; color: var(--gray-12); }

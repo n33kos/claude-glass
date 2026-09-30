@@ -6,6 +6,7 @@ import { settingValues, type AppInfo } from '../apps/types';
 import type { GlassState, InstanceMeta } from '../core/types';
 import { Lightbox } from './Lightbox';
 import { dispatch } from './store';
+import { useThemeValue } from './theme';
 
 interface Props {
   app: AppInfo;
@@ -26,7 +27,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
 
   const session = { cwd: glass.session.cwd, activity: glass.session.activity, ended: !!glass.session.endedAt, waiting: glass.session.waiting ?? null };
   const settings = useMemo(() => settingValues(app, stored), [app, stored]);
-  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings };
+  const theme = useThemeValue(); // the shell's (theme.ts); the frame sets it on its own page
+  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings, theme };
   const post = (msg: object) => ref.current?.contentWindow?.postMessage({ glass: 1, ...msg }, '*');
   const latest = useRef(props);
   latest.current = props;
@@ -88,7 +90,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sto
 
   // Props on ready and on every change (state slices keep identity when unchanged).
   useEffect(() => { if (ready) post({ kind: 'props', props }); },
-    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings]); // eslint-disable-line react-hooks/exhaustive-deps
+    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings, theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live frames for this instance (browser stream); the latest ones are replayed on 'ready'.
   useEffect(() => window.glass.onFrame((f) => { if (f.id === id) post({ kind: 'frame', source: f.source, data: f.data }); }), [id]); // eslint-disable-line react-hooks/exhaustive-deps

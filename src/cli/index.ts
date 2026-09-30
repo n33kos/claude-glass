@@ -341,6 +341,22 @@ async function main(argv: string[]) {
       out({ colors: now ?? null }, now ? `Background light: ${now.join(', ')} (this session)` : "Background light: the user's own");
       return;
     }
+    case 'signal': {
+      // The signal layer: point at a window, flag one that broke, or show progress through the wallpaper light.
+      const sid = sessionId(flags);
+      const [kind, arg] = rest;
+      const usage = 'usage: claude-glass signal spotlight <window> | alert <window> | progress <0..1> [--label L] | clear';
+      if (kind === 'spotlight' || kind === 'alert') {
+        if (!arg) throw new Error(usage);
+        await dispatch(sid, { type: 'signal', kind, target: arg });
+      } else if (kind === 'progress') {
+        if (arg === undefined || !Number.isFinite(Number(arg))) throw new Error(usage);
+        await dispatch(sid, { type: 'signal', kind, value: Number(arg), label: typeof flags.label === 'string' ? flags.label : undefined });
+      } else if (kind === 'clear') await dispatch(sid, { type: 'signal', kind: 'clear' });
+      else throw new Error(usage);
+      out({ ok: true }, 'ok');
+      return;
+    }
     case 'settings': {
       const [sub, key, value] = rest;
       if (sub === 'set') {

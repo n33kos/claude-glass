@@ -1,16 +1,17 @@
 @import '../shared/markdown.css';
 
-/* ---- conversation -------------------------------------------------------------- */
-.conversation { height: 100%; overflow: auto; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 10px; }
-.msg { max-width: 86%; padding: 9px 13px; border-radius: 16px; line-height: 1.5; font-size: 13.5px; }
-.msg.user { align-self: flex-end; background: linear-gradient(180deg, #3d8bff, #2a6fe6); color: #fff; border-bottom-right-radius: 5px; }
+/* ---- conversation (tokens only: docs/design.md) --------------------------------- */
+.conversation { height: 100%; overflow: auto; padding: var(--space-4) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 86%; padding: 9px 13px; border-radius: var(--radius-xl); line-height: var(--leading-normal); font-size: var(--text-size-md); }
+/* The user's own words: a soft accent tint (not a solid bubble), so the reply stays the focus. */
+.msg.user { align-self: flex-end; background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--text-1); border-bottom-right-radius: var(--radius-xs); }
 .msg.user p { margin: 0; white-space: pre-wrap; }
-.msg.assistant { align-self: flex-start; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
-.msg.streaming .md > :last-child::after { content: '▍'; color: var(--sky); animation: blink 1s steps(2) infinite; }
+.msg.assistant { align-self: flex-start; background: var(--surface-hover); border: 1px solid var(--border); border-bottom-left-radius: var(--radius-xs); }
+.msg.streaming .md > :last-child::after { content: '▍'; color: var(--accent); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-.msg.thinking { display: flex; gap: 4px; padding: 12px 14px; }
-.msg.thinking span { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); animation: bob 1.2s infinite ease-in-out; }
+.msg.thinking { display: flex; gap: var(--space-1); padding: var(--space-4) var(--space-4); }
+.msg.thinking span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-2); animation: bob 1.2s infinite ease-in-out; }
 .msg.thinking span:nth-child(2) { animation-delay: .15s; }
 .msg.thinking span:nth-child(3) { animation-delay: .3s; }
 @keyframes bob { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
-.c-empty { color: var(--ink-faint); padding: 18px 4px; font-family: var(--sans); }
+.c-empty { color: var(--text-3); padding: var(--space-5) var(--space-1); }

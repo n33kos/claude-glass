@@ -11,8 +11,9 @@ type Item = { title?: string; note?: string; tone?: Tone; [k: string]: any };
 const item = (v: any): Item => (typeof v === 'string' ? { title: v } : v ?? {});
 
 // No red in the default palette: red is for tone "bad" only, so it always means something.
-const PALETTE = ['#7cc4ff', '#a78bfa', '#5eead4', '#fbbf24', '#818cf8', '#4ade80', '#f472b6', '#38bdf8'];
-const TONES: Record<string, string> = { good: '#4ade80', bad: '#fb7185', warn: '#fbbf24', info: '#7cc4ff', muted: '#94a3b8' };
+// Colors come from the design tokens (docs/design.md): the categorical series, and status tones.
+const PALETTE = ['var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)', 'var(--cat-5)', 'var(--cat-6)'];
+const TONES: Record<string, string> = { good: 'var(--ok)', bad: 'var(--bad)', warn: 'var(--warn)', info: 'var(--info)', muted: 'var(--gray-9)' };
 const accent = (it: Item, i: number) => (it.tone && TONES[it.tone]) || PALETTE[i % PALETTE.length];
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const acc = (c: string, extra: CSSProperties = {}): CSSProperties => ({ ['--a' as string]: c, ...extra });
@@ -54,13 +55,16 @@ function Node({ it, color, n, style, className = '', delay = 0 }: { it: Item; co
   );
 }
 
+/** An id-safe name for a color (they're token references like var(--cat-1)). */
+const markerId = (c: string) => `ah-${c.replace(/[^A-Za-z0-9]/g, '')}`;
+
 /** Gradient defs for connectors (one per color) + the flowing-dash overlay style. */
 function Defs({ colors }: { colors: string[] }) {
   return (
     <defs>
       {[...new Set(colors)].map((c) => (
-        <marker key={c} id={`ah-${c.slice(1)}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M1 1 L9 5 L1 9 z" fill={c} />
+        <marker key={c} id={markerId(c)} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M1 1 L9 5 L1 9 z" style={{ fill: c }} />
         </marker>
       ))}
     </defs>
@@ -69,7 +73,7 @@ function Defs({ colors }: { colors: string[] }) {
 function Wire({ d, color, arrow = true, dashed = false }: { d: string; color: string; arrow?: boolean; dashed?: boolean }) {
   return (
     <g className="dg-wire" style={acc(color)}>
-      <path d={d} className={`base${dashed ? ' dashed' : ''}`} markerEnd={arrow ? `url(#ah-${color.slice(1)})` : undefined} />
+      <path d={d} className={`base${dashed ? ' dashed' : ''}`} markerEnd={arrow ? `url(#${markerId(color)})` : undefined} />
       {!dashed && <path d={d} className="flow" />}
     </g>
   );
@@ -195,7 +199,7 @@ function Timeline({ b, events }: { b: Box; events: Item[] }) {
     <>
       <svg className="dg-svg" width={b.W} height={b.H}>
         {/* userSpaceOnUse: a straight line has no height, so a bounding-box gradient wouldn't draw */}
-        <defs><linearGradient id="tl-axis" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={wide ? b.W : 0} y2={wide ? 0 : b.H}>{colors.map((c, i) => <stop key={i} offset={`${((i + 0.5) / n) * 100}%`} stopColor={c} />)}</linearGradient></defs>
+        <defs><linearGradient id="tl-axis" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={wide ? b.W : 0} y2={wide ? 0 : b.H}>{colors.map((c, i) => <stop key={i} offset={`${((i + 0.5) / n) * 100}%`} style={{ stopColor: c }} />)}</linearGradient></defs>
         <path d={axis} className="dg-axis" stroke="url(#tl-axis)" />
         {events.map((_, i) => {
           const p = pos(i), side = i % 2 ? 1 : -1, stem = cardAcross * 0.25 + b.s;

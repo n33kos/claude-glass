@@ -1,16 +1,18 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { computeDesktops, cornerHeight, cornerSides, desktopsFor, DOCKS, EDGES, edgeSize, effectiveLayout, isCorner, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Corner, Dock, Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon, iconSrc } from './AppIcon';
+import { ThemeContext, useTheme } from './theme';
+import { SignalLayer } from './SignalLayer';
 import { FrameView } from './FrameView';
 import { apps, dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
 
 const PAD = 12;
 const GAP = 12;
-const WIN_RADIUS = 12; // --radius-win
 
 interface Rect { x: number; y: number; w: number; h: number }
 // scale < 1: the window is laid out at rect/scale and shrunk, a zoomed-out copy (carousel tiles).
@@ -105,47 +107,6 @@ function pinTargetCenter(edge: Dock, W: number, H: number, s: TuckState): { x: n
   }[edge];
 }
 
-/**
- * The black backing behind an open dock, in stage coordinates: from just off the screen edge to
- * half a gap past the dock, so its edge sits mid-gap between the dock and the layout. Edge
- * backings run the screen's full length, inset so their rounded ends show.
- */
-function backingRect(edge: Dock, r: Rect, W: number, H: number): Rect {
-  const B = GAP / 2, E = 6;
-  const toLeft = { x: -4, w: r.x + r.w + B + 4 }, toRight = { x: r.x - B, w: W - r.x + B + 4 };
-  const toTop = { y: -4, h: r.y + r.h + B + 4 }, toBottom = { y: r.y - B, h: H - r.y + B + 4 };
-  const long = { x: E, w: W - E * 2 }, tall = { y: E, h: H - E * 2 };
-  return {
-    left: { ...toLeft, ...tall }, right: { ...toRight, ...tall }, top: { ...long, ...toTop }, bottom: { ...long, ...toBottom },
-    'top-left': { ...toLeft, ...toTop }, 'top-right': { ...toRight, ...toTop },
-    'bottom-right': { ...toRight, ...toBottom }, 'bottom-left': { ...toLeft, ...toBottom },
-  }[edge];
-}
-
-/**
- * Where open backings meet at an inside corner (the left dock's and the top dock's, say), a small
- * fillet rounds it, matching their rounded ends. Found generally: wherever a vertical side of one
- * backing crosses a horizontal side of another, three of the four quadrants around the crossing
- * are covered, and the fillet fills the empty one's corner.
- */
-function fillets(rects: Rect[], W: number, H: number): { x: number; y: number; R: number; qx: number; qy: number }[] {
-  const out: { x: number; y: number; R: number; qx: number; qy: number }[] = [];
-  const inside = (C: Rect, x: number, y: number) => x > C.x && x < C.x + C.w && y > C.y && y < C.y + C.h;
-  for (const A of rects) for (const B of rects) {
-    if (A === B) continue;
-    for (const ax of [A.x, A.x + A.w]) for (const by of [B.y, B.y + B.h]) {
-      if (!(ax > B.x && ax < B.x + B.w && by > A.y && by < A.y + A.h)) continue;
-      if (ax < 30 || ax > W - 30 || by < 30 || by > H - 30) continue; // screen corners keep their rounded ends
-      const qx = ax === A.x ? -1 : 1, qy = by === B.y ? -1 : 1; // the empty quadrant: away from A in x, from B in y
-      if (rects.some((C) => inside(C, ax + qx * 2, by + qy * 2))) continue; // a third backing covers it
-      // Concentric with the window sitting in the notch: its corner radius plus the half gap between.
-      const R = Math.min(WIN_RADIUS + GAP / 2, qx > 0 ? B.x + B.w - ax : ax - B.x, qy > 0 ? A.y + A.h - by : by - A.y);
-      if (R >= 4) out.push({ x: qx > 0 ? ax : ax - R, y: qy > 0 ? by : by - R, R, qx, qy });
-    }
-  }
-  return out;
-}
-
 type Inset = { l: number; r: number; t: number; b: number };
 
 // Windows scrolled past in the nested view: invisible and, with visibility hidden, not painted, so
@@ -220,6 +181,7 @@ function place(pages: DesktopPage[], W: number, H: number, focus: number, ins: I
 
 export function App() {
   const { state, config } = useSnapshot();
+  const theme = useTheme(config.theme);
   const pages = useMemo(() => computeDesktops(state.order, desktopsFor(state.desktops, config.nestedView), config.defaultLayout),
     [state.order, state.desktops, config.defaultLayout, config.nestedView]);
   const [view, setViewRaw] = useState(0);
@@ -511,11 +473,14 @@ export function App() {
   const rel = (t: string) => (s.cwd ? t.split(s.cwd + '/').join('') : t);
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
-    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}>
-      <Wallpaper bg={config.background} animate={config.animateBackground} colors={lightColors({
+    <ThemeContext.Provider value={theme}>
+    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}
+      style={{ ['--signal-gain' as any]: config.signalStrength === 'subtle' ? 0.6 : config.signalStrength === 'strong' ? 1.45 : 1 }}>
+      <Wallpaper bg={config.background} animate={config.animateBackground} light={theme === 'light'} colors={lightColors({
         signal: state.settings.backgroundColors, stateColors: config.stateColors !== false,
         palettes: config.statePalettes ?? DEFAULT_PALETTES, mood: moodOf(state.session), own: config.backgroundColors ?? [],
       })} />
+      <SignalLayer state={state} on={config.signals !== false} done={config.signalDone !== false} failed={config.signalFailed !== false} />
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>
@@ -608,12 +573,13 @@ export function App() {
       {dockDrag && <div className="dock-ghost" style={{ left: dockDrag.px, top: dockDrag.py }}><span className={`tile tile-${state.instances[dockDrag.id]?.type}`}><AppIcon type={state.instances[dockDrag.id]?.type} /></span></div>}
       <Launcher pages={pages} viewing={v} width={size.W} dragging={dockDrag} onDragStart={(id, x, y) => setDockDrag({ id, px: x, py: y, tuck: null, before: null })} onReveal={reveal} />
     </div>
+    </ThemeContext.Provider>
   );
 }
 
-function Wallpaper({ bg, colors, animate }: { bg: string; colors: string[]; animate: boolean }) {
+function Wallpaper({ bg, colors, animate, light }: { bg: string; colors: string[]; animate: boolean; light: boolean }) {
   const key = colors.join(',');
-  const w = useMemo(() => wallpaper(bg, colors), [bg, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const w = useMemo(() => wallpaper(bg, colors, light), [bg, key, light]); // eslint-disable-line react-hooks/exhaustive-deps
   const canvas = useRef<HTMLCanvasElement>(null);
   const painter = useRef<LightPainter | null>(null);
   useEffect(() => { painter.current = paintLights(canvas.current!); return () => painter.current?.stop(); }, []);
@@ -787,8 +753,13 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
   const byWindows = (a: InstanceMeta, b: InstanceMeta) =>
     (tile.get(a.id) ?? Infinity) - (tile.get(b.id) ?? Infinity) || fixed(a, b);
   const off = new Set(config.disabledApps ?? []);
-  const items = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type))
+  const docked = (id: string) => DOCKS.find((d) => state.tucked?.[d]?.includes(id));
+  // The launcher holds what's open (on a desktop or docked); closed windows and apps not started
+  // yet live in the Apps dialog, so the bar stays short as apps pile up.
+  const items = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type) && (open.has(m.id) || !!docked(m.id)))
     .sort(config.launcherOrder === 'fixed' ? fixed : byWindows);
+  const [appsAt, setAppsAt] = useState<number | null>(null); // the Apps menu, open above its button (x)
+  const appsOpen = appsAt != null;
   // Grouping: one entry per app, at its first window's place, holding all of its windows.
   const entries: InstanceMeta[][] = [];
   if (config.launcherGroup !== false) {
@@ -799,7 +770,6 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
     }
   } else for (const m of items) entries.push([m]);
   const show = (id: string) => (open.has(id) ? onReveal(id) : dispatch({ type: 'window.open', id }).then(() => onReveal(id)));
-  const docked = (id: string) => DOCKS.find((d) => state.tucked?.[d]?.includes(id));
   const where = (id: string) => {
     const d = docked(id);
     if (d) return `docked ${d}`;
@@ -807,9 +777,12 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
     return pages.length > 1 ? `desktop ${pageOf.get(id)! + 1}` : 'open';
   };
   const settingsOpen = open.has('settings');
-  // Crowded launcher: icons shrink to fit the window (38px → 26px); past that it scrolls.
-  const tileSize = Math.max(26, Math.min(38, Math.floor((width - 80) / (entries.length + 1) - 5)));
-  const crowded = (entries.length + 1) * (tileSize + 5) + 60 > width;
+  // Crowded launcher: icons shrink to fit the window (38px → 26px); past that it scrolls. Counts
+  // the system corner (Apps, Settings) and the separators between desktops.
+  const seps = config.launcherOrder === 'fixed' ? 0 : entries.filter((g, i) => i > 0 && group(entries[i - 1][0].id) !== group(g[0].id)).length;
+  const slots = entries.length + 2, extra = seps * 8 + 90;
+  const tileSize = Math.max(26, Math.min(38, Math.floor((width - extra) / slots - 5)));
+  const crowded = slots * (tileSize + 5) + extra > width;
   const menuItems = menu ? entries.find((g) => g[0].type === menu.type && g.length > 1) : undefined;
   return (
     <footer className="dock-wrap">
@@ -852,6 +825,12 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
           );
         })}
         <span className="dock-sep" />
+        {/* The system corner, always here: every closed or unopened app, and Settings. */}
+        <button className={`dock-item sys${appsOpen ? ' menu-open' : ''}`} title="Apps" aria-haspopup="menu" aria-expanded={appsOpen} data-apps
+          onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setAppsAt((cur) => (cur != null ? null : r.left + r.width / 2)); }}>
+          <span className="tile tile-apps"><svg viewBox="0 0 20 20" width="17" height="17" aria-hidden><g fill="currentColor"><rect x="3" y="3" width="5.5" height="5.5" rx="1.6" /><rect x="11.5" y="3" width="5.5" height="5.5" rx="1.6" /><rect x="3" y="11.5" width="5.5" height="5.5" rx="1.6" /><rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1.6" /></g></svg></span>
+          <span className="label">Apps</span>
+        </button>
         <button className={`dock-item${offScreen('settings') ? ' off-screen' : ''}`} title="Settings"
           onClick={() => (settingsOpen ? onReveal('settings') : dispatch({ type: 'instance.create', appType: 'settings' }).then(() => onReveal('settings')))}>
           <span className="tile tile-settings has-img"><AppIcon type="settings" /></span>
@@ -859,6 +838,7 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
           {settingsOpen && <i className="running" />}
         </button>
       </div>
+      {appsAt != null && <AppsMenu x={appsAt} onClose={() => setAppsAt(null)} onShown={(id) => { setAppsAt(null); onReveal(id); }} />}
       {menuItems && menu && (
         <div className="launcher-menu" role="menu" style={{ left: menu.x, bottom: window.innerHeight - menu.y + 10 }}>
           {menuItems.map((m) => (
@@ -873,6 +853,68 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
     </footer>
   );
 }
+
+/**
+ * Apps (the launcher's system corner): every app that isn't on screen, or has windows closed. An
+ * app with closed windows carries a count; hovering it lists them to reopen, and a click reopens the
+ * latest, so nothing opens empty by accident. An app with none starts on a click.
+ */
+function AppsMenu({ x, onClose, onShown }: { x: number; onClose: () => void; onShown: (id: string) => void }) {
+  const { state, config } = useSnapshot();
+  const [hover, setHover] = useState<string | null>(null);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const down = (e: PointerEvent) => { if (!(e.target as HTMLElement).closest?.('.apps-menu, [data-apps]')) onClose(); };
+    window.addEventListener('keydown', key);
+    window.addEventListener('pointerdown', down, true);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('pointerdown', down, true); };
+  }, [onClose]);
+  const off = new Set(config.disabledApps ?? []);
+  const shown = (id: string) => state.order.includes(id) || DOCKS.some((d) => state.tucked?.[d]?.includes(id));
+  const all = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type));
+  const list = Object.values(apps).filter((a) => a.type !== 'settings' && !off.has(a.type)).map((a) => {
+    const mine = all.filter((m) => m.type === a.type);
+    const closed = mine.filter((m) => !shown(m.id)).sort((p, q) => q.createdAt - p.createdAt);
+    const onScreen = mine.length - closed.length;
+    return { a, closed, onScreen };
+  }).filter(({ a, closed, onScreen }) => closed.length > 0 || (onScreen === 0 && !(a.singleton && all.some((m) => m.type === a.type))))
+    .sort((p, q) => p.a.title.localeCompare(q.a.title));
+  const reopen = (id: string) => void dispatch({ type: 'window.open', id }).then(() => onShown(id));
+  const start = (type: string) => void dispatch({ type: 'instance.create', appType: type }).then((id) => { if (typeof id === 'string') onShown(id); });
+  const pick = list.find((l) => l.a.type === hover && l.closed.length > 0);
+  // A portal to <body>: inside the launcher it would inherit its pointer-events: none, and an
+  // auto-hidden launcher's transform would move "fixed" with it.
+  return createPortal(
+    <div className="apps-menu" role="menu" aria-label="Apps" style={{ left: x }} onMouseLeave={() => setHover(null)}>
+      {list.length === 0 && <p className="apps-none">Every app is open.</p>}
+      <div className="apps-grid">
+        {list.map(({ a, closed }) => (
+          <button key={a.type} role="menuitem" className={`apps-tile${hover === a.type ? ' on' : ''}`} data-app={a.type}
+            title={closed.length ? `${a.title}: reopen ${closed[0].title}` : `Start ${a.title}`}
+            onMouseEnter={() => setHover(a.type)} onFocus={() => setHover(a.type)}
+            onClick={() => (closed.length ? reopen(closed[0].id) : start(a.type))}>
+            <span className="apps-icon big"><AppIcon type={a.type} />{closed.length > 1 && <b className="count">{closed.length}</b>}</span>
+            <span className="apps-name">{a.title}</span>
+          </button>
+        ))}
+      </div>
+      {/* The hovered app's closed windows: pick one to reopen (or start a new one). */}
+      {pick && (
+        <div className="apps-sub" role="menu" aria-label={`${pick.a.title} windows`}>
+          <h4>{pick.a.title}</h4>
+          {pick.closed.map((m) => (
+            <button key={m.id} role="menuitem" className="apps-row" onClick={() => reopen(m.id)}>
+              <span className="apps-name">{m.title}</span><small>{ago(m.createdAt)}</small>
+            </button>
+          ))}
+          {!pick.a.singleton && <button role="menuitem" className="apps-row new" onClick={() => start(pick.a.type)}><span className="apps-name">New {pick.a.title} window</span></button>}
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+const ago = (t: number) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; };
 
 /**
  * Docks ("tucked" in state): windows docked at an edge or a corner leave the tiling flow and live
@@ -989,9 +1031,6 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     const open = !!ids.length && (peek === edge || kept || drag?.from === edge);
     return { edge, ids, kept, open, r: panelRect(edge, W, H, live) };
   });
-  // Rounded inside corners where two open docks' backings meet. Keyed by position in the list, so a
-  // resize moves them instead of remounting them (which restarted their fade-in on every move).
-  const joins = fillets(docks.filter((d) => d.open).map((d) => backingRect(d.edge, d.r, W, H)), W, H);
   // Corners win over edges: an edge's hover strip stops short of a corner that has a dock.
   const cornerReach = (c: Corner) => {
     const n = (state.tucked?.[c] ?? []).filter((id) => state.instances[id]).length;
@@ -1002,12 +1041,6 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     : { top: cornerReach(`top-${e}`) && CORNER_HOT, bottom: cornerReach(`bottom-${e}`) && CORNER_HOT });
   return (
     <>
-      {joins.map((f, i) => (
-        <i key={`fillet-${i}`} className={`edge-fillet${resizing ? ' live' : ''}`} aria-hidden style={{
-          left: f.x, top: f.y, width: f.R, height: f.R,
-          background: `radial-gradient(circle at ${f.qx > 0 ? '100%' : '0'} ${f.qy > 0 ? '100%' : '0'}, transparent ${f.R - 0.5}px, #000 ${f.R}px)`,
-        }} />
-      ))}
       {docks.map(({ edge, ids, kept, open, r }) => {
         if (!ids.length) return null;
         const vertical = stacks(edge);
@@ -1026,85 +1059,51 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
         return (
           <Fragment key={edge}>
             {(() => {
-              // The drawer pull. Closed: a black rail running off the screen edge with a capsule of
-              // the docked apps' icons; hovering the edge or the capsule starts pulling it out, and
-              // clicking opens the dock. Open (or kept open): the rail becomes a solid backing
-              // behind the whole dock, and the capsule rides out to the dock's inner edge (a
-              // corner's inner corner), its icons swapped for the keep-open pin.
+              // The pull. No backing (Graphite Mono): docked windows float like any window, pinned to
+              // the edge. Closed: a small graphite capsule of the docked apps' own icons, just in from
+              // the edge; hovering the edge brightens it (it never moves, so hover can't flicker),
+              // and a click opens the dock. Open: the capsule becomes a lock pill on the dock's
+              // inner edge, shown while the pointer is over the dock: an open lock (keep it open) or a
+              // closed one (kept open; click to release). Its title says so in words.
               const state3 = open ? 'open' : near === edge ? 'near' : 'idle';
+              const M = 6; // the closed capsule's margin from the screen edge
               const capThick = PULL_ICON + PULL_T * 2;
               const capLen = ids.length * PULL_ICON + (ids.length - 1) * 6 + PULL_T * 2;
-              // The closed capsule sits at an edge dock's middle. At the bottom with an auto-hiding
-              // launcher, it sits above the launcher's trigger strip and steps aside while the
-              // launcher is up (CSS). A corner's capsule lies along its top/bottom edge, in the corner.
               const along = vertical ? r.y + r.h / 2 : r.x + r.w / 2;
-              // How far the open backing extends past the dock: half the gap, so its edge (and the
-              // pin riding on it) sits exactly mid-gap between the dock and the layout.
-              const B = GAP / 2;
-              let railStyle: React.CSSProperties;
-              let armStyle: React.CSSProperties | null = null; // a corner's second rail, down its side edge
-              if (state3 === 'open') {
-                const b = backingRect(edge, r, W, H);
-                railStyle = { left: b.x, top: b.y, width: b.w, height: b.h };
-                if (corner) armStyle = railStyle; // both arms grow into the one backing
-              } else if (corner) {
-                // An even L hugging the corner: the same length along both edges, thick enough that
-                // the capsule easing off the corner still sits on black.
-                const [v, h] = cornerSides(corner);
-                const len = (state3 === 'near' ? capLen + 90 : capLen + 30) + 4;
-                const depth = state3 === 'near' ? PULL_T + 12 : PULL_T + 4;
-                const x0 = h === 'left' ? -4 : W - len + 4, y0 = v === 'top' ? -4 : H - len + 4;
-                railStyle = { width: len, height: depth, left: x0, top: v === 'top' ? -4 : H - depth + 4 };
-                armStyle = { width: depth, height: len, left: h === 'left' ? -4 : W - depth + 4, top: y0 };
-              } else {
-                const len = state3 === 'near' ? Math.max(capLen + 80, (vertical ? r.h : r.w) * 0.45) : capLen + 80;
-                const depth = state3 === 'near' ? PULL_T + 8 : PULL_T + 4; // from 4px off-screen inward
-                railStyle = vertical
-                  ? { top: along - len / 2, height: len, width: depth, left: edge === 'left' ? -4 : W - depth + 4 }
-                  : { left: along - len / 2, width: len, height: depth, top: edge === 'top' ? -4 : H - depth + 4 };
-              }
-              // The capsule's center: on the edge (eased in when near), or on the open backing's inner edge.
-              const inset = state3 === 'near' ? capThick / 2 + 8 : capThick / 2;
+              const B = GAP / 2; // mid-gap between the dock and the layout
               let cx: number, cy: number;
               if (corner) {
                 const [v, h] = cornerSides(corner);
-                // Closed, it stays flush in the corner even when hovered (the L thickens instead): easing
-                // it off the corner moved it out from under the pointer, and hover flickered.
-                // Open: on the inner side facing the layout, mid-height (the inner corner is its resize handle).
                 [cx, cy] = state3 === 'open'
                   ? [h === 'left' ? r.x + r.w + B : r.x - B, r.y + r.h / 2]
-                  : [h === 'left' ? capLen / 2 : W - capLen / 2, v === 'top' ? capThick / 2 : H - capThick / 2];
+                  : [h === 'left' ? M + capLen / 2 : W - M - capLen / 2, v === 'top' ? M + capThick / 2 : H - M - capThick / 2];
               } else {
+                const inset = M + capThick / 2;
                 [cx, cy] = state3 === 'open'
                   ? { left: [r.x + r.w + B, r.y + r.h / 2], right: [r.x - B, r.y + r.h / 2], top: [r.x + r.w / 2, r.y + r.h + B], bottom: [r.x + r.w / 2, r.y - B] }[edge as Edge]
                   : { left: [inset, along], right: [W - inset, along], top: [along, inset], bottom: [along, H - inset] }[edge as Edge];
               }
               const openIt = () => hold(edge);
               const toggleKeep = () => { void dispatch({ type: 'tuck.keep', edge, keep: !kept }); if (kept) setPeek(null); };
-              // The keep-open pin stays out of sight on a kept dock until the pointer is over the dock or the pin.
               const hovered = peek === edge || near === edge;
               const where = corner ? corner.replace('-', ' ') : edge;
               return (
                 <>
                   {!kept && <div className={`edge-hot ${edge}${corner ? ' corner' : ''}`} style={corner ? undefined : hotStyle(edge as Edge)} onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={openIt} />}
-                  <i className={`edge-rail ${edge} ${state3}${resizing ? ' live' : ''}`} style={railStyle} />
-                  {armStyle && <i className={`edge-rail ${edge} ${state3}${resizing ? ' live' : ''}`} style={armStyle} />}
                   <button className={`edge-cap ${edge} ${state3}${kept ? ' kept' : ''}${hovered ? ' hover' : ''}${corner ? ' corner' : ''}`} style={{ left: cx, top: cy }} aria-pressed={state3 === 'open' ? kept : undefined}
-                    title={state3 === 'open' ? (kept ? `Hide the ${where} dock until you hover it` : `Keep the ${where} dock open`) : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
+                    title={state3 === 'open' ? (kept ? `Release the ${where} dock: it hides until you hover its edge` : `Keep the ${where} dock open beside the layout`) : `Show ${ids.map((id) => state.instances[id].title).join(', ')}`}
                     onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }} onClick={state3 === 'open' ? toggleKeep : openIt}>
                     {state3 === 'open'
-                      // A pushpin, not an arrow (arrows read as "switch desktop"): upright and filled
-                      // when the dock is kept open, tilted and hollow when it isn't.
-                      ? <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden style={{ transform: `rotate(${kept ? 0 : 45}deg)` }}>
-                          <path d="M5.5 1.75h5M6.5 1.75v3.5L4.25 8.5h7.5L9.5 5.25v-3.5Z" fill={kept ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                          <path d="M8 8.5v5.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
+                      ? <><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
+                          <rect x="3" y="7" width="10" height="7" rx="1.8" fill={kept ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" />
+                          <path d={kept ? 'M5.5 7V5a2.5 2.5 0 0 1 5 0v2' : 'M5.5 7V5a2.5 2.5 0 0 1 4.9-.7'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg></>
                       : ids.map((id) => <span key={id}><AppIcon type={state.instances[id].type} /></span>)}
                   </button>
                 </>
               );
             })()}
-            <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
+            <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${peek === edge ? ' hover' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
               style={{ left: r.x, top: r.y, width: pw, height: ph }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
               {/* Resize from the inner side; a corner from its two inner sides and its inner corner.
                   A handle's class names the side of the stage its dock hugs (it sits opposite). */}
