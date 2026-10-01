@@ -146,7 +146,10 @@ async function main(argv: string[]) {
       const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
       console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
-      if (!flags.session && !existsSync(modMarker(cid))) console.log(`${NO_MOD}\n`);
+      if (!flags.session && !existsSync(modMarker(cid))) {
+        console.log(`${NO_MOD}\n`);
+        await dispatch(sid, { type: 'session.update', patch: { modMissing: true } }).catch(() => {});
+      }
       if (typeof flags.preset === 'string') {
         const p = await call(sid, { op: 'preset', action: 'apply', name: flags.preset });
         console.log(`Preset "${p.applied}" applied.${p.skipped.length ? ` Skipped (app not installed): ${p.skipped.join(', ')}` : ''}\n`);

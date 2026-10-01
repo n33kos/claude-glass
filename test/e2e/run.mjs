@@ -418,6 +418,14 @@ try {
     await sleep(500);
   }
 
+  // Opened from a session the mod never ran in: the top bar says nothing feeds the glass, until an event arrives.
+  {
+    const out = await cli(env, 'open');
+    await sleep(400);
+    await page.screenshot({ path: join(shots, '08a-mod-missing.png') });
+    check(out.includes("mod isn't running") && (await page.locator('.mod-missing').count()) === 1, 'opening without the mod warns, in the CLI and the top bar');
+  }
+
   // Streaming + working state
   await event(env, { e: 'turn.start', turnId: 't2', text: 'Show me the final diff.' });
   await event(env, { e: 'tool.start', tool: 'Bash', input: { command: 'npm run build' }, id: 'live1' });
@@ -425,6 +433,7 @@ try {
   await sleep(500);
   await page.screenshot({ path: join(shots, '08-working.png') });
   check((await page.locator('.presence-working').count()) === 1, 'presence shows working');
+  check((await page.locator('.mod-missing').count()) === 0, 'the not-connected notice goes once events arrive');
 
   // Waiting on the user: permission prompt (pill + terminal lock), then a question (read-only card).
   await cli(env, 'window', 'move', 'terminal', '0');

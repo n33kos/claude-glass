@@ -490,6 +490,11 @@ export function App() {
             {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
           </span>
         </div>
+        {s.modMissing && !s.endedAt && (
+          <span className="mod-missing" title="The Claude Glass mod isn't running in this Claude session, so the glass doesn't fill itself. It needs Claude Code 2.1.287 or newer with mods allowed; start a new session once that's fixed.">
+            <i />Not connected: the glass mod isn't running in this session
+          </span>
+        )}
         <UpdatePill />
         <nav className="pager" aria-label="Desktops">
           {pages.map((p) => (

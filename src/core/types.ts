@@ -23,6 +23,7 @@ export interface SessionInfo {
   endedAt?: number;
   activity: 'idle' | 'working';
   waiting?: Waiting; // Claude is blocked on the user (shown read-only; answered in Claude Code)
+  modMissing?: boolean; // opened from a Claude session the glass mod isn't running in: nothing feeds it
 }
 
 export interface Waiting {

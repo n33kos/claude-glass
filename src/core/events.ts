@@ -69,6 +69,8 @@ const endsWait = (w: Waiting | undefined, id: string) => !!w && (!w.toolUseId ||
 
 export function applyEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassState {
   if (!ev || typeof ev !== 'object' || typeof (ev as { e?: unknown }).e !== 'string') return s;
+  // Anything from the mod means it's running after all.
+  if (s.session.modMissing) s = reduce(s, { type: 'session.update', patch: { modMissing: undefined } }).state;
   // Built-in effects first, then any app that watches events itself (onEvent).
   const toolUseId = 'id' in ev && (ev.e === 'tool.start' || ev.e === 'tool.end') ? String(ev.id) : undefined;
   const next = reduce(builtinEvent(s, ev, { ...ctx, toolUseId }), { type: 'app.event', event: ev }).state;
