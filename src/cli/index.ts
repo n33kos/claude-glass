@@ -126,7 +126,8 @@ ${GUIDE.slice(GUIDE.indexOf('  claude-glass view'))}
 
 Presets: preset list | preset save <name> [--description D] | preset apply <name> | preset delete <name> | preset default <name|none> | open --preset <name>
 Other: open | close | status [--all] | state [id] | health | settings [set <key> <value>] | --session ID | --json
-Apps:  apps (list) | apps new <type> | apps copy <type>   (custom apps live in ~/.claude/claude-glass/apps)`;
+Apps:  apps (list) | apps new <type> | apps copy <type>   (custom apps live in ~/.claude/claude-glass/apps)
+       stored <type> [set <key> <json> | reset [key]]   an app's persistent values`;
 
 async function main(argv: string[]) {
   const { pos, flags } = parse(argv);
@@ -373,6 +374,24 @@ async function main(argv: string[]) {
       } else if (kind === 'clear') await dispatch(sid, { type: 'signal', kind: 'clear' });
       else throw new Error(usage);
       out({ ok: true }, 'ok');
+      return;
+    }
+    case 'stored': {
+      // Apps' persistent values: look at them, set one, or reset them.
+      const [type, sub, key, value] = rest;
+      const usage = 'usage: claude-glass stored <app type> [set <key> <json> | reset [key]]';
+      if (!type) throw new Error(usage);
+      const sid = sessionId(flags);
+      if (sub === 'set') {
+        if (!key || value === undefined) throw new Error(usage);
+        let v: unknown;
+        try { v = JSON.parse(value); } catch { v = value; } // a bare word is a string
+        await dispatch(sid, { type: 'stored.set', app: type, values: { [key]: v } });
+      } else if (sub === 'reset') {
+        await dispatch(sid, { type: 'stored.reset', app: type, ...(key ? { keys: [key] } : {}) });
+      } else if (sub) throw new Error(usage);
+      const r = await call(sid, { op: 'stored', app: type });
+      out(r, Object.entries(r.values as Record<string, unknown>).map(([k, v]) => `  ${k.padEnd(18)} ${String(r.scopes[k]).padEnd(8)} ${JSON.stringify(v)}`).join('\n') || '  (none)');
       return;
     }
     case 'settings': {

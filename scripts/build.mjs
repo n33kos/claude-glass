@@ -47,6 +47,7 @@ async function buildApp(type) {
     internal: [...INTERNAL].filter((c) => c in def.commands || def.viewCommands?.includes(c)),
     ...(def.autoOpen ? { autoOpen: true } : {}),
     ...(def.settings ? { settings: def.settings } : {}),
+    ...(def.stored ? { stored: def.stored } : {}),
   };
   writeFileSync(`${out}/glass-app.json`, JSON.stringify(manifest, null, 2) + '\n');
   writeFileSync(`${out}/view.html`, `<!doctype html>

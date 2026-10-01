@@ -673,7 +673,7 @@ function AppBody({ id, meta, w, h }: { id: string; meta: InstanceMeta; w: number
   const View = app?.frame ? null : VIEWS[meta.type];
   const appState = state.appState[id] ?? null;
   const run = useCallback((command: string, args: Record<string, unknown> = {}) => dispatch({ type: 'app.command', id, command, args }), [id]);
-  if (app?.frame) return <FrameView app={app} id={id} meta={meta} state={appState} width={w} height={h - 36} glass={state} run={run} stored={config.appSettings?.[meta.type]} />;
+  if (app?.frame) return <FrameView app={app} id={id} meta={meta} state={appState} width={w} height={h - 36} glass={state} run={run} savedSettings={config.appSettings?.[meta.type]} />;
   if (!View) return <div className="app-missing">No view for “{meta.type}”.</div>;
   return <View id={id} meta={meta} state={appState} width={w} height={h - 36} run={run} glass={state} config={config} />;
 }

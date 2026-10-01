@@ -1,5 +1,6 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
+import { STORED_MAX_BYTES, StoreWrite, storedValues, type AppContext, type AppDef } from '../apps/types';
 import { parseColors } from './colors';
 import { DOCKS, isCorner, isDock, isLayout } from './layout';
 import type { Action, Dock, GlassState, InstanceMeta, SessionInfo } from './types';
@@ -194,8 +195,36 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     case 'app.command': {
       const inst = requireInstance(s, a.id);
       const app = APPS[inst.type];
-      const next = app.command(s.appState[a.id] ?? app.init(), a.command, a.args ?? {});
-      return { state: { ...s, appState: { ...s.appState, [a.id]: next } } };
+      const out = app.command(s.appState[a.id] ?? app.init(), a.command, a.args ?? {}, appContext(s, app));
+      return { state: applyCore(s, app, a.id, out) };
+    }
+
+    case 'stored.set': {
+      const app = APPS[a.app];
+      if (!app) throw new Error(`unknown app "${a.app}"`);
+      return { state: writeStored(s, app, a.values) };
+    }
+
+    case 'stored.load': {
+      const app = APPS[a.app];
+      if (!app?.stored) return { state: s };
+      const own = s.stored?.[a.app] ?? {};
+      const values = Object.entries(a.values ?? {}).filter(([k]) => k in app.stored!);
+      if (values.every(([k, v]) => JSON.stringify(own[k]) === JSON.stringify(v))) return { state: s };
+      const next = { ...own };
+      for (const [k, v] of values) { if (v === undefined) delete next[k]; else next[k] = v; } // undefined: back to the default
+      return { state: { ...s, stored: { ...s.stored, [a.app]: next } } };
+    }
+
+    case 'stored.reset': {
+      if (!s.stored?.[a.app]) return { state: s };
+      if (Array.isArray(a.keys)) {
+        const own = { ...s.stored[a.app] };
+        for (const k of a.keys) delete own[k];
+        return { state: { ...s, stored: { ...s.stored, [a.app]: own } } };
+      }
+      const { [a.app]: _gone, ...rest } = s.stored;
+      return { state: { ...s, stored: rest } };
     }
 
     case 'app.event': {
@@ -209,13 +238,14 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
         for (const id of ids) {
           const exists = !!state.instances[id];
           const prev = exists ? state.appState[id] : app.init();
-          let next: unknown;
-          try { next = app.onEvent(prev, a.event); } catch { continue; } // a broken app never breaks the feed
-          if (next === prev || next === undefined) continue;
-          if (!exists) {
+          let out: unknown;
+          try { out = app.onEvent(prev, a.event, appContext(state, app)); } catch { continue; } // a broken app never breaks the feed
+          const next = out instanceof StoreWrite ? out.state : out;
+          if ((next === prev || next === undefined) && !(out instanceof StoreWrite)) continue;
+          if (!exists && next !== prev && next !== undefined) {
             state = autoCommandCreate(state, app.type, !!app.autoOpen);
           }
-          state = { ...state, appState: { ...state.appState, [id]: next } };
+          try { state = applyCore(state, app, id, out, exists || (next !== prev && next !== undefined)); } catch { continue; }
         }
       }
       return { state };
@@ -259,6 +289,37 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     default:
       throw new Error(`unknown action ${(a as any)?.type}`);
   }
+}
+
+/** What a core gets beside its state: its persistent values, and the way to write them. */
+function appContext(s: GlassState, app: AppDef): AppContext {
+  return { stored: storedValues(app, s.stored?.[app.type]), store: <S,>(state: S, patch: Record<string, unknown>) => new StoreWrite(state, patch) as unknown as S };
+}
+
+/** A core's answer: new state for the instance, and any persistent values it wrote. */
+function applyCore(s: GlassState, app: AppDef, id: string, out: unknown, keepState = true): GlassState {
+  const next = out instanceof StoreWrite ? out.state : out;
+  let state = keepState && next !== undefined ? { ...s, appState: { ...s.appState, [id]: next } } : s;
+  if (out instanceof StoreWrite) state = writeStored(state, app, out.patch);
+  return state;
+}
+
+/** Write an app's persistent values: declared keys, JSON, within the size limit. undefined resets one. */
+function writeStored(s: GlassState, app: AppDef, patch: Record<string, unknown>): GlassState {
+  const specs = app.stored ?? {};
+  const own = { ...(s.stored?.[app.type] ?? {}) };
+  for (const [key, value] of Object.entries(patch ?? {})) {
+    if (!(key in specs)) throw new Error(`${app.type}: "${key}" isn't a stored value (declare it in the manifest's "stored")`);
+    if (value === undefined) { delete own[key]; continue; }
+    let json: string;
+    try { json = JSON.stringify(value); } catch { throw new Error(`${app.type}: stored "${key}" must be JSON`); }
+    own[key] = JSON.parse(json);
+  }
+  for (const scope of ['session', 'project', 'global'] as const) {
+    const size = JSON.stringify(Object.fromEntries(Object.entries(own).filter(([k]) => specs[k]?.scope === scope))).length;
+    if (size > STORED_MAX_BYTES) throw new Error(`${app.type}: ${scope} stored values are over ${STORED_MAX_BYTES / 1024} KB`);
+  }
+  return { ...s, stored: { ...s.stored, [app.type]: own } };
 }
 
 function autoCommandCreate(s: GlassState, type: string, autoOpen: boolean): GlassState {

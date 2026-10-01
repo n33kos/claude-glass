@@ -169,6 +169,45 @@ props, and `guide.md` blocks can depend on them.
 Keys are letters and digits. Values are validated against the type (and `min`/`max`/`options`);
 they're global (every glass), stored in the glass config under `appSettings.<type>`.
 
+### Stored values
+
+Settings are the user's choices. What your app itself needs to remember (pinned items, a
+favorite view, a running total) goes in **stored values**: declare each key with a scope and a
+default, and the glass keeps them, saves them and hands them back. Your code never does I/O.
+
+    "stored": {
+      "pinned":   { "scope": "project", "default": [] },
+      "total":    { "scope": "global",  "default": 0 },
+      "lastNote": { "scope": "session", "default": "" }
+    }
+
+| Scope | Shared by | Saved in |
+|---|---|---|
+| `session` | this glass | the glass's `state.json`, with the rest of its state |
+| `project` | every glass in the project folder: survives `/clear`, restarts, resumes | `~/.claude/claude-glass/projects/<folder id>/stored/<type>.json` |
+| `global` | every glass | `~/.claude/claude-glass/stored/<type>.json` |
+
+In `core.js`, `command` and `onEvent` get a third argument, `ctx`: `ctx.stored` holds the values
+(defaults filled in), and returning `ctx.store(nextState, { key: value })` changes your state and
+writes those values (undefined resets one to its default):
+
+```js
+exports.command = (state, command, args, ctx) => {
+  if (command === 'pin') return ctx.store(state, { pinned: [...ctx.stored.pinned, String(args.item)] });
+  ...
+};
+```
+
+Your view gets them as `stored` in its props and writes with `glass.store({ key: value })`
+(React: the `store` prop). A change in one glass reaches every other glass that shares the scope
+within a couple of seconds; the last write wins. Values are JSON, at most 256 KB per app per
+scope, and only declared keys are accepted. Anything you don't need to keep belongs in your app's
+own state or in plain variables.
+
+The user (or Claude) can look at and change them with `claude-glass stored <type>`,
+`claude-glass stored <type> set <key> <json>` and `claude-glass stored <type> reset [key]`;
+Settings → Apps shows how many values an app keeps, with a Reset link.
+
 ## Permissions
 
 By default a view has no network, no microphone and no storage. An app that needs them says so
@@ -220,7 +259,8 @@ Messages are `postMessage` objects with `glass: 1`.
 | Direction | `kind` | Fields |
 |---|---|---|
 | view → glass | `ready` | (sent by the SDK on load) |
-| glass → view | `props` | `props: { id, meta, state, size, session }` |
+| glass → view | `props` | `props: { id, meta, state, size, session, settings, stored, theme }` |
 | view → glass | `run` | `command`, `args` (view commands only) |
+| view → glass | `store` | `values` (stored values the manifest declares) |
 | view → glass | `host` | `service: 'lightbox' \| 'aspect'`, `args` |
 | glass → view | `frame` | `source`, `data` (live frames, e.g. the browser stream) |

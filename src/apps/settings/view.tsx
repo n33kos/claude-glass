@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { settingValues, type SettingSpec } from '../types';
+import { settingValues, type SettingSpec, type StoredSpec } from '../types';
 import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
 import { DEFAULT_PALETTES, MOODS, type Mood } from '../../core/colors';
 import { BACKGROUNDS, PRESETS } from '../../renderer/backgrounds';
@@ -33,6 +33,18 @@ function LightColors({ config }: { config: ViewProps['config'] }) {
         {own.length > 0 && <button className="s-link" onClick={() => setConfig('backgroundColors', [])}>Use preset</button>}
       </span>
     </label>
+  );
+}
+
+/** An app's persistent values: how many it keeps (by scope), and a way to forget them. */
+function StoredRow({ type, specs, values }: { type: string; specs: Record<string, StoredSpec>; values?: Record<string, unknown> }) {
+  const kept = Object.keys(values ?? {}).filter((k) => k in specs);
+  const scopes = [...new Set(Object.values(specs).map((s) => s.scope))].join(', ');
+  return (
+    <div className="s-row s-sub">
+      <span className="s-dim">Saved data ({scopes}): {kept.length ? `${kept.length} value${kept.length === 1 ? '' : 's'}` : 'none yet'}</span>
+      {kept.length > 0 && <button className="s-link" onClick={() => void dispatch({ type: 'stored.reset', app: type })}>Reset</button>}
+    </div>
   );
 }
 
@@ -266,6 +278,7 @@ export function SettingsView({ glass, config }: ViewProps) {
                 {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
                   {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
             {on && a.settings && <AppSettings type={a.type} specs={a.settings} stored={config.appSettings?.[a.type]} />}
+            {on && a.stored && <StoredRow type={a.type} specs={a.stored} values={glass.stored?.[a.type]} />}
           </Fragment>
         );
       })}

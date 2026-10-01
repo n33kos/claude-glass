@@ -18,10 +18,14 @@ export interface AppDef<S = any> {
   description: string;
   commands: Record<string, CommandSpec>;
   init(): S;
-  /** Apply a command. Must be pure: return new state, throw Error on bad input. */
-  command(state: S, command: string, args: Args): S;
+  /**
+   * Apply a command. Must be pure: return new state, throw Error on bad input. `ctx.stored` reads
+   * the app's persistent values; return `ctx.store(nextState, { key: value })` to write some.
+   */
+  command(state: S, command: string, args: Args, ctx?: AppContext): S;
   /** Optional: see every session event (src/core/events.ts, GlassEvent) and update state (pure). Singletons are created on first change. */
-  onEvent?(state: S, event: any): S;
+  onEvent?(state: S, event: any, ctx?: AppContext): S;
+  stored?: Record<string, StoredSpec>; // persistent values the app keeps, by scope (manifest "stored")
   autoOpen?: boolean; // open the window the first time onEvent creates the instance
   internal?: string[]; // commands only events/the view use; hidden from Claude's catalog
   viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
@@ -30,6 +34,59 @@ export interface AppDef<S = any> {
   permissions?: AppPermissions;
   source?: 'builtin' | 'user';
   dir?: string; // app folder: its view.html is served into a sandboxed frame
+}
+
+/**
+ * Persistent app values ("stored"), declared in the manifest with a scope:
+ *   session  this glass (saved with it)
+ *   project  every glass in the project folder: survives /clear, restarts, resumes
+ *   global   every glass
+ * Values are JSON; ephemeral values belong in the app's own state or plain variables.
+ */
+export type StoredScope = 'session' | 'project' | 'global';
+export interface StoredSpec { scope: StoredScope; default: unknown }
+
+/** What an app's command / onEvent gets beside its state. */
+export interface AppContext {
+  /** The app's persistent values, defaults filled in. */
+  stored: Record<string, unknown>;
+  /**
+   * Return this to change state and write persistent values (declared keys only; undefined resets
+   * one). Typed as the state; the reducer recognizes the write (a StoreWrite) and unwraps it.
+   */
+  store<S>(state: S, patch: Record<string, unknown>): S;
+}
+
+/** A core's answer that also writes persistent values (made by ctx.store). */
+export class StoreWrite<S = unknown> {
+  constructor(readonly state: S, readonly patch: Record<string, unknown>) {}
+}
+
+export const STORED_MAX_BYTES = 256 * 1024; // per app, per scope
+
+const STORED_KEY = /^[a-zA-Z][a-zA-Z0-9]{0,31}$/;
+
+/** Validate a manifest's stored block. */
+export function parseStoredSpecs(raw: unknown): Record<string, StoredSpec> | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new Error('stored must be an object');
+  const out: Record<string, StoredSpec> = {};
+  for (const [key, s] of Object.entries(raw as Record<string, any>)) {
+    if (!STORED_KEY.test(key)) throw new Error(`stored: key "${key}" must be letters and digits`);
+    const scope = s?.scope ?? 'session';
+    if (scope !== 'session' && scope !== 'project' && scope !== 'global') throw new Error(`stored.${key}: scope must be session, project or global`);
+    const def = s?.default ?? null;
+    try { JSON.stringify(def); } catch { throw new Error(`stored.${key}: default must be JSON`); }
+    out[key] = { scope, default: def };
+  }
+  return out;
+}
+
+/** An app's persistent values with defaults filled in. */
+export function storedValues(app: Pick<AppDef, 'stored'>, saved: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, spec] of Object.entries(app.stored ?? {})) out[key] = saved && key in saved ? saved[key] : structuredClone(spec.default);
+  return out;
 }
 
 export function str(args: Args, key: string, required = true): string {
@@ -157,11 +214,12 @@ export interface AppInfo {
   viewCommands: string[];
   permissions: AppPermissions;
   settings?: Record<string, SettingSpec>;
+  stored?: Record<string, StoredSpec>;
   description?: string; // shown in the Apps dialog
 }
 
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, description: app.description };
+  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description };
 }

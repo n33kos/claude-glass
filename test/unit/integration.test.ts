@@ -1,7 +1,7 @@
 // Core server in plain Node, driven by the real built CLI and the bash hook forwarder.
 // Requires `npm run build` first (dist/cli.js).
 import { spawn } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -224,6 +224,46 @@ describe('folder scope', () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ scope: 'session' }));
     expect(await sessionStart('sess-after-clear', 'compact', dir)).toMatchObject({ open: false });
     expect(existsSync(join(runtime, 'sess-after-clear.sock'))).toBe(false);
+  });
+});
+
+describe('stored app values across glasses', () => {
+  const cores: GlassCore[] = [];
+  const open = async (id: string, cwd: string) => { const c = new GlassCore(id, cwd); await c.listen(); cores.push(c); return c; };
+  const until = async (fn: () => boolean) => { for (let i = 0; i < 100 && !fn(); i++) await wait(50); return fn(); }; // the recheck runs every 2s
+  beforeAll(() => { cpSync(join(root, 'test/fixtures/apps/tool-count'), join(home, 'apps', 'tool-count'), { recursive: true }); });
+  afterAll(async () => { for (const c of cores) await c.close(); rmSync(join(home, 'apps', 'tool-count'), { recursive: true, force: true }); });
+
+  it('project values reach every glass in the folder, global ones every glass, session ones stay put', async () => {
+    const a = await open('store-a', '/tmp/store-proj'), b = await open('store-b', '/tmp/store-proj'), other = await open('store-c', '/tmp/store-other');
+    a.dispatch({ type: 'instance.create', appType: 'tool-count' });
+    a.dispatch({ type: 'app.command', id: 'tool-count', command: 'pin', args: { tool: 'Bash' } });
+    a.dispatch({ type: 'app.command', id: 'tool-count', command: 'note', args: { text: 'only here' } });
+    a.events([{ e: 'tool.start', tool: 'Read', id: 'r1', input: {} }]);
+    const stored = (c: GlassCore) => c.state.stored?.['tool-count'] ?? {};
+    expect(await until(() => JSON.stringify(stored(b).pinned) === '["Bash"]')).toBe(true);
+    expect(await until(() => stored(other).total === 1)).toBe(true);
+    expect(stored(other).pinned).toBeUndefined(); // another project
+    expect(stored(b).lastNote).toBeUndefined(); // session: this glass only
+    expect(stored(a).lastNote).toBe('only here');
+    // A glass opened later starts with what's saved.
+    const later = await open('store-d', '/tmp/store-proj');
+    expect(stored(later)).toMatchObject({ pinned: ['Bash'], total: 1 });
+    // The files are plain JSON per app.
+    expect(JSON.parse(readFileSync(join(home, 'stored', 'tool-count.json'), 'utf8'))).toEqual({ total: 1 });
+    expect(JSON.parse(readFileSync(join(home, 'projects', folderGlassId('/tmp/store-proj'), 'stored', 'tool-count.json'), 'utf8'))).toEqual({ pinned: ['Bash'] });
+  });
+
+  it('the CLI shows, sets and resets them; a reset reaches the other glasses', async () => {
+    const env2 = { CLAUDE_CODE_SESSION_ID: 'store-a' };
+    const show = await run(join(root, 'bin/claude-glass'), ['stored', 'tool-count', 'set', 'pinned', '["Read","Edit"]'], '', env2);
+    expect(show.stdout).toMatch(/pinned\s+project\s+\["Read","Edit"\]/);
+    const b = cores.find((c) => c.sessionId === 'store-b')!;
+    expect(await until(() => JSON.stringify(b.state.stored?.['tool-count']?.pinned) === '["Read","Edit"]')).toBe(true);
+    await run(join(root, 'bin/claude-glass'), ['stored', 'tool-count', 'reset', 'pinned'], '', env2);
+    expect(await until(() => b.state.stored?.['tool-count']?.pinned === undefined)).toBe(true);
+    const bad = await run(join(root, 'bin/claude-glass'), ['stored', 'tool-count', 'set', 'nope', '1'], '', env2);
+    expect(bad.stderr).toContain("isn't a stored value");
   });
 });
 

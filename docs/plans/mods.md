@@ -140,32 +140,23 @@ The host mirrors each scope to disk; apps never do I/O.
 | `project` | every glass in this project folder: survives `/clear`, restarts, resumes | `~/.claude/claude-glass/projects/<folder id>/stored/<type>.json` |
 | `global` | every glass | `~/.claude/claude-glass/stored/<type>.json` |
 
-- **State**: `GlassState.stored[type][key]`, filled with defaults and loaded from disk when the
-  glass opens. Reads are synchronous; nothing to await
-- **Writes**: one reducer action, `{ type: 'stored', app, key, value }` (or `update` with a
-  patch). The server, not the reducer, writes changed scoped keys to disk after the action,
-  debounced, atomically (temp file + rename)
-- **Another glass changed it** (project/global): the glass watches those files and dispatches
-  `stored-load`, so every open glass agrees. Last write wins per key; keys are small and
-  per-app, so collisions are rare
-- **Cores** (pure): `command(state, name, args, ctx)` and `onEvent(state, event, ctx)` (which
-  replaces `onHook`: apps see mod events, not settings-hook payloads) get
-  `ctx.stored` (read) and may return `{ state, stored: { key: value } }` to write. Ephemeral
-  values stay in the app's own state or plain variables, as now
-- **Two-way handlers** (Phase 3): `glass.stored.get(key)` / `set(key, value)` /
-  `update(key, fn)`
-- **Views**: `stored` arrives in props next to `settings`; `glass.stored.set(key, value)` over
-  the bridge (only declared keys; no manifest permission needed, it's the app's own data)
-- **CLI**: `claude-glass stored <type> [get|set|delete] <key> [value]`, so people and Claude can
-  inspect or reset it; Settings → Apps shows each app's stored size and a **Reset** button
-- **Limits**: JSON values only, 256 KiB per app per scope, keys checked against the manifest
-  (an undeclared key throws, like `$.state`'s declared types)
-- **The mod's own mirror**: the glass mod keeps what its hooks need on every event (attention
-  settings, which events two-way apps subscribe to) in `$.state`, loaded with one CLI call at
-  `session.start` **and** at `classic.SessionStart` (`clear | resume | fork`), and refreshed by
-  a background `claude-glass watch --once` call (a CLI that blocks on the socket until
-  something changes, inside `$.process.run`, then loops). No CLI call per event, no server
-- Apps without `stored` keep their per-window state as now
+Built (docs/apps.md, "Stored values"):
+
+- [x] **State**: `GlassState.stored[type][key]`; reads are synchronous, defaults filled in
+- [x] **Writes**: reducer actions `stored.set` / `stored.load` / `stored.reset`; the server
+      (`src/core/stored.ts`) mirrors project and global keys to one JSON file per app, atomically
+- [x] **Another glass changed it**: a folder watch plus a 2-second recheck (a watch can miss
+      changes on macOS) loads the file again, so every open glass agrees; last write wins
+- [x] **Cores**: `command(state, name, args, ctx)` / `onEvent(state, event, ctx)` get
+      `ctx.stored`; returning `ctx.store(nextState, { key: value })` writes (typed as the state;
+      the reducer recognizes the write)
+- [x] **Views**: `stored` in props; `glass.store({ key: value })` over the bridge (`store` in React)
+- [x] **CLI**: `claude-glass stored <type> [set <key> <json> | reset [key]]`; Settings → Apps
+      shows how many values an app keeps, with Reset
+- [x] **Limits**: JSON, 256 KB per app per scope, declared keys only
+- [ ] Two-way handlers (Phase 3) get the same `ctx`
+- [ ] The mod's own mirror in `$.state` (attention settings, subscriptions), only once the mod
+      needs something on every event; today it needs nothing beyond the session start
 
 ## Experiment — Question cards
 

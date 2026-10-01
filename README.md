@@ -242,7 +242,7 @@ claude-glass apps                 # what's installed (and what failed to load, a
 
 ```
 ~/.claude/claude-glass/apps/my-app/
-  glass-app.json   type, title, icon, commands, permissions, settings
+  glass-app.json   type, title, icon, commands, permissions, settings, stored values
   core.js          init() and command(state, name, args): pure state; optional onEvent(state, event)
   view.html        the view; loads the SDK and renders props
   guide.md         instructions for Claude (optional)
@@ -251,7 +251,9 @@ claude-glass apps                 # what's installed (and what failed to load, a
 
 An app can fill itself from the session's events (`onEvent`), take commands from Claude
 (`claude-glass app <id> <command>`), declare its own settings (shown in Settings, passed to the
-view), and ship instructions for Claude, with parts that depend on settings. Views are sandboxed
+view), keep **stored values** the glass saves for it (per session, per project folder, or for
+every glass, shared live between glasses), and ship instructions for Claude, with parts that
+depend on settings. Views are sandboxed
 with no network, microphone or storage unless the manifest asks for specific origins or
 capabilities, which Settings shows. Full guide: [docs/apps.md](docs/apps.md).
 

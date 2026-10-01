@@ -410,6 +410,29 @@ describe('custom apps (mods)', () => {
     expect(s.order).toContain('tool-count');
     expect((s.appState['tool-count'] as any).counts).toMatchObject({ Read: 2, Edit: 1, Bash: 2, TaskCreate: 3 });
   });
+  it('stored values: cores read ctx.stored and write with ctx.store; only declared keys, JSON, within limits', () => {
+    let s = reduce(fresh(), { type: 'instance.create', appType: 'tool-count' }).state;
+    s = reduce(s, { type: 'app.command', id: 'tool-count', command: 'pin', args: { tool: 'Bash' } }).state;
+    s = reduce(s, { type: 'app.command', id: 'tool-count', command: 'pin', args: { tool: 'Read' } }).state;
+    expect(s.stored?.['tool-count']).toEqual({ pinned: ['Bash', 'Read'] });
+    s = apply(s, { e: 'tool.start', tool: 'Bash', id: 'b1', input: {} }, { e: 'tool.start', tool: 'Bash', id: 'b2', input: {} });
+    expect(s.stored?.['tool-count']).toMatchObject({ total: 2 });
+    expect((s.appState['tool-count'] as any).counts.Bash).toBe(2); // the state still changed too
+    expect(() => reduce(s, { type: 'stored.set', app: 'tool-count', values: { nope: 1 } })).toThrow(/isn't a stored value/);
+    expect(() => reduce(s, { type: 'stored.set', app: 'tool-count', values: { pinned: 'x'.repeat(300 * 1024) } })).toThrow(/over 256 KB/);
+    s = reduce(s, { type: 'stored.reset', app: 'tool-count', keys: ['total'] }).state;
+    expect(s.stored?.['tool-count']).toEqual({ pinned: ['Bash', 'Read'] });
+    s = reduce(s, { type: 'stored.load', app: 'tool-count', values: { pinned: undefined, total: 7 } }).state; // another glass's file
+    expect(s.stored?.['tool-count']).toEqual({ total: 7 });
+    s = reduce(s, { type: 'stored.reset', app: 'tool-count' }).state;
+    expect(s.stored?.['tool-count']).toBeUndefined();
+  });
+  it('a stored write from an event does not create a window that has nothing to show', () => {
+    // tool-count is a singleton that auto-creates on its first change; here only the count changes.
+    const s = apply(fresh(), { e: 'tool.start', tool: 'Read', id: 'r', input: {} });
+    expect(s.instances['tool-count']).toBeTruthy();
+    expect(s.stored?.['tool-count']).toMatchObject({ total: 1 });
+  });
   it('mod commands run through the reducer; guide lands in Claude’s instructions', () => {
     let s = reduce(fresh(), { type: 'instance.create', appType: 'tool-count' }).state;
     s = reduce(s, { type: 'app.command', id: 'tool-count', command: 'note', args: { text: 'hi' } }).state;

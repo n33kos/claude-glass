@@ -4,12 +4,13 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
-import { coerceSetting, settingValues } from '../apps/types';
+import { coerceSetting, settingValues, storedValues } from '../apps/types';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
 import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
 import { applyEvent, type EventContext, type GlassEvent } from './events';
 import { loadApps, type AppReport } from './customApps';
+import { StoredFiles } from './stored';
 import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
@@ -39,7 +40,12 @@ export class GlassCore {
     if (!saved && this.config.defaultPreset) {
       try { this.applyPreset(loadPreset(this.config.defaultPreset)); } catch {}
     }
+    // Apps' project and global values, from their files.
+    this.storedFiles = new StoredFiles(() => this.state, (a) => this.commit(reduce(this.state, a).state));
+    this.storedFiles.load();
   }
+
+  private storedFiles: StoredFiles;
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -48,7 +54,9 @@ export class GlassCore {
 
   private commit(next: GlassState) {
     if (next === this.state) return;
+    const prev = this.state;
     this.state = next;
+    this.storedFiles?.sync(prev, next);
     this.scheduleSave();
     for (const fn of this.listeners) fn(this.state, this.config);
   }
@@ -254,6 +262,13 @@ export class GlassCore {
         case 'catalog': return { ok: true, result: this.catalog() };
         case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
         case 'apps': return { ok: true, result: this.apps };
+        case 'stored': {
+          // An app's persistent values, defaults filled in (`claude-glass stored <type>`).
+          const app = APPS[String(env.app)];
+          if (!app) throw new Error(`unknown app "${env.app}"`);
+          if (!app.stored) throw new Error(`${app.type} keeps no stored values`);
+          return { ok: true, result: { values: storedValues(app, this.state.stored?.[app.type]), scopes: Object.fromEntries(Object.entries(app.stored).map(([k, s]) => [k, s.scope])) } };
+        }
         case 'state': {
           const id = env.id as string | undefined;
           if (!id) return { ok: true, result: this.state };
@@ -300,6 +315,7 @@ export class GlassCore {
     });
     await new Promise<void>((res, rej) => { this.server!.once('error', rej); this.server!.listen(path, () => res()); });
     try { chmodSync(path, 0o600); } catch {}
+    this.storedFiles.watch(); // other glasses' writes to shared app values
     return path;
   }
 
@@ -317,6 +333,7 @@ export class GlassCore {
   async close() {
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
     this.save();
+    this.storedFiles.close();
     const path = socketPath(this.sessionId);
     await new Promise<void>((res) => (this.server ? this.server.close(() => res()) : res()));
     try { unlinkSync(path); } catch {}

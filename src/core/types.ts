@@ -117,6 +117,9 @@ export interface GlassState {
   desktops: LayoutName[];
   instances: Record<string, InstanceMeta>;
   appState: Record<string, unknown>;
+  // Apps' persistent values ("stored"), per app type, every scope; the server saves project and
+  // global ones to their own files (src/core/stored.ts) and loads changes other glasses make.
+  stored?: Record<string, Record<string, unknown>>;
   settings: SessionSettings;
   ui: { viewingDesktop: number };
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
@@ -151,6 +154,9 @@ export type Action =
   | { type: 'session.update'; patch: Partial<SessionInfo> }
   | { type: 'ui.viewDesktop'; index: number }
   | { type: 'app.event'; event: unknown } // a session event from the glass mod (src/core/events.ts)
+  | { type: 'stored.set'; app: string; values: Record<string, unknown> } // write an app's persistent values (undefined resets one)
+  | { type: 'stored.load'; app: string; values: Record<string, unknown> } // values another glass saved (project/global files)
+  | { type: 'stored.reset'; app: string; keys?: string[] } // back to the defaults: those keys, or every one
   | { type: 'window.tuck'; id: string; edge: Dock; index?: number } // dock it; index: position in the dock (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
@@ -160,7 +166,7 @@ export type Action =
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
-  op: 'ping' | 'event' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'config' | 'preset' | 'quit';
+  op: 'ping' | 'event' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'stored' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

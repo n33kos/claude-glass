@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { APPS, registerApp } from '../apps/registry';
-import { parsePermissions, parseSettingSpecs, type AppDef, type CommandSpec } from '../apps/types';
+import { parsePermissions, parseSettingSpecs, parseStoredSpecs, type AppDef, type CommandSpec } from '../apps/types';
 import { appsDir } from './paths';
 
 export const APP_API_VERSION = 1;
@@ -27,6 +27,7 @@ export interface AppManifest {
   autoOpen?: boolean;
   permissions?: { network?: string[]; microphone?: boolean; storage?: boolean };
   settings?: Record<string, unknown>;
+  stored?: Record<string, unknown>; // persistent values: { key: { scope, default } }
 }
 
 export interface AppReport { type: string; dir: string; ok: boolean; error?: string; overrides?: boolean }
@@ -61,6 +62,7 @@ export function readApp(appDir: string): AppDef {
 
   const permissions = parsePermissions(m.permissions);
   const settings = parseSettingSpecs(m.settings);
+  const stored = parseStoredSpecs(m.stored);
 
   const corePath = join(appDir, 'core.js');
   delete require.cache[require.resolve(corePath)];
@@ -96,6 +98,7 @@ export function readApp(appDir: string): AppDef {
     onEvent: core.onEvent,
     guide,
     settings,
+    stored,
     permissions,
     source: 'user',
     dir: appDir,

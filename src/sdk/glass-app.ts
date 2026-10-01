@@ -1,8 +1,9 @@
 // Claude Glass app SDK (bridge v1). A view loads it with:
 //   <link rel="stylesheet" href="glass-app://sdk/glass-app.css">
 //   <script src="glass-app://sdk/glass-app.js"></script>
-// Then: glass.onState(({ state, meta, size, session, settings }) => render(...))
+// Then: glass.onState(({ state, meta, size, session, settings, stored }) => render(...))
 //       glass.run('select', { index: 2 })   // only commands the manifest marks as view commands
+//       glass.store({ pinned: [...] })        // persistent values the manifest declares ("stored")
 //       glass.host('lightbox', { src })      // host services
 // The view is a sandboxed frame: it talks to the glass only through these messages.
 
@@ -18,6 +19,7 @@ export interface GlassProps<S = any> {
     waiting: { kind: 'question' | 'permission'; summary: string; tool?: string; toolUseId?: string } | null;
   };
   settings: Record<string, unknown>; // the app's own settings (manifest "settings"), defaults filled in
+  stored: Record<string, unknown>; // the app's persistent values (manifest "stored"), defaults filled in
   theme?: 'dark' | 'light'; // the glass's theme; the SDK sets it on the page, so the tokens follow
 }
 
@@ -64,6 +66,11 @@ const glass = {
   get props(): GlassProps | null { return props; },
   /** Run one of this app's view commands (view-only changes; never reaches Claude). */
   run(command: string, args: Record<string, unknown> = {}): void { post({ kind: 'run', command, args }); },
+  /**
+   * Write persistent values (keys the manifest's "stored" declares; undefined resets one). They come
+   * back in props.stored, in every glass that shares their scope.
+   */
+  store(values: Record<string, unknown>): void { post({ kind: 'store', values }); },
   /** Ask the glass for a host service: 'lightbox' { src, alt } | 'aspect' { value }. */
   host(service: string, args: Record<string, unknown> = {}): void { post({ kind: 'host', service, args }); },
   /** A host service that answers: 'read-doc' { path } → { path, text } (markdown viewer only). */

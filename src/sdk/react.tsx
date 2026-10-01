@@ -8,6 +8,7 @@ export interface AppViewProps<S = any> extends Omit<GlassProps<S>, 'size'> {
   width: number;
   height: number;
   run: (command: string, args?: Record<string, unknown>) => void;
+  store: (values: Record<string, unknown>) => void; // write persistent values (props.stored)
   host: (service: string, args?: Record<string, unknown>) => void;
   ask: <T = any>(service: string, args?: Record<string, unknown>) => Promise<T>;
 }
@@ -23,5 +24,5 @@ function Root<S>({ View }: { View: ComponentType<AppViewProps<S>> }) {
   const [p, setP] = useState<GlassProps<S> | null>(glass.props);
   useEffect(() => glass.onState((next) => setP(next as GlassProps<S>)), []);
   if (!p) return null;
-  return <View {...p} width={p.size.width} height={p.size.height} run={glass.run} host={glass.host} ask={glass.ask} />;
+  return <View {...p} width={p.size.width} height={p.size.height} run={glass.run} store={glass.store} host={glass.host} ask={glass.ask} />;
 }

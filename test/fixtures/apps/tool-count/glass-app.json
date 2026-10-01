@@ -8,6 +8,12 @@
   "autoOpen": true,
   "commands": {
     "note": { "usage": "note --text T", "help": "Show a note above the counts" },
-    "sort": { "usage": "sort --by name|count", "help": "Sort the list", "view": true }
+    "sort": { "usage": "sort --by name|count", "help": "Sort the list", "view": true },
+    "pin": { "usage": "pin --tool <name>", "help": "Pin a tool to the top, in every glass in this project" }
+  },
+  "stored": {
+    "pinned": { "scope": "project", "default": [] },
+    "total": { "scope": "global", "default": 0 },
+    "lastNote": { "scope": "session", "default": "" }
   }
 }
