@@ -198,7 +198,12 @@ describe('events (a real recorded session)', () => {
   });
 
   it('records every tool call in the terminal', () => {
-    const term = run().appState.terminal as TerminalState;
+    const all = (run().appState.terminal as TerminalState).entries;
+    // The turn starts with a divider carrying the prompt; every call after it belongs to that turn.
+    expect(all[0]).toMatchObject({ kind: 'turn', turnId: '862ffe70-418c-445f-b880-177f5d6e2cb2' });
+    expect(all[0].summary).toMatch(/^Do these steps in order/);
+    expect(all.slice(1).every((e) => e.turnId === all[0].turnId)).toBe(true);
+    const term = { entries: all.slice(1) };
     expect(term.entries.map((e) => e.tool)).toEqual(['ToolSearch', 'TaskCreate', 'TaskCreate', 'TaskCreate', 'Read', 'Read', 'Edit', 'Write', 'Bash', 'Bash', 'WebSearch', 'Agent', 'TaskUpdate', 'TaskUpdate', 'TaskUpdate']);
     expect(term.entries.every((e) => e.status === 'ok')).toBe(true);
     const cat = term.entries.find((e) => e.summary === '$ cat notes.txt')!;
@@ -254,6 +259,20 @@ describe('events (a real recorded session)', () => {
     expect(t.entries).toHaveLength(1);
     // a late start must not flip a finished entry back to running
     expect(t.entries[0].status).toBe('ok');
+  });
+
+  it('Changes knows which files the latest turn changed', () => {
+    const editIn = (turnId: string, path: string): GlassEvent[] => [
+      { e: 'turn.start', turnId, text: `turn ${turnId}` },
+      { e: 'tool.end', tool: 'Edit', id: `${turnId}-${path}`, input: { file_path: path, old_string: 'a', new_string: 'b' }, result: {} },
+      { e: 'turn.complete', turnId },
+    ];
+    const s = apply(fresh(), ...editIn('t1', '/p/a.ts'), ...editIn('t2', '/p/b.ts'));
+    const d = s.appState.changes as DiffState;
+    expect(d.turn).toBe('t2');
+    expect(d.revisions['/p/a.ts'][0].turnId).toBe('t1');
+    expect(d.files.filter((f) => d.revisions[f].some((r) => r.turnId === d.turn))).toEqual(['/p/b.ts']);
+    expect(reduce(s, { type: 'app.command', id: 'changes', command: 'scope', args: { scope: 'turn' } }).state.appState.changes).toMatchObject({ scope: 'turn' });
   });
 
   it('tracks the turn: started, each model request a step, gone when it ends', () => {

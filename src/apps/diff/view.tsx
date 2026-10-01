@@ -57,11 +57,22 @@ export default function DiffView({ state, run, width, session }: AppViewProps<Di
     return { a, d };
   };
   const c = count(rev);
+  // "This turn": only the files the latest turn changed.
+  const turnFiles = state.turn ? state.files.filter((f) => state.revisions[f]?.some((r) => r.turnId === state.turn)) : [];
+  const byTurn = state.scope === 'turn' && turnFiles.length > 0;
+  const listed = byTurn ? turnFiles : state.files;
   return (
     <div className={`diff${wide ? ' wide' : ''}`}>
       {wide ? (
+        <div className="d-side">
+          {turnFiles.length > 0 && (
+            <div className="d-scope" role="group" aria-label="Which changes">
+              <button className={byTurn ? '' : 'on'} aria-pressed={!byTurn} onClick={() => run('scope', { scope: 'all' })}>All</button>
+              <button className={byTurn ? 'on' : ''} aria-pressed={byTurn} onClick={() => run('scope', { scope: 'turn' })}>This turn · {turnFiles.length}</button>
+            </div>
+          )}
         <ul className="d-files" ref={filesRef}>
-          {state.files.map((f) => (
+          {listed.map((f) => (
             <li key={f}>
               <button className={f === file ? 'on' : ''} onClick={() => run('select', { path: f })} title={f}>
                 <span className="fname">{f.split('/').pop()}</span>
@@ -71,6 +82,7 @@ export default function DiffView({ state, run, width, session }: AppViewProps<Di
             </li>
           ))}
         </ul>
+        </div>
       ) : null}
       <div className="d-main">
         <div className="d-bar">

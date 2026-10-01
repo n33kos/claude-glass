@@ -3,7 +3,9 @@ import { type AppDef, type Args, capTail, clip, str, unknownCommand } from '../t
 
 export interface TermEntry {
   id: string;
-  kind: 'tool' | 'log' | 'agent';
+  kind: 'tool' | 'log' | 'agent' | 'turn'; // turn: a divider where a new turn starts (summary = the prompt)
+  turnId?: string; // the turn a tool call belongs to
+  sub?: boolean; // a subagent's call, not the main loop's
   tool?: string;
   summary: string;
   output?: string;
@@ -89,6 +91,8 @@ export function summarizeOutput(tool: string, response: any): string {
   }
 }
 
+const turnOf = (a: Args): Partial<TermEntry> => ({ ...(a.turnId ? { turnId: String(a.turnId) } : {}), ...(a.agentId ? { sub: true } : {}) });
+
 function upsert(entries: TermEntry[], e: TermEntry): TermEntry[] {
   const i = entries.findIndex((x) => x.id === e.id);
   if (i === -1) return capTail([...entries, e], MAX_ENTRIES);
@@ -115,16 +119,22 @@ export const terminal: AppDef<TerminalState> = {
         // Hooks run async; a late start must not reset a finished entry.
         if (s.entries.some((e) => e.id === a.id)) return s;
         return { ...s, entries: upsert(s.entries, {
-          id: str(a, 'id'), kind: 'tool', tool: str(a, 'tool'),
+          id: str(a, 'id'), kind: 'tool', tool: str(a, 'tool'), ...turnOf(a),
           summary: summarizeTool(str(a, 'tool'), a.input), status: 'running', at: Number(a.at ?? Date.now()),
         }) };
       case 'tool.end': {
         const tool = str(a, 'tool');
         return { ...s, entries: upsert(s.entries, {
-          id: str(a, 'id'), kind: 'tool', tool, summary: summarizeTool(tool, a.input),
+          id: str(a, 'id'), kind: 'tool', tool, summary: summarizeTool(tool, a.input), ...turnOf(a),
           output: summarizeOutput(tool, a.response), status: a.error ? 'error' : 'ok',
           at: Number(a.at ?? Date.now()), durationMs: a.durationMs == null ? undefined : Number(a.durationMs),
         }) };
+      }
+      case 'turn': {
+        // A divider where a new turn starts, with the prompt (one per turn).
+        const id = `turn-${str(a, 'id')}`;
+        if (s.entries.some((e) => e.id === id)) return s;
+        return { ...s, entries: capTail([...s.entries, { id, kind: 'turn', turnId: str(a, 'id'), summary: short(a.text, 200), status: 'ok', at: Date.now() }], MAX_ENTRIES) };
       }
       case 'agent':
         return { ...s, entries: capTail([...s.entries, {

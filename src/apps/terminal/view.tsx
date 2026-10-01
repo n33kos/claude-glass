@@ -17,9 +17,10 @@ function Entry({ e, cwd, locked }: { e: TermEntry; cwd: string; locked: boolean 
   const shown = open || !long ? lines : lines.slice(0, PREVIEW_LINES);
   if (e.kind === 'agent') return <div className="t-agent">{e.summary}</div>;
   if (e.kind === 'log') return <div className="t-log">{e.summary}</div>;
+  if (e.kind === 'turn') return <div className="t-turn" title={e.summary}><span>{e.summary}</span></div>;
   const isBash = e.tool === 'Bash';
   return (
-    <div className={`t-entry t-${e.status}${locked ? ' t-locked' : ''}`}>
+    <div className={`t-entry t-${e.status}${locked ? ' t-locked' : ''}${e.sub ? ' t-sub' : ''}`} title={e.sub ? 'A subagent\'s call' : undefined}>
       <div className="t-cmd">
         <span className="t-mark">{locked ? <LockIcon /> : e.status === 'running' ? <span className="spin" /> : e.status === 'error' ? '✕' : isBash ? '' : '●'}</span>
         <span className={isBash ? 't-bash' : 't-tool'}>{isBash ? e.summary : <><b>{e.tool}</b>{rel(e.summary.slice(e.tool!.length))}</>}</span>

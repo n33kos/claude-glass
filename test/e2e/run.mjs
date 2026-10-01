@@ -457,6 +457,15 @@ try {
     await page.screenshot({ path: join(shots, '08e-follow-edit.png') });
     await cli(env, 'settings', 'set', 'followEdits', 'off');
     await cli(env, 'signal', 'clear');
+    // Turns: Changes can list only what the latest turn changed; the terminal marks where turns start.
+    const d = appFrame(page, 'changes');
+    await d.locator('.d-scope button', { hasText: 'This turn' }).click();
+    await sleep(300);
+    const files = await d.locator('.d-files li').count();
+    await page.locator('[data-window="changes"]').screenshot({ path: join(shots, '08g-changes-this-turn.png') });
+    check(files === 1 && (await d.locator('.d-files li').innerText()).includes('server.ts'), `Changes: "This turn" lists only the latest turn's files (${files})`);
+    await d.locator('.d-scope button', { hasText: 'All' }).click();
+    check((await appFrame(page, 'terminal').locator('.t-turn').count()) >= 2, 'the terminal marks where each turn starts');
   }
 
   // Waiting on the user: permission prompt (pill + terminal lock), then a question (read-only card).

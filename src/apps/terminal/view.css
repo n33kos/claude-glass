@@ -18,6 +18,15 @@
 .t-out { margin: var(--space-0) 0 var(--space-0) var(--space-6); padding: 0 0 0 10px; border-left: 1px solid var(--border); color: var(--gray-10); white-space: pre-wrap; word-break: break-all; font: inherit; }
 .t-more { margin-left: 30px; color: var(--text-link); font: var(--text-size-xs) var(--font-sans); cursor: pointer; }
 .t-agent { color: var(--violet); padding: 3px 0; }
+/* Where a turn starts: a hairline and your prompt. */
+.t-turn { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-4) 0 var(--space-2); color: var(--text-3); font: var(--text-size-xs) var(--font-sans); }
+.t-turn::before, .t-turn::after { content: ''; height: 1px; background: var(--border); flex: 1 0 12px; }
+.t-turn::before { flex: 0 0 12px; }
+.t-turn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%; }
+.t-scroll > .t-turn:first-child { margin-top: 0; }
+/* A subagent's own calls, set in under the main loop's. */
+.t-sub { margin-left: var(--space-5); opacity: .8; }
+.t-sub .t-mark { color: var(--violet); }
 .t-log { color: var(--warn); padding: 3px 0; }
 .spin { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--warn); border-right-color: transparent; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -78,8 +78,10 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
       tasks done while Claude works through a list, and pauses while it waits on you
 - [x] **Done/failed exactness**: `session.lastTurn` from `turn.complete` (duration, reason): the
       done bloom for a long answered turn; an error or refusal lights the conversation red
-- [ ] **Turns everywhere**: Changes, Terminal and Conversation group by `turnId`; a "this turn"
-      filter in Changes; a step-through of a turn's edits, Replay Theater-style
+- [x] **Turns everywhere**: terminal entries carry their turn, each turn starts with a divider
+      showing the prompt, and a subagent's calls are set in; Changes revisions carry their turn,
+      with an "All / This turn" switch (the conversation was already per turn)
+- [ ] Later, if wanted: step through one turn's edits in order (Changes already flips revisions)
 - [x] **Context gauge** (`contextGauge`): the mod's `session.measure` → a `usage` event → a ring
       and percent in the top bar, amber from 85%; hover for tokens, cost, plan limits
 

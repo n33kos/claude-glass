@@ -157,8 +157,10 @@ function builtinEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassSt
       s = setWaiting(s, undefined);
       // endedAt: in folder scope another session may have ended while this one keeps going.
       s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined, turn: { id: ev.turnId, startedAt: Date.now(), steps: 0 } } }).state;
-      // A turn without a typed prompt (a continuation) adds no message.
-      return ev.text ? cmd(s, 'conversation', 'user', { text: String(ev.text), id: ev.turnId }) : s;
+      // A turn without a typed prompt (a continuation) adds no message, and no divider.
+      if (!ev.text) return s;
+      s = cmd(s, 'terminal', 'turn', { id: ev.turnId, text: String(ev.text) });
+      return cmd(s, 'conversation', 'user', { text: String(ev.text), id: ev.turnId });
     }
     case 'step': {
       const t = s.session.turn;
@@ -173,13 +175,13 @@ function builtinEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassSt
       // Web research shows up in the browser as it starts: the query, or the page being fetched.
       if (ev.tool === 'WebSearch' && ev.input?.query) s = web(s, ctx, 'web.search', { query: String(ev.input.query) });
       if (ev.tool === 'WebFetch' && ev.input?.url) s = web(s, ctx, 'web.page', { url: String(ev.input.url) });
-      return cmd(s, 'terminal', 'tool.start', { id: ev.id, tool: ev.tool, input: ev.input });
+      return cmd(s, 'terminal', 'tool.start', { id: ev.id, tool: ev.tool, input: ev.input, turnId: s.session.turn?.id, agentId: ev.agentId });
     case 'tool.end': {
       const input = ev.input ?? {};
       if (endsWait(s.session.waiting, ev.id)) s = setWaiting(s, undefined);
       s = cmd(s, 'terminal', 'tool.end', {
         id: ev.id, tool: ev.tool, input, response: ev.error ? ev.error : ev.result,
-        durationMs: ev.durationMs, error: ev.error ? true : undefined,
+        durationMs: ev.durationMs, error: ev.error ? true : undefined, turnId: s.session.turn?.id, agentId: ev.agentId,
       });
       return ev.error ? s : applyToolSideEffects(s, ev.tool, input, ev.result, ctx, auto);
     }
@@ -255,7 +257,7 @@ function applyToolSideEffects(
 
   if (EDIT_TOOLS.has(tool) && path) {
     const patch = result?.structuredPatch;
-    const args: Record<string, unknown> = { path, source: tool };
+    const args: Record<string, unknown> = { path, source: tool, turnId: s.session.turn?.id };
     if (Array.isArray(patch) && patch.length) args.hunks = patch;
     else if (tool === 'Write') { args.before = ''; args.after = String(input.content ?? ''); }
     else { args.before = String(input.old_string ?? ''); args.after = String(input.new_string ?? ''); }
