@@ -14,7 +14,7 @@ mkdirSync(shots, { recursive: true });
 const home = mkdtempSync(join(tmpdir(), 'cc-e2e-home-'));
 const runtime = mkdtempSync('/tmp/cc-e2e-rt-');
 // Example mods (auto-open off so they don't reshuffle the layout checks; opened near the end).
-cpSync(join(root, 'test/fixtures/mods'), join(home, 'apps'), { recursive: true });
+cpSync(join(root, 'test/fixtures/apps'), join(home, 'apps'), { recursive: true });
 {
   const mf = join(home, 'apps/tool-count/glass-app.json');
   writeFileSync(mf, JSON.stringify({ ...JSON.parse(readFileSync(mf, 'utf8')), autoOpen: false }));
@@ -583,22 +583,22 @@ try {
     }
   }
 
-  // Custom app (mod): sandboxed frame view, props over the bridge, view commands, CLI commands.
+  // Custom app: sandboxed frame view, props over the bridge, view commands, CLI commands.
   {
     await cli(env, 'window', 'open', 'tool-count');
-    await cli(env, 'app', 'tool-count', 'note', '--text', 'Hello from a mod');
+    await cli(env, 'app', 'tool-count', 'note', '--text', 'Hello from a custom app');
     await sleep(700);
     const frame = page.frameLocator('[data-window="tool-count"] iframe.appframe');
     const note = await frame.locator('#note').textContent({ timeout: 4000 }).catch(() => '');
-    check(note === 'Hello from a mod', `mod view renders its state (note: ${note})`);
+    check(note === 'Hello from a custom app', `custom app view renders its state (note: ${note})`);
     check((await frame.locator('.row').count()) >= 3, 'custom app filled itself from session events (onEvent)');
     await frame.locator('button[data-by="name"]').click();
     await sleep(300);
     const st = JSON.parse(await cli(env, 'state', 'tool-count')).state;
-    check(st.sort === 'name', 'mod view ran its view command');
-    await page.screenshot({ path: join(shots, '10-mod.png') });
+    check(st.sort === 'name', 'custom app view ran its view command');
+    await page.screenshot({ path: join(shots, '10-custom-app.png') });
     const guide = JSON.parse(await cli(env, 'catalog', '--json')).find((a) => a.type === 'tool-count');
-    check(guide?.source === 'user', 'mod is in the catalog');
+    check(guide?.source === 'user', 'custom app is in the catalog');
     const iconOk = await page.locator('.dock-item[data-dock-id="tool-count"] .tile img.app-icon').evaluate((img) => img.complete && img.naturalWidth > 0).catch(() => false);
     check(iconOk, 'a custom app shows its own image icon in the dock');
   }

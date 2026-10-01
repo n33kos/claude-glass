@@ -339,7 +339,7 @@ async function main(argv: string[]) {
       }
       // List: from the live glass (what actually loaded), else what's on disk.
       const cat: any[] | null = await call(sessionId(flags), { op: 'catalog' }).catch(() => null);
-      const reports: any[] = await call(sessionId(flags), { op: 'mods' }).catch(() => []);
+      const reports: any[] = await call(sessionId(flags), { op: 'apps' }).catch(() => []);
       const rows = cat
         ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}${a.permissions ? `  [can use: ${[...a.permissions.network, a.permissions.microphone && 'microphone', a.permissions.storage && 'storage', a.permissions.sharedSignIn && 'shared sign-in'].filter(Boolean).join(', ')}]` : ''}`)
         : ['(glass not open: showing folders only)', ...(existsSync(dir) ? readdirSync(dir).map((d) => `custom   ${d}`) : [])];

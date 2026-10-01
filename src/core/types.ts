@@ -133,7 +133,7 @@ export type Action =
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
-  op: 'ping' | 'event' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'preset' | 'quit';
+  op: 'ping' | 'event' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

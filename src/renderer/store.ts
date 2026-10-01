@@ -1,13 +1,13 @@
 // Renderer-side mirror of core state, fed by patches from main. Tiny external store for React.
 import { useSyncExternalStore } from 'react';
 import type { AppInfo } from '../apps/types';
-import type { ModReport } from '../core/mods';
+import type { AppReport } from '../core/customApps';
 import type { Action, GlassState, GlobalConfig } from '../core/types';
 
 declare global {
   interface Window {
     glass: {
-      init(): Promise<{ sessionId: string; state: GlassState; config: GlobalConfig; apps: AppInfo[]; mods: ModReport[] }>;
+      init(): Promise<{ sessionId: string; state: GlassState; config: GlobalConfig; apps: AppInfo[]; appReports: AppReport[] }>;
       dispatch(action: Action): Promise<{ ok: boolean; result?: unknown; error?: string }>;
       setConfig(key: string, value: unknown): Promise<{ ok: boolean; error?: string }>;
       onPatch(fn: (p: any) => void): () => void;
@@ -33,16 +33,16 @@ declare global {
 export interface Snapshot { state: GlassState; config: GlobalConfig }
 
 let snap: Snapshot | null = null;
-/** Registered apps (built-in and mods), from main. Fixed for the life of the glass. */
+/** Registered apps (built-in and custom), from main. Fixed for the life of the glass. */
 export const apps: Record<string, AppInfo> = {};
-export let mods: ModReport[] = [];
+export let appReports: AppReport[] = [];
 const subs = new Set<() => void>();
 
 export async function initStore(): Promise<void> {
-  const { state, config, apps: list, mods: reports } = await window.glass.init();
+  const { state, config, apps: list, appReports: reports } = await window.glass.init();
   snap = { state, config };
   for (const a of list) apps[a.type] = a;
-  mods = reports;
+  appReports = reports;
   window.glass.onPatch((p) => {
     if (!snap) return;
     const { changed, config: cfg, ...rest } = p;

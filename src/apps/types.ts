@@ -29,7 +29,7 @@ export interface AppDef<S = any> {
   settings?: Record<string, SettingSpec>; // the app's own user settings (Settings → Apps, CLI, view props)
   permissions?: AppPermissions;
   source?: 'builtin' | 'user';
-  dir?: string; // mod folder: its view.html is served into a sandboxed frame
+  dir?: string; // app folder: its view.html is served into a sandboxed frame
 }
 
 export function str(args: Args, key: string, required = true): string {
@@ -153,7 +153,7 @@ export interface AppInfo {
   icon: string;
   iconUrl?: string;
   singleton: boolean;
-  frame: boolean; // view is a mod-style frame (glass-app://<type>/view.html)
+  frame: boolean; // view is a sandboxed frame (glass-app://<type>/view.html)
   viewCommands: string[];
   permissions: AppPermissions;
   settings?: Record<string, SettingSpec>;

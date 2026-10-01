@@ -9,7 +9,7 @@ import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic 
 import { guideFor } from './guide';
 import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
 import { applyEvent, type EventContext, type GlassEvent } from './events';
-import { loadMods, type ModReport } from './mods';
+import { loadApps, type AppReport } from './customApps';
 import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
@@ -24,12 +24,12 @@ export class GlassCore {
   private saveTimer: NodeJS.Timeout | null = null;
   private server: net.Server | null = null;
   onQuit: () => void = () => {};
-  mods: ModReport[] = [];
+  apps: AppReport[] = []; // the user's custom apps, loaded or not (and why)
 
   constructor(readonly sessionId: string, cwd: string) {
     mkdirSync(sessionDir(sessionId), { recursive: true });
     this.config = loadConfig();
-    this.mods = loadMods();
+    this.apps = loadApps();
     const saved = loadState(sessionId);
     this.state = saved ?? initialState({ id: sessionId, cwd });
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
@@ -248,7 +248,7 @@ export class GlassCore {
         case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
         case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
-        case 'mods': return { ok: true, result: this.mods };
+        case 'apps': return { ok: true, result: this.apps };
         case 'state': {
           const id = env.id as string | undefined;
           if (!id) return { ok: true, result: this.state };

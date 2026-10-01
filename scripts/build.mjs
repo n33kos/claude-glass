@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 const common = { bundle: true, sourcemap: 'inline', logLevel: 'warning', target: 'es2022' };
 const require = createRequire(import.meta.url);
 
-// Built-in apps that ship in the mod format (docs/apps.md). Settings is the one native view.
+// Built-in apps that ship in the app format (docs/apps.md). Settings is the one native view.
 const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser', 'tasks', 'agents', 'tests', 'files', 'diagram'];
 // Kept in sync with INTERNAL_COMMANDS in src/apps/registry.ts (hidden from Claude's catalog).
 const INTERNAL = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go', 'web.found', 'web.away', 'web.home']);
@@ -26,7 +26,7 @@ await Promise.all([
 cpSync('src/renderer/index.html', 'dist/renderer/index.html');
 console.log('built dist/');
 
-/** src/apps/<type>/ → dist/apps/<type>/: a complete mod folder (core.js, glass-app.json, view.*, guide.md). */
+/** src/apps/<type>/ → dist/apps/<type>/: a complete app folder (core.js, glass-app.json, view.*, guide.md). */
 async function buildApp(type) {
   const src = resolve('src/apps', type);
   const out = resolve('dist/apps', type);

@@ -1,4 +1,4 @@
-// React adapter for app views (used by the built-in apps; any mod may use it too).
+// React adapter for app views (used by the built-in apps; any custom app may use it too).
 //   mount(MyView)  →  <MyView state meta size session run host width height id />
 import { useEffect, useState, type ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';

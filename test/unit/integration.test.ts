@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bindSession, cleanupRuntime, folderGlassId } from '../../src/core/binding';
-import { readMod } from '../../src/core/mods';
+import { readApp } from '../../src/core/customApps';
 import { GlassCore } from '../../src/core/server';
 
 const root = join(__dirname, '../..');
@@ -227,10 +227,10 @@ describe('folder scope', () => {
   });
 });
 
-describe('built-in apps ship as mods', () => {
-  it('each compiled dist/apps/<type> folder loads through the mod loader', () => {
+describe('built-in apps ship in the app format', () => {
+  it('each compiled dist/apps/<type> folder loads through the custom app loader', () => {
     for (const type of ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser']) {
-      const app = readMod(join(root, 'dist/apps', type));
+      const app = readApp(join(root, 'dist/apps', type));
       expect(app.type).toBe(type);
       expect(typeof app.init()).toBe('object');
       expect(existsSync(join(root, 'dist/apps', type, 'view.html'))).toBe(true);
@@ -239,16 +239,16 @@ describe('built-in apps ship as mods', () => {
 });
 
 describe('apps CLI', () => {
-  it('apps new creates a starter mod that loads', async () => {
+  it('apps new creates a starter app that loads', async () => {
     await cli('apps', 'new', 'demo-notes');
-    const app = readMod(join(home, 'apps', 'demo-notes'));
+    const app = readApp(join(home, 'apps', 'demo-notes'));
     expect(app).toMatchObject({ type: 'demo-notes', title: 'Demo Notes', source: 'user' });
     expect(app.command(app.init(), 'set', { text: 'hi' })).toMatchObject({ text: 'hi' });
     expect(app.guide).toContain('claude-glass app demo-notes set');
   });
-  it('apps copy copies a built-in that loads as a user mod', async () => {
+  it('apps copy copies a built-in that loads as a user app', async () => {
     await cli('apps', 'copy', 'image');
-    const app = readMod(join(home, 'apps', 'image'));
+    const app = readApp(join(home, 'apps', 'image'));
     expect(app).toMatchObject({ type: 'image', source: 'user' });
     expect(existsSync(join(home, 'apps', 'image', 'src', 'view.tsx'))).toBe(true);
   });

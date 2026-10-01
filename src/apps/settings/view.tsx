@@ -4,7 +4,7 @@ import { LAYOUT_NAMES, LAYOUTS } from '../../core/layout';
 import { DEFAULT_PALETTES, MOODS, type Mood } from '../../core/colors';
 import { BACKGROUNDS, PRESETS } from '../../renderer/backgrounds';
 import { AppIcon } from '../../renderer/AppIcon';
-import { apps, dispatch, mods, setConfig } from '../../renderer/store';
+import { appReports, apps, dispatch, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: React.ReactNode }) {
@@ -229,23 +229,23 @@ export function SettingsView({ glass, config }: ViewProps) {
       <h3>Apps</h3>
       <p className="s-note">Turned-off apps are hidden and Claude can't use them. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>).</p>
       {Object.values(apps).filter((a) => a.type !== 'settings').map((a) => {
-        const mod = mods.find((m) => m.ok && m.type === a.type);
+        const custom = appReports.find((r) => r.ok && r.type === a.type);
         const on = !config.disabledApps.includes(a.type);
         return (
           <Fragment key={a.type}>
             <Toggle on={on}
               onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
-              label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{mod ? (mod.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
+              label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{custom ? (custom.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
                 {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
                   {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
             {on && a.settings && <AppSettings type={a.type} specs={a.settings} stored={config.appSettings?.[a.type]} />}
           </Fragment>
         );
       })}
-      {mods.filter((m) => !m.ok).map((m) => (
-        <div key={m.dir} className="s-row s-app s-app-bad" title={m.dir}>
-          <span>▢ <code>{m.type}</code></span>
-          <span className="s-app-status">{m.error}</span>
+      {appReports.filter((r) => !r.ok).map((r) => (
+        <div key={r.dir} className="s-row s-app s-app-bad" title={r.dir}>
+          <span>▢ <code>{r.type}</code></span>
+          <span className="s-app-status">{r.error}</span>
         </div>
       ))}
       <p className="s-note">New or changed custom apps load when the glass restarts.</p>

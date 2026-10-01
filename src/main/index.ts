@@ -10,7 +10,7 @@ import { startMetrics } from './metrics';
 import { currentWeb, type BrowserState } from '../apps/browser';
 import { BrowserStream } from '../core/cdp';
 import { computeDesktops, desktopsFor } from '../core/layout';
-import { attachBuiltinViews } from '../core/mods';
+import { attachBuiltinViews } from '../core/customApps';
 import { findProjectImages, IMAGE_FILE } from '../core/projectImages';
 import { GlassCore } from '../core/server';
 import { ownVersion, pendingUpdate, type Installed } from '../core/update';
@@ -102,7 +102,7 @@ const HTML_CSP = [
   "connect-src 'none'",
 ].join('; ');
 
-// App views (built-in and mods) run in sandboxed frames served from glass-app://<type>/...,
+// App views (built-in and custom) run in sandboxed frames served from glass-app://<type>/...,
 // the SDK from glass-app://sdk/. Scripts from the app itself or the usual CDNs; no network unless
 // the app's manifest asks for specific origins (permissions.network).
 function appCsp(p: AppPermissions): string {
@@ -275,7 +275,7 @@ async function boot() {
     return new Response(body, { headers: { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': HTML_CSP } });
   });
 
-  ipcMain.handle('glass:init', () => ({ sessionId, state: core.state, config: core.config, apps: Object.values(APPS).map(appInfo), mods: core.mods }));
+  ipcMain.handle('glass:init', () => ({ sessionId, state: core.state, config: core.config, apps: Object.values(APPS).map(appInfo), appReports: core.apps }));
   ipcMain.handle('glass:dispatch', (_e, action: Action) => {
     try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
   });

@@ -1,4 +1,4 @@
-// The app registry. Built-in apps and user mods register the same way (`registerApp`); a user
+// The app registry. Built-in apps and the user's custom apps register the same way (`registerApp`); a user
 // mod with a built-in's type replaces it. Views: see src/renderer/views.ts (built-in, native)
 // and the mod frame (apps with `dir`).
 import type { AppDef } from './types';

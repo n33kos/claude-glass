@@ -40,7 +40,7 @@ two-way path falls back to Claude Code's own UI when the glass is closed, slow o
       - Only if 40 ms ever hurts: `$.http.fetch` with `socketPath` to the same socket
 - [x] **Mods required**: `claude-glass open` warns when the mod never ran in the session (it
       writes `<runtime>/<session>.mod` at session start)
-- [ ] The glass's top bar says so too, not just the CLI
+- [x] The glass's top bar says so too ("Not connected"), until any event arrives
 - [x] Vitest unit + integration tests on recorded events, the CLI's `event` and `session-start`;
       e2e seeds through `claude-glass event`. Verified live: a headless `claude -p` session with
       `--plugin-dir` filled every window, got the guide and the reminder
@@ -48,8 +48,8 @@ two-way path falls back to Claude Code's own UI when the glass is closed, slow o
 - [x] The plugin is renamed `glass` (`claude-` names are reserved); CLI, repo, app keep theirs
 - [ ] At release: rename the entry in `~/claude-plugins/.claude-plugin/marketplace.json` to
       `glass` in the same push (not before: the installed `claude-glass@n33kos` would break)
-- [ ] Rename the glass's own "mods" (custom apps: `src/core/mods.ts`, the `mods` op) to "apps",
-      now that "mod" means a Claude Code mod
+- [x] The glass's own "mods" are "apps" now (`src/core/customApps.ts`, the `apps` op,
+      `test/fixtures/apps`); "mod" only means the Claude Code mod
 
 ## Phase 1 — Exact, deterministic signals and attention (one-way)
 

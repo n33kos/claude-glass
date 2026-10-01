@@ -17,7 +17,7 @@ import { capturePreset, presetActions } from '../../src/core/presets';
 import { DEFAULT_CONFIG } from '../../src/core/config';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor, guideForSettings } from '../../src/core/guide';
-import { attachBuiltinViews, loadMods } from '../../src/core/mods';
+import { attachBuiltinViews, loadApps } from '../../src/core/customApps';
 import { APPS } from '../../src/apps/registry';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
@@ -298,8 +298,8 @@ describe('"Claude decides" layout', () => {
 });
 
 describe('custom apps (mods)', () => {
-  let reports: ReturnType<typeof loadMods> = [];
-  beforeAll(() => { reports = loadMods(join(__dirname, '../fixtures/mods')); });
+  let reports: ReturnType<typeof loadApps> = [];
+  beforeAll(() => { reports = loadApps(join(__dirname, '../fixtures/apps')); });
   afterAll(() => { for (const r of reports) if (r.ok) delete APPS[r.type]; });
   it('loads good mods and reports broken ones without throwing', () => {
     expect(reports.find((r) => r.type === 'tool-count')).toMatchObject({ ok: true });

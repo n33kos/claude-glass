@@ -33,10 +33,10 @@ watches. Tiling, dragging, desktops, and settings are conveniences for *viewing*
   It must run in plain Node (integration tests do exactly that).
 - Every state change is a reducer action (`src/core/reducer.ts`). UI and CLI share actions.
   Never add a code path that mutates state outside the reducer.
-- Apps use the mod format (docs/apps.md). Built-in app = `src/apps/<type>/index.ts` (core,
+- Apps use the app format (docs/apps.md); "mod" now only means the Claude Code mod. Built-in app = `src/apps/<type>/index.ts` (core,
   `export default`) + `view.tsx` (`export default`, `AppViewProps`) + `view.css`; register the
   core in `src/apps/registry.ts` and add the type to `FRAME_APPS` in `scripts/build.mjs`, which
-  compiles it into a mod folder in `dist/apps/<type>`. Views run in sandboxed frames and talk
+  compiles it into an app folder in `dist/apps/<type>`. Views run in sandboxed frames and talk
   over the bridge (`src/sdk`). Only Settings is native. Mention a new app in the README.
 - The mod (`hooks/glass-mod.ts`) must never block Claude: it queues events and sends them in the
   background (one `claude-glass event` at a time, in order), skips the CLI when no socket exists,
