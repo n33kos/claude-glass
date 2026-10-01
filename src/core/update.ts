@@ -15,7 +15,7 @@ export function installedGlass(dir = pluginsDir()): Installed | null {
   try {
     const j = JSON.parse(readFileSync(join(dir, 'installed_plugins.json'), 'utf8'));
     const all = j.plugins ?? j;
-    const entries = Object.entries(all).filter(([k]) => k.startsWith('claude-glass@')).flatMap(([, v]) => (Array.isArray(v) ? v : [v])) as { scope?: string; installPath?: string; version?: string }[];
+    const entries = Object.entries(all).filter(([k]) => k.startsWith('glass@')).flatMap(([, v]) => (Array.isArray(v) ? v : [v])) as { scope?: string; installPath?: string; version?: string }[];
     const e = entries.find((x) => x.scope === 'user') ?? entries[0];
     return e?.installPath && e.version ? { version: String(e.version), root: resolve(e.installPath) } : null;
   } catch {

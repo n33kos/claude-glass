@@ -34,8 +34,13 @@ organization's policy), `claude-glass open` says so.
 
 ```
 /plugin marketplace add n33kos/claude-plugins
-/plugin install claude-glass@n33kos
+/plugin install glass@n33kos
 ```
+
+The plugin is named `glass`: Claude Code reserves plugin names starting with `claude-` for
+Anthropic's own. Everything else (the `claude-glass` command, the app, `~/.claude/claude-glass`)
+keeps its name. Installed it earlier as `claude-glass@n33kos`? Uninstall that and install
+`glass@n33kos`.
 
 **From a clone:**
 
@@ -55,7 +60,7 @@ The version a glass runs is in the top bar's right corner (`dev` when it runs fr
 
 ## Using the glass
 
-Ask Claude to "open the glass", run `/claude-glass:glass`, or from a shell inside the session:
+Ask Claude to "open the glass", run `/glass:glass`, or from a shell inside the session:
 
 ```sh
 claude-glass open      # this session's glass ($CLAUDE_CODE_SESSION_ID)

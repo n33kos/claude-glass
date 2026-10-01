@@ -59,8 +59,9 @@ watches. Tiling, dragging, desktops, and settings are conveniences for *viewing*
   against a `GlassCore` listening for that id in plain Node (temp `CLAUDE_GLASS_HOME`/`RUNTIME`).
 - Mods sit behind Claude Code's server flag `tengu_plugin_hooks_modules`; a session that says
   they're off may have read a stale cache (`cachedGrowthBookFeatures` in `~/.claude.json`).
-- The plugin name `claude-glass` is reserved by `claude plugin validate` (names starting with
-  `claude-`); `--plugin-dir` still loads it.
+- The plugin is named `glass` (`glass@n33kos`, skill `/glass:glass`): Claude Code reserves plugin
+  names starting with `claude-`. Everything else stays `claude-glass` (CLI, repo, app, home dir).
+  The install lookups (`bin/claude-glass`, `src/core/update.ts`) match `glass@`.
 - `CLAUDE_CODE_SESSION_ID` is set in the Bash tool environment; plugin env vars
   (`CLAUDE_PLUGIN_ROOT`) are NOT. Plugin `bin/` is on the Bash PATH. The mod finds the CLI at
   `$.plugin.root/bin/claude-glass` and passes `--session` itself.

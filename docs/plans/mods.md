@@ -45,6 +45,9 @@ two-way path falls back to Claude Code's own UI when the glass is closed, slow o
       e2e seeds through `claude-glass event`. Verified live: a headless `claude -p` session with
       `--plugin-dir` filled every window, got the guide and the reminder
 - [ ] Mod unit tests with `claude plugin test` (`hooks/*.test.ts`)
+- [x] The plugin is renamed `glass` (`claude-` names are reserved); CLI, repo, app keep theirs
+- [ ] At release: rename the entry in `~/claude-plugins/.claude-plugin/marketplace.json` to
+      `glass` in the same push (not before: the installed `claude-glass@n33kos` would break)
 - [ ] Rename the glass's own "mods" (custom apps: `src/core/mods.ts`, the `mods` op) to "apps",
       now that "mod" means a Claude Code mod
 

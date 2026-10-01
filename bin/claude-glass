@@ -18,7 +18,7 @@ function installedRoot() {
     if (!root.startsWith(join(dir, 'cache') + sep)) return null; // a checkout, not a plugin install
     const j = JSON.parse(readFileSync(join(dir, 'installed_plugins.json'), 'utf8'));
     const all = j.plugins || j;
-    const entries = Object.entries(all).filter(([k]) => k.startsWith('claude-glass@')).flatMap(([, v]) => (Array.isArray(v) ? v : [v]));
+    const entries = Object.entries(all).filter(([k]) => k.startsWith('glass@')).flatMap(([, v]) => (Array.isArray(v) ? v : [v]));
     const e = entries.find((x) => x && x.scope === 'user') || entries[0];
     const now = e && e.installPath && existsSync(join(e.installPath, 'bin', 'claude-glass')) ? realpathSync(e.installPath) : null;
     return now && now !== root ? now : null;
