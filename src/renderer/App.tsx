@@ -490,6 +490,7 @@ export function App() {
             {waiting ? 'Waiting on you' : presence === 'working' ? 'Claude is working' : presence === 'ended' ? 'Session ended' : 'Idle'}
             {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
           </span>
+          {config.interruptButton === true && presence === 'working' && <StopButton />}
         </div>
         {s.modMissing && !s.endedAt && (
           <span className="mod-missing" title="The Claude Glass mod isn't running in this Claude session, so the glass doesn't fill itself. It needs Claude Code 2.1.287 or newer with mods allowed; start a new session once that's fixed.">
@@ -619,6 +620,17 @@ function ContextGauge({ usage }: { usage?: SessionUsage }) {
       </svg>
       {pct}%
     </span>
+  );
+}
+
+/** Stop (interruptButton, two-way): ends Claude's turn, like Esc in Claude Code. */
+function StopButton() {
+  const [sent, setSent] = useState(false);
+  return (
+    <button className="stop-turn" disabled={sent} title="Stop Claude's turn (like Esc in Claude Code)"
+      onClick={() => { setSent(true); window.glass.interrupt(); setTimeout(() => setSent(false), 4000); }}>
+      <i />{sent ? 'Stopping…' : 'Stop'}
+    </button>
   );
 }
 

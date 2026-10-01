@@ -307,6 +307,24 @@ describe('approvals through the glass (the Action app)', () => {
   });
 });
 
+describe('the Stop button (controls the mod collects)', () => {
+  const watchCli = (ms: string) => run(join(root, 'bin/claude-glass'), ['watch', '--session', SID, '--ms', ms], '');
+  it('only with interruptButton on and Claude working; the mod collects it with claude-glass watch', async () => {
+    core.interrupt(); // off by default: nothing queued
+    expect(JSON.parse((await watchCli('50')).stdout)).toEqual([]);
+    await cli('settings', 'set', 'interruptButton', 'true');
+    core.dispatch({ type: 'session.update', patch: { activity: 'working' } });
+    const waiting = watchCli('8000');
+    await wait(300);
+    core.interrupt();
+    expect(JSON.parse((await waiting).stdout)).toEqual([{ kind: 'interrupt', at: expect.any(Number) }]);
+    core.dispatch({ type: 'session.update', patch: { activity: 'idle' } });
+    core.interrupt(); // idle: nothing to stop
+    expect(JSON.parse((await watchCli('50')).stdout)).toEqual([]);
+    await cli('settings', 'set', 'interruptButton', 'false');
+  });
+});
+
 describe('built-in apps ship in the app format', () => {
   it('each compiled dist/apps/<type> folder loads through the custom app loader', () => {
     for (const type of ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser']) {

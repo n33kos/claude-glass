@@ -186,6 +186,31 @@ export class GlassCore {
     }
   }
 
+  // ---- Controls: the glass asking the mod to do something (interrupt) -------------------------
+  // Not glass state: a short queue the mod collects with `claude-glass watch`, a CLI call that
+  // waits on the socket until there's something (or a while passes). Only the glass's own
+  // window adds to it (main's IPC), never the socket.
+  private controls: { kind: 'interrupt'; at: number }[] = [];
+  private watchers = new Set<() => void>();
+
+  /** The user pressed Stop in the glass (with the interrupt button on). */
+  interrupt(): void {
+    if (this.config.interruptButton !== true || this.state.session.activity !== 'working') return;
+    this.controls.push({ kind: 'interrupt', at: Date.now() });
+    for (const fn of [...this.watchers]) fn();
+  }
+
+  /** The mod's wait for controls: whatever is queued (dropping stale ones), or [] after ms. */
+  watchControls(ms: number): Promise<unknown[]> {
+    const take = () => { const fresh = this.controls.filter((c) => Date.now() - c.at < 15_000); this.controls = []; return fresh; };
+    if (this.controls.length) return Promise.resolve(take());
+    return new Promise((resolve) => {
+      const done = () => { clearTimeout(t); this.watchers.delete(done); resolve(take()); };
+      const t = setTimeout(done, Math.max(0, Math.min(30_000, ms)));
+      this.watchers.add(done);
+    });
+  }
+
   /** Session events from the glass mod, in order (one batch per `claude-glass event`). */
   events(events: unknown[]): void {
     const ctx: EventContext = {
@@ -407,9 +432,11 @@ export class GlassCore {
         buf = '';
         let env: Envelope;
         try { env = JSON.parse(line); } catch (e: any) { sock.end(JSON.stringify({ ok: false, error: `bad request: ${e.message}` }) + '\n'); return; }
-        // The one op that answers later: waiting on an approval (the connection stays open).
-        if (env?.op === 'action.wait') {
-          void this.actionWait(String(env.id), Number(env.ms ?? 1000)).then((result) => { if (!sock.destroyed) sock.end(JSON.stringify({ ok: true, result }) + '\n'); });
+        // Ops that answer later (the connection stays open): an approval's answer, the mod's controls.
+        const later = env?.op === 'action.wait' ? this.actionWait(String(env.id), Number(env.ms ?? 1000))
+          : env?.op === 'watch' ? this.watchControls(Number(env.ms ?? 20_000)) : null;
+        if (later) {
+          void later.then((result) => { if (!sock.destroyed) sock.end(JSON.stringify({ ok: true, result }) + '\n'); });
           return;
         }
         sock.end(JSON.stringify(this.handle(env)) + '\n');

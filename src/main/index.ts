@@ -302,6 +302,8 @@ async function boot() {
     }
   });
   // Web links in app views open in the user's browser (the frames themselves can't navigate).
+  // Stop: the user ends Claude's turn from the glass (interruptButton); the mod collects it.
+  ipcMain.on('glass:interrupt', () => core.interrupt());
   ipcMain.on('glass:openLink', (_e, url: string) => {
     if (/^(https?:|mailto:)/i.test(String(url))) void shell.openExternal(String(url));
   });

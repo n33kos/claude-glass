@@ -47,6 +47,30 @@ async function flush($: any) {
   }
 }
 
+// Controls from the glass (the Stop button, when the user turned it on). A background loop runs
+// `claude-glass watch`, which waits on the socket for one, so the glass never pushes anything.
+let turnId = '' // the main loop's running turn
+let configFile = '' // the glass's config.json, to see whether the Stop button is on
+let watching = 0 // the loop's generation: a reload starts a new one, and the old one stops
+
+async function stopButtonOn($: any): Promise<boolean> {
+  try { return configFile ? JSON.parse(await $.fs.read(configFile)).interruptButton === true : false } catch { return false }
+}
+
+async function watchControls($: any, gen: number) {
+  if (gen !== watching) return
+  // Nothing to collect without a glass, or with the button off: look again in a while.
+  if (!cid || !sock || !(await $.fs.exists(sock)) || !(await stopButtonOn($))) {
+    $.clock.after(15_000, () => { void watchControls($, gen) })
+    return
+  }
+  const controls = await ask($, ['watch', '--ms', '20000'], undefined, 30_000)
+  for (const c of Array.isArray(controls) ? controls : []) {
+    if (c?.kind === 'interrupt' && turnId) await $.turn.abort({ turnId }).catch(() => {})
+  }
+  $.clock.after(100, () => { void watchControls($, gen) })
+}
+
 /** Bind the session to its glass (opening it on autoStart) and learn what the hooks need. */
 async function sessionStart($: any, source: string) {
   try {
@@ -55,6 +79,7 @@ async function sessionStart($: any, source: string) {
     sock = typeof info.socket === 'string' ? info.socket : ''
     guide = typeof info.guide === 'string' ? info.guide : null
     toolReminders = info.toolReminders !== false
+    configFile = typeof info.config === 'string' ? info.config : configFile
   } catch {
     // Not built yet (the first CLI command builds it), or something broke: the session goes on.
   }
@@ -143,6 +168,7 @@ export function register(on: any) {
       cwd = String(e.cwd ?? (await $.session.cwd()))
       await sessionStart($, 'reload')
     }
+    void watchControls($, ++watching)
     return next(e)
   })
 
@@ -154,6 +180,7 @@ export function register(on: any) {
   })
 
   on('turn.start', async ($: any, e: any, next: any) => {
+    turnId = e.turnId
     send($, { e: 'turn.start', turnId: e.turnId, text: e.text })
     return next(e)
   })
@@ -182,7 +209,10 @@ export function register(on: any) {
 
   on('turn.complete', async ($: any, e: any, next: any) => {
     if (e.agentId) send($, { e: 'agent.end', agentId: e.agentId, answer: e.answer, aborted: e.isAborted })
-    else send($, { e: 'turn.complete', turnId: e.turnId, durationMs: e.durationMs, reason: e.reason, aborted: e.isAborted })
+    else {
+      if (e.turnId === turnId) turnId = ''
+      send($, { e: 'turn.complete', turnId: e.turnId, durationMs: e.durationMs, reason: e.reason, aborted: e.isAborted })
+    }
     return next(e)
   })
 

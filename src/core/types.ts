@@ -98,6 +98,7 @@ export interface GlobalConfig {
   followAgents: FollowMode; // a subagent starts: Agents
   turnProgress: boolean; // a thin white bar along the bottom while Claude works on a turn
   contextGauge: boolean; // how full Claude's context window is, in the top bar
+  interruptButton: boolean; // two-way: a Stop button in the top bar while Claude works (ends the turn)
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
@@ -166,7 +167,7 @@ export type Action =
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
-  op: 'ping' | 'event' | 'dispatch' | 'action.request' | 'action.wait' | 'action.close' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'stored' | 'config' | 'preset' | 'quit';
+  op: 'ping' | 'event' | 'dispatch' | 'action.request' | 'action.wait' | 'action.close' | 'watch' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'stored' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

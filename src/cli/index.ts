@@ -3,7 +3,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import { basename, extname, join, resolve } from 'node:path';
 import { bindSession, cleanupRuntime, glassIdFor, isBound, isOwnSocket } from '../core/binding';
 import { loadConfig, SETTINGS_HELP } from '../core/config';
-import { appsDir, filesDir, runtimeDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
+import { appsDir, configPath, filesDir, runtimeDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { healthReport } from '../core/health';
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
@@ -400,6 +400,16 @@ async function main(argv: string[]) {
       } else throw new Error('usage: claude-glass action request | wait <id> [--ms N] | close <id> [--by terminal|timeout|interrupted] [--choice C]');
       return;
     }
+    case 'watch': {
+      // The glass mod's wait for controls (the Stop button): blocks on the socket until there's
+      // one or --ms passes, then prints them as a JSON array. No glass: [] at once.
+      const sock = socketPath(claudeSessionId(flags));
+      const ms = Math.max(0, Math.min(30_000, Number(flags.ms ?? 20_000)));
+      if (!existsSync(sock)) { console.log('[]'); return; }
+      const r = await request(sock, { op: 'watch', ms }, ms + 3000).catch(() => null);
+      console.log(JSON.stringify(r?.ok && Array.isArray(r.result) ? r.result : []));
+      return;
+    }
     case 'stored': {
       // Apps' persistent values: look at them, set one, or reset them.
       const [type, sub, key, value] = rest;
@@ -470,7 +480,7 @@ async function main(argv: string[]) {
         if (source !== 'reload') await request(socketPath(sid), { op: 'event', events: [{ e: 'session.start', source, sessionId: cid, cwd: projectDir }] }, 1000).catch(() => {});
         guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null) ?? guideFor(config);
       }
-      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false }));
+      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false, config: configPath() }));
       return;
     }
     default:

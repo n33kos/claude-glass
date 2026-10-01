@@ -218,6 +218,7 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `signalDone` | **true** / false | a green bloom when a long turn is done |
 | `followEdits`, `followPlans`, `followWeb`, `followImages`, `followAgents` | **off** / light / front / both / focus | when an edit, plan, search or page, image, or subagent comes in: light its window, bring it to the front, both, or both and show desktop 1. Only windows on screen move |
 | `followTests` | off / **light** / front / both / focus | the same when a test run fails (lit red) |
+| `interruptButton` | true / **false** | two-way: a Stop button in the top bar while Claude works, which ends the turn (like Esc) |
 | `contextGauge` | **true** / false | how full Claude's context window is, in the top bar (hover: tokens, cost, plan limits; amber near full) |
 | `turnProgress` | **true** / false | a thin white bar along the bottom while Claude works: it sweeps, brightens on each model request, and fills by tasks done when Claude works through a list |
 | `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |

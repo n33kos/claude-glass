@@ -16,6 +16,7 @@ declare global {
       getUpdate(): Promise<{ version: string } | null>;
       version?(): Promise<{ version: string; dev: boolean }>;
       applyUpdate(): void;
+      interrupt(): void; // Stop: end Claude's turn (interruptButton)
       onUpdate(fn: (u: { version: string } | null) => void): () => void;
       projectImages(): Promise<{ ok: boolean; result?: { root: string; images: { path: string; rel: string; mtime: number; size: number }[] }; error?: string }>;
       openLink(url: string): void;

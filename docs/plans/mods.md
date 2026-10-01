@@ -104,9 +104,12 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
       `claude-glass action wait <id> --ms 700` (time inside `$` calls is free), so no server
 - [ ] App questions: any two-way app can raise one (Phase 3)
 - [ ] Questions (AskUserQuestion): the experiment below
-- [ ] **Interrupt**: a Stop button in the top bar while Claude works → `$.turn.abort()`
-      (setting `interruptButton`, off by default)
-- [ ] Waiting state comes from these exact events (no more inferring it from notifications)
+- [x] **Interrupt** (`interruptButton`, off by default): a Stop button in the top bar while
+      Claude works. The glass queues a control (only its own window can, over IPC); the mod's
+      background loop collects it with `claude-glass watch` (blocks on the socket up to 20s; only
+      runs while the button is on) and calls `$.turn.abort({ turnId })`. Unit + integration
+      tested; a live abort is still to check (the account hit its usage limit)
+- [x] Waiting state comes from exact events (`classic.PermissionRequest`, AskUserQuestion)
 
 ## Persistent app state (`stored`)
 

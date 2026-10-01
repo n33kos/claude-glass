@@ -39,7 +39,7 @@ if (newer) {
 // waits for that: without a build its commands do nothing, so Claude is never blocked.
 if (!existsSync(join(root, 'dist', 'cli.js'))) {
   const cmd = process.argv[2];
-  if (cmd === 'event' || cmd === 'session-start' || cmd === 'action') process.exit(0);
+  if (cmd === 'event' || cmd === 'session-start' || cmd === 'action' || cmd === 'watch') process.exit(0);
   process.stderr.write('Claude Glass: first run, installing and building (a minute or two, once)…\n');
   try {
     execSync('npm install --no-audit --no-fund && npm run build', { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
