@@ -150,6 +150,12 @@ export function register(on: any) {
     return r
   })
 
+  // Context window use, cost and plan limits, measured after each turn.
+  on('session.measure', async ($: any, e: any, next: any) => {
+    send($, { e: 'usage', context: e.context, cost: e.cost, rateLimits: e.rateLimits })
+    return next(e)
+  })
+
   // Claude Code is showing a permission prompt: the glass says it's waiting on the user.
   on('classic.PermissionRequest', async ($: any, e: any, next: any) => {
     send($, { e: 'permission', tool: e.tool_name, input: e.tool_input })

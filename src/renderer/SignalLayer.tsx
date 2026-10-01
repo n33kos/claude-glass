@@ -3,7 +3,7 @@
 //   waiting on you   amber rises from the bottom edge and breathes          (automatic: hooks)
 //   alert            red flickers behind the window that broke               (Claude, or a failing test run: followTests)
 //   spotlight        blue gathers behind one window, its edge lights         (Claude: "look here", or the follow* settings)
-//   done             one green bloom, after a turn long enough to look away  (automatic: Stop)
+//   done             one green bloom, after a turn long enough to look away  (automatic: the turn's end)
 //   progress         a pale light at the front of a hairline bar             (Claude: long work, known end)
 // Priority, highest first: waiting, alert, spotlight, done, progress (it resumes when the others end).
 // A glow sits behind the windows (between wallpaper and stage); a ring over the target window.
@@ -45,14 +45,17 @@ export function TurnBar({ state }: { state: GlassState }) {
 export function SignalLayer({ state, on, done = true }: { state: GlassState; on: boolean; done?: boolean }) {
   const [, tick] = useState(0);
   const local = useRef<Local[]>([]);
-  // Done: the session went idle after a long enough turn.
-  const workingSince = useRef<number | null>(null);
+  // How the last turn really ended (the mod's turn.complete): a long one answered gets the done
+  // bloom; one that died on an error or a refusal lights the conversation red.
+  const last = state.session.lastTurn;
+  const seenTurn = useRef(last?.id);
   useEffect(() => {
-    if (state.session.activity === 'working') { workingSince.current ??= Date.now(); return; }
-    const since = workingSince.current;
-    workingSince.current = null;
-    if (done && since && Date.now() - since >= DONE_AFTER_MS && !state.session.endedAt) push({ kind: 'done', at: Date.now() });
-  }, [state.session.activity]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!last || last.id === seenTurn.current) return;
+    seenTurn.current = last.id;
+    if (Date.now() - last.at > 10_000 || state.session.endedAt) return; // an old one, from a reload
+    if (last.reason === 'error' || last.reason === 'refusal') push({ kind: 'alert', target: 'conversation', at: Date.now() });
+    else if (done && last.reason === 'answer' && last.durationMs >= DONE_AFTER_MS) push({ kind: 'done', at: Date.now() });
+  }, [last?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // (A failed test run is lit by the core, by the followTests setting: src/core/events.ts.)
   // Settings' preview buttons play the automatic ones here (they never go through Claude).
   useEffect(() => {

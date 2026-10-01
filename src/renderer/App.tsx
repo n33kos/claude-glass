@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { computeDesktops, cornerHeight, cornerSides, desktopsFor, DOCKS, EDGES, edgeSize, effectiveLayout, isCorner, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
-import type { Corner, Dock, Edge, InstanceMeta, LayoutName, Waiting } from '../core/types';
+import type { Corner, Dock, Edge, InstanceMeta, LayoutName, SessionUsage, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon, iconSrc } from './AppIcon';
@@ -502,6 +502,7 @@ export function App() {
             <button key={p.index} className={p.index === v ? 'on' : ''} onClick={() => setView(p.index)} title={`Desktop ${p.index + 1}`} />
           ))}
         </nav>
+        {config.contextGauge !== false && <ContextGauge usage={s.usage} />}
         <Version />
       </header>
 
@@ -595,6 +596,29 @@ function Wallpaper({ bg, colors, animate, light }: { bg: string; colors: string[
     <div className={`wallpaper${animate ? ' drifting' : ''}`} style={w.style} aria-hidden>
       <canvas ref={canvas} className="wallpaper-light" />
     </div>
+  );
+}
+
+/**
+ * How full Claude's context window is (contextGauge): a small ring and a percent, quiet until it's
+ * nearly full. Hover for tokens, cost and plan limits.
+ */
+function ContextGauge({ usage }: { usage?: SessionUsage }) {
+  const c = usage?.context;
+  if (!c || !c.window) return null;
+  const pct = Math.max(0, Math.min(100, Math.round(c.percent || (c.tokens / c.window) * 100)));
+  const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
+  const limits = (usage.rateLimits ?? []).map((r) => `${r.kind.replace(/_/g, ' ')} limit ${Math.round(r.percentUsed)}%`);
+  const title = [`Context ${k(c.tokens)} / ${k(c.window)} tokens (${pct}%)`, usage.cost ? `Cost $${usage.cost.usd.toFixed(2)}` : '', ...limits].filter(Boolean).join('\n');
+  const r = 6, len = 2 * Math.PI * r;
+  return (
+    <span className={`ctx-gauge${pct >= 85 ? ' full' : ''}`} title={title} aria-label={`Context ${pct}% full`}>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+        <circle cx="8" cy="8" r={r} className="track" />
+        <circle cx="8" cy="8" r={r} className="arc" strokeDasharray={`${(pct / 100) * len} ${len}`} transform="rotate(-90 8 8)" />
+      </svg>
+      {pct}%
+    </span>
   );
 }
 

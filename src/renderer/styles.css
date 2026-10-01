@@ -138,6 +138,14 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .mod-missing i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
 .mod-missing + .update-pill { margin-left: 0; }
 .mod-missing + .pager { margin-left: 0; }
+/* Context window use (contextGauge): quiet until it's nearly full. */
+.ctx-gauge { margin-left: var(--space-4); display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-size-2xs); font-variant-numeric: tabular-nums;
+  color: var(--text-3); white-space: nowrap; cursor: default; }
+.ctx-gauge circle { fill: none; stroke-width: 2; }
+.ctx-gauge .track { stroke: var(--border-strong); }
+.ctx-gauge .arc { stroke: var(--text-2); stroke-linecap: round; transition: stroke-dasharray .8s var(--ease); }
+.ctx-gauge.full { color: var(--text-1); }
+.ctx-gauge.full .arc { stroke: var(--warn); }
 /* The running version: there when you look for it, never asking for attention. */
 .version { margin-left: var(--space-4); font-size: var(--text-size-2xs); font-variant-numeric: tabular-nums; color: var(--text-3); opacity: .7; white-space: nowrap; }
 .pager button { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); transition: background var(--dur-2), transform var(--dur-2); }

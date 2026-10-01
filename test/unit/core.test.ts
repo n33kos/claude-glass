@@ -265,6 +265,15 @@ describe('events (a real recorded session)', () => {
     expect(s.session.turn).toBeUndefined();
   });
 
+  it('records how a turn ended, and the usage Claude Code measured', () => {
+    let s = apply(fresh(), { e: 'turn.start', turnId: 't1', text: 'go' }, { e: 'turn.complete', turnId: 't1', durationMs: 42000, reason: 'answer' });
+    expect(s.session.lastTurn).toMatchObject({ id: 't1', durationMs: 42000, reason: 'answer' });
+    s = apply(s, { e: 'usage', context: { tokens: 50000, window: 200000, percent: 25 }, cost: { usd: 0.42 }, rateLimits: [{ kind: 'five_hour', percentUsed: 16, resetsAt: 'x' }] });
+    expect(s.session.usage).toMatchObject({ context: { tokens: 50000, window: 200000, percent: 25 }, cost: { usd: 0.42 }, rateLimits: [{ kind: 'five_hour', percentUsed: 16 }] });
+    s = apply(s, { e: 'usage', cost: { usd: 0.5 } }); // a partial measure keeps the rest
+    expect(s.session.usage).toMatchObject({ context: { percent: 25 }, cost: { usd: 0.5 } });
+  });
+
   it('ignores what it does not know', () => {
     const s = fresh();
     expect(apply(s, { e: 'nope' } as any, null as any, { foo: 1 } as any)).toEqual(s);

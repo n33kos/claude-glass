@@ -439,6 +439,12 @@ try {
   await sleep(150);
   await page.screenshot({ path: join(shots, '08d-turn-bar.png'), clip: { x: 0, y: (page.viewportSize()?.height ?? 900) - 120, width: page.viewportSize()?.width ?? 1440, height: 120 } });
 
+  // The context gauge: how full Claude's context is, from the mod's measure.
+  await event(env, { e: 'usage', context: { tokens: 172000, window: 200000, percent: 86 }, cost: { usd: 1.23 } });
+  await sleep(300);
+  check((await page.locator('.ctx-gauge.full').innerText()).includes('86%'), 'the context gauge shows how full the context is (and warns near full)');
+  await page.locator('header.topbar').screenshot({ path: join(shots, '08f-context-gauge.png') });
+
   // Attention: with followEdits on, an edit brings Changes to the front and lights it.
   {
     await cli(env, 'settings', 'set', 'followEdits', 'both');

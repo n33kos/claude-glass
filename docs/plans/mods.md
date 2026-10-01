@@ -76,12 +76,12 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
 - [x] **Turn progress bar** (`turnProgress`, default on): a thin white line along the bottom while
       a turn runs. It sweeps, brightens on each model request (the mod's `step` event), fills by
       tasks done while Claude works through a list, and pauses while it waits on you
-- [ ] **Done/failed exactness**: the done bloom from `turn.complete.durationMs` (not Stop
-      timing); alert from `isError` / test results
+- [x] **Done/failed exactness**: `session.lastTurn` from `turn.complete` (duration, reason): the
+      done bloom for a long answered turn; an error or refusal lights the conversation red
 - [ ] **Turns everywhere**: Changes, Terminal and Conversation group by `turnId`; a "this turn"
       filter in Changes; a step-through of a turn's edits, Replay Theater-style
-- [ ] **Context gauge**: `session.usage()` in the top bar (context %, a sparkline per turn,
-      rate limits), `contextGauge: true|false`
+- [x] **Context gauge** (`contextGauge`): the mod's `session.measure` → a `usage` event → a ring
+      and percent in the top bar, amber from 85%; hover for tokens, cost, plan limits
 
 ## Phase 2 — The Action app and two-way permissions
 

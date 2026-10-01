@@ -4,7 +4,7 @@
 import { searchResults } from '../apps/browser';
 import { summarizeTool } from '../apps/terminal';
 import { autoCommand, reduce } from './reducer';
-import type { FollowMode, GlassState, Waiting } from './types';
+import type { FollowMode, GlassState, SessionUsage, Waiting } from './types';
 
 /**
  * What the mod sends: one JSON object per event (`e` names it). Tool inputs and results are the
@@ -19,6 +19,8 @@ export type GlassEvent =
   /** The reply's text so far, in one block (`id` = turn, step and block): the whole text, not a delta. */
   | { e: 'text'; id: string; turnId?: string; text: string; final?: boolean }
   | { e: 'turn.complete'; turnId: string; durationMs?: number; reason?: string; aborted?: boolean }
+  /** Claude Code measured the session: context window use, cost, plan limits (after each turn). */
+  | { e: 'usage'; context?: SessionUsage['context']; cost?: SessionUsage['cost']; rateLimits?: SessionUsage['rateLimits'] }
   | { e: 'tool.start'; id: string; tool: string; input: any; agentId?: string; cwd?: string }
   | { e: 'tool.end'; id: string; tool: string; input: any; result?: any; error?: string; durationMs?: number; agentId?: string; cwd?: string }
   /** Claude Code is showing the user a permission prompt. */
@@ -181,9 +183,24 @@ function builtinEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassSt
       });
       return ev.error ? s : applyToolSideEffects(s, ev.tool, input, ev.result, ctx, auto);
     }
-    case 'turn.complete':
-      s = reduce(s, { type: 'session.update', patch: { activity: 'idle', waiting: undefined, turn: undefined } }).state;
+    case 'turn.complete': {
+      const lastTurn = {
+        id: ev.turnId, at: Date.now(), reason: String(ev.reason ?? (ev.aborted ? 'aborted' : 'answer')),
+        durationMs: Number.isFinite(ev.durationMs) ? Number(ev.durationMs) : s.session.turn ? Date.now() - s.session.turn.startedAt : 0,
+      };
+      s = reduce(s, { type: 'session.update', patch: { activity: 'idle', waiting: undefined, turn: undefined, lastTurn } }).state;
       return cmd(s, 'conversation', 'turnEnd', {});
+    }
+    case 'usage': {
+      const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+      const usage: SessionUsage = {
+        ...s.session.usage, at: Date.now(),
+        ...(ev.context ? { context: { tokens: num(ev.context.tokens), window: num(ev.context.window), percent: num(ev.context.percent) } } : {}),
+        ...(ev.cost ? { cost: { usd: num(ev.cost.usd) } } : {}),
+        ...(Array.isArray(ev.rateLimits) ? { rateLimits: ev.rateLimits.slice(0, 6).map((r) => ({ kind: String(r.kind), percentUsed: num(r.percentUsed), ...(r.resetsAt ? { resetsAt: String(r.resetsAt) } : {}) })) } : {}),
+      };
+      return reduce(s, { type: 'session.update', patch: { usage } }).state;
+    }
     case 'agent.end':
       return s;
     case 'session.end':

@@ -21,6 +21,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   followImages: 'off',
   followAgents: 'off',
   turnProgress: true,
+  contextGauge: true,
   statePalettes: DEFAULT_PALETTES,
   defaultLayout: 'grid',
   windowOpacity: 0.78,
@@ -88,6 +89,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'signals':
     case 'signalDone':
     case 'turnProgress':
+    case 'contextGauge':
     case 'toolReminders': return value === true || value === 'true';
     case 'followEdits':
     case 'followPlans':
@@ -143,6 +145,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   followImages: 'off|light|front|both|focus: the same when Claude reads an image',
   followAgents: 'off|light|front|both|focus: the same when a subagent starts',
   turnProgress: 'true|false: a thin white bar along the bottom while Claude works on a turn',
+  contextGauge: 'true|false: how full Claude\'s context window is, in the top bar (hover: tokens, cost, plan limits)',
   launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
   launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',
   launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',

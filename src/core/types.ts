@@ -25,6 +25,15 @@ export interface SessionInfo {
   waiting?: Waiting; // Claude is blocked on the user (shown read-only; answered in Claude Code)
   modMissing?: boolean; // opened from a Claude session the glass mod isn't running in: nothing feeds it
   turn?: { id: string; startedAt: number; steps: number }; // the turn Claude is working on (each model request is a step)
+  lastTurn?: { id: string; durationMs: number; reason: string; at: number }; // how the last turn ended (answer, aborted, refusal, error)
+  usage?: SessionUsage; // the context window, cost and plan limits, as Claude Code measures them
+}
+
+export interface SessionUsage {
+  context?: { tokens: number; window: number; percent: number };
+  cost?: { usd: number };
+  rateLimits?: { kind: string; percentUsed: number; resetsAt?: string }[];
+  at: number;
 }
 
 export interface Waiting {
@@ -88,6 +97,7 @@ export interface GlobalConfig {
   followImages: FollowMode; // Claude reads an image: Images
   followAgents: FollowMode; // a subagent starts: Agents
   turnProgress: boolean; // a thin white bar along the bottom while Claude works on a turn
+  contextGauge: boolean; // how full Claude's context window is, in the top bar
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
