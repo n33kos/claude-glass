@@ -1,4 +1,4 @@
-// Seeds a running glass with realistic content through the real CLI and hook forwarder.
+// Seeds a running glass with realistic content through the real CLI, sending the events the mod sends.
 // Shared by the e2e screenshot run and `npm run demo`.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -22,25 +22,26 @@ export function run(cmd, args, env, input = '') {
 export const cli = (env, ...args) => run(join(root, 'bin/claude-glass'), args, env);
 // The project the seeded session "works in" (paths in the terminal/diffs show relative to it).
 export const project = (env) => env.SEED_PROJECT || root;
-export const hook = (env, payload) => run(join(root, 'scripts/hook-forward.sh'), [], env, JSON.stringify({ session_id: env.CLAUDE_CODE_SESSION_ID, cwd: project(env), ...payload }));
+/** What the glass mod does: hand session events (src/core/events.ts) to the glass through the CLI. */
+export const event = (env, ...events) => run(join(root, 'bin/claude-glass'), ['event'], env, events.map((e) => JSON.stringify(e)).join('\n') + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let n = 0;
-async function tool(env, tool_name, tool_input, tool_response, duration_ms = 120) {
-  const tool_use_id = `toolu_seed_${++n}`;
-  await hook(env, { hook_event_name: 'PreToolUse', tool_name, tool_input, tool_use_id });
-  await hook(env, { hook_event_name: 'PostToolUse', tool_name, tool_input, tool_response, tool_use_id, duration_ms });
+async function tool(env, tool, input, result, durationMs = 120) {
+  const id = `toolu_seed_${++n}`;
+  await event(env, { e: 'tool.start', tool, input, id, cwd: project(env) });
+  await event(env, { e: 'tool.end', tool, input, result, id, durationMs, cwd: project(env) });
 }
 
 async function say(env, text, id = `msg_${++n}`) {
-  // Stream in 3 chunks like MessageDisplay does.
-  const parts = [text.slice(0, Math.ceil(text.length / 3)), text.slice(Math.ceil(text.length / 3), Math.ceil((2 * text.length) / 3)), text.slice(Math.ceil((2 * text.length) / 3))];
-  for (let i = 0; i < parts.length; i++) await hook(env, { hook_event_name: 'MessageDisplay', message_id: id, turn_id: 't', index: i, final: i === parts.length - 1, delta: parts[i] });
+  // Stream it in 3 steps like the mod does: the text so far each time.
+  const ends = [Math.ceil(text.length / 3), Math.ceil((2 * text.length) / 3), text.length];
+  for (const end of ends) await event(env, { e: 'text', id, turnId: 't', text: text.slice(0, end), final: end === text.length });
 }
 
 export async function seed(env) {
   const f = (p) => join(project(env), p);
-  await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'The session list flickers when a glass reconnects. Can you find out why and fix it?' });
+  await event(env, { e: 'turn.start', turnId: 't', text: 'The session list flickers when a glass reconnects. Can you find out why and fix it?' });
   await say(env, "I'll trace how the session list re-renders on reconnect. Starting with the socket client and the store.");
   await tool(env, 'Grep', { pattern: 'reconnect', path: f('src') }, { mode: 'files_with_matches', filenames: ['src/cli/client.ts', 'src/core/server.ts'], numFiles: 2 });
   await tool(env, 'Read', { file_path: f('src/core/server.ts') }, { type: 'text', file: { filePath: f('src/core/server.ts'), numLines: 188 } });

@@ -1,8 +1,8 @@
 import { type AppDef, type Args, capTail, clip, unknownCommand } from '../types';
 
 // The subagents Claude starts: what each was asked, whether it's still going, and what it reported.
-// Built from the Agent tool call (PreToolUse → PostToolUse) and SubagentStart/SubagentStop, which
-// carry the agent's id and its last message.
+// Built from the Agent tool call (tool.start → tool.end, whose result names a background agent)
+// and agent.end, a subagent's final answer.
 export interface AgentRun {
   key: string; // the Agent tool call's id
   agentId?: string;
@@ -39,44 +39,39 @@ export const agents: AppDef<AgentsState> = {
     if (cmd === 'clear') return agents.init();
     return unknownCommand('agents', cmd);
   },
-  onHook(s, p) {
-    const ev = p?.hook_event_name;
-    const isAgent = p?.tool_name === 'Agent' || p?.tool_name === 'Task';
+  onEvent(s, ev) {
+    const isAgent = ev?.tool === 'Agent' || ev?.tool === 'Task';
     const now = Date.now();
     const update = (match: (r: AgentRun) => boolean, patch: (r: AgentRun) => Partial<AgentRun>) => {
       const i = s.runs.map(match).lastIndexOf(true);
       if (i === -1) return s;
       return { runs: s.runs.map((r, j) => (j === i ? { ...r, ...patch(r) } : r)) };
     };
-    if (ev === 'PreToolUse' && isAgent) {
-      const i = p.tool_input ?? {};
+    // Only the main loop's Agent calls: a subagent's own calls (agentId set) are its business.
+    if (ev?.e === 'tool.start' && isAgent && !ev.agentId) {
+      const i = ev.input ?? {};
       const run: AgentRun = {
-        key: String(p.tool_use_id ?? now), type: String(i.subagent_type ?? 'general-purpose'),
+        key: String(ev.id ?? now), type: String(i.subagent_type ?? 'general-purpose'),
         description: String(i.description ?? 'Agent'), prompt: clip(String(i.prompt ?? ''), 4000), status: 'running', startedAt: now,
       };
       return { runs: capTail([...s.runs.filter((r) => r.key !== run.key), run], MAX) };
     }
-    if (ev === 'PostToolUse' && isAgent) {
-      const r = p.tool_response ?? {};
+    if (ev?.e === 'tool.end' && isAgent && !ev.agentId) {
+      if (ev.error) return update((x) => x.key === String(ev.id), () => ({ status: 'failed', endedAt: now, result: String(ev.error) }));
+      const r = ev.result ?? {};
       const background = r.isAsync === true || r.status === 'async_launched';
       const result = text(r.content ?? r.result);
-      return update((x) => x.key === String(p.tool_use_id), (x) => ({
+      return update((x) => x.key === String(ev.id), (x) => ({
         agentId: r.agentId ? String(r.agentId) : x.agentId,
         ...(background ? { background: true } : { status: x.status === 'running' ? 'done' : x.status, endedAt: x.endedAt ?? now, ...(result ? { result: clip(result, 8000) } : {}) }),
       }));
     }
-    if (ev === 'PostToolUseFailure' && isAgent) {
-      return update((x) => x.key === String(p.tool_use_id), () => ({ status: 'failed', endedAt: now, result: String(p.error ?? 'failed') }));
-    }
-    if (ev === 'SubagentStart' && p.agent_id) {
-      const id = String(p.agent_id);
-      // Tie the agent to its call: by id if the call already told us, else the newest running one of its type.
-      if (s.runs.some((r) => r.agentId === id)) return s;
-      return update((x) => x.status === 'running' && !x.agentId && (!p.agent_type || x.type === p.agent_type), () => ({ agentId: id }));
-    }
-    if (ev === 'SubagentStop' && p.agent_id) {
-      const id = String(p.agent_id);
-      return update((x) => x.agentId === id, (x) => ({ status: 'done', endedAt: now, result: clip(String(p.last_assistant_message ?? x.result ?? ''), 8000) }));
+    // A background agent finishes later: its own turn ends with its answer.
+    if (ev?.e === 'agent.end' && ev.agentId) {
+      const id = String(ev.agentId);
+      return update((x) => x.agentId === id && x.status === 'running', (x) => ({
+        status: ev.aborted ? 'failed' : 'done', endedAt: now, result: clip(String(ev.answer || x.result || ''), 8000),
+      }));
     }
     return s;
   },

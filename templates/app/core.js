@@ -14,7 +14,8 @@ exports.command = (state, command, args) => {
 };
 
 /**
- * Optional: every Claude Code hook payload (see Claude Code's hooks docs). Return the same state
- * object when nothing changes. Delete this if your app is only driven by commands.
+ * Optional: every session event (`event.e`: turn.start, text, tool.start, tool.end, ...; see
+ * docs/apps.md). Return the same state object when nothing changes. Delete this if your app is
+ * only driven by commands.
  */
-exports.onHook = (state, payload) => state;
+exports.onEvent = (state, event) => state;

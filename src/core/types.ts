@@ -79,7 +79,7 @@ export interface GlobalConfig {
   defaultPreset: string; // preset applied to every brand-new glass ('' = none)
   selectToInteract: boolean; // click a window to use it; the wheel over the others walks desktops
   appSettings: Record<string, Record<string, unknown>>; // per app type: values for the settings its manifest declares
-  toolReminders: boolean; // remind Claude to use Read/Edit/Write when a Bash command did file I/O (scripts/tool-reminder.sh)
+  toolReminders: boolean; // remind Claude to use Read/Edit/Write when a Bash command did file I/O (the glass mod, hooks/glass-mod.ts)
 }
 
 export interface GlassState {
@@ -122,7 +122,7 @@ export type Action =
   | { type: 'settings.set'; key: string; value: unknown }
   | { type: 'session.update'; patch: Partial<SessionInfo> }
   | { type: 'ui.viewDesktop'; index: number }
-  | { type: 'app.hook'; payload: unknown }
+  | { type: 'app.event'; event: unknown } // a session event from the glass mod (src/core/events.ts)
   | { type: 'window.tuck'; id: string; edge: Dock; index?: number } // dock it; index: position in the dock (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
@@ -132,7 +132,7 @@ export type Action =
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
-  op: 'ping' | 'hook' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'preset' | 'quit';
+  op: 'ping' | 'event' | 'dispatch' | 'view' | 'state' | 'catalog' | 'guide' | 'mods' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

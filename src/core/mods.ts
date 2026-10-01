@@ -1,6 +1,6 @@
 // Custom apps ("mods"): folders dropped into ~/.claude/claude-glass/apps/<type>/.
 //   glass-app.json  manifest (see ModManifest)
-//   core.js         CommonJS, pure: { init(), command(state, cmd, args), onHook?(state, payload) }
+//   core.js         CommonJS, pure: { init(), command(state, cmd, args), onEvent?(state, event) }
 //   view.html       the view, served into a sandboxed frame (optional: no view = blank window)
 //   guide.md        instructions for Claude, appended to the glass guide (optional)
 // Loaded once when the glass starts. A broken mod is skipped and reported; nothing else breaks.
@@ -67,7 +67,8 @@ export function readMod(modDir: string): AppDef {
   const mod = require(corePath);
   const core = mod?.default ?? mod;
   if (typeof core?.init !== 'function' || typeof core?.command !== 'function') throw new Error('core.js must export init() and command()');
-  if (core.onHook !== undefined && typeof core.onHook !== 'function') throw new Error('onHook must be a function');
+  if (core.onHook !== undefined) throw new Error('onHook was replaced by onEvent(state, event): see docs/apps.md');
+  if (core.onEvent !== undefined && typeof core.onEvent !== 'function') throw new Error('onEvent must be a function');
 
   // Icon: an image file (named in the manifest, or icon.svg/icon.png in the folder), else a glyph.
   const IMG = /\.(svg|png|jpe?g|webp)$/i;
@@ -91,7 +92,7 @@ export function readMod(modDir: string): AppDef {
     autoOpen: m.autoOpen === true,
     init: core.init,
     command: core.command,
-    onHook: core.onHook,
+    onEvent: core.onEvent,
     guide,
     settings,
     permissions,

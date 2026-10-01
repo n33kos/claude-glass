@@ -10,7 +10,7 @@ claude-glass apps                 # what's installed, and why a broken app didn'
 claude-glass close && claude-glass open   # restart the glass to pick up changes
 ```
 
-The glass is one-way: Claude shows, the user watches. An app displays things; its view can
+The glass is primarily one-way: Claude shows, the user watches. An app displays things; its view can
 change how things are viewed (select, page, filter) but has no way to send anything to Claude.
 
 ## The folder
@@ -51,8 +51,8 @@ my-app/
 | `singleton` | one window, whose id is `type`. Otherwise `claude-glass new my-app` makes more |
 | `commands` | what Claude can run: `claude-glass app <id> <command> --key value`. Flags arrive as `args` |
 | `view: true` / `viewCommands` | commands the view may run too (view-only changes) |
-| `internal` | commands hidden from Claude's catalog (used by your view or hooks only) |
-| `autoOpen` | open the window the first time `onHook` creates it |
+| `internal` | commands hidden from Claude's catalog (used by your view or `onEvent` only) |
+| `autoOpen` | open the window the first time `onEvent` creates it |
 
 ### `core.js`
 
@@ -67,14 +67,36 @@ exports.command = (state, command, args) => {
   throw new Error(`my-app: unknown command "${command}"`); // shown to Claude
 };
 
-// Optional: every Claude Code hook payload (PreToolUse, PostToolUse, UserPromptSubmit, ...).
-// Return the same object when nothing changes. A singleton is created the first time this
-// returns something new.
-exports.onHook = (state, payload) => state;
+// Optional: every session event (below). Return the same object when nothing changes. A
+// singleton is created the first time this returns something new.
+exports.onEvent = (state, event) => {
+  if (event.e === 'tool.end' && event.tool === 'Bash') return { ...state, runs: (state.runs ?? 0) + 1 };
+  return state;
+};
 ```
 
 Keep it pure: no I/O, no timers, no globals. Return new objects instead of mutating. Keep
 state small (it's saved as JSON); cap lists.
+
+### Session events
+
+The glass mod watches the Claude Code session and sends the glass these events (`event.e` names
+each one; the types are `GlassEvent` in `src/core/events.ts`). A tool's `input` is its arguments
+and `result` its own record, as Claude Code keeps it (Edit's `structuredPatch`, Bash's `stdout`).
+
+| `e` | Fields | When |
+|---|---|---|
+| `session.start` | `source` (`startup`, `clear`, `resume`, `compact`), `sessionId`, `cwd` | a conversation starts |
+| `turn.start` | `turnId`, `text` (the prompt; empty for a continuation) | a turn begins |
+| `text` | `id`, `turnId`, `text` (the block's text so far), `final` | the reply streams |
+| `tool.start` | `id`, `tool`, `input`, `agentId` (a subagent's call), `cwd` | a tool is about to run |
+| `tool.end` | the same, plus `result` or `error`, `durationMs` | it finished (or failed, or was refused) |
+| `permission` | `tool`, `input` | Claude Code is asking the user's permission |
+| `turn.complete` | `turnId`, `durationMs`, `reason`, `aborted` | the turn ended |
+| `agent.end` | `agentId`, `answer`, `aborted` | a subagent's run ended |
+| `session.end` | `reason` | the session ended (or `/clear`) |
+
+An app that exports the old `onHook` doesn't load: it was replaced by `onEvent`.
 
 ### `view.html`
 
@@ -182,7 +204,7 @@ glass core, which stays one-way.
 
 ## Turning apps off
 
-Settings lists every app with a switch. A turned-off app's windows close, hooks leave it alone,
+Settings lists every app with a switch. A turned-off app's windows close, session events leave it alone,
 it disappears from Claude's catalog and instructions, and commands to it fail with a message
 telling Claude not to use it.
 

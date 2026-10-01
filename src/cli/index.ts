@@ -3,7 +3,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import { basename, extname, join, resolve } from 'node:path';
 import { bindSession, cleanupRuntime, glassIdFor, isBound, isOwnSocket } from '../core/binding';
 import { loadConfig, SETTINGS_HELP } from '../core/config';
-import { appsDir, filesDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
+import { appsDir, filesDir, runtimeDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { healthReport } from '../core/health';
 import { isLive, loadState } from '../core/server';
 import type { Action, Envelope } from '../core/types';
@@ -76,6 +76,20 @@ function commandArgs(appType: string, command: string, flags: Parsed['flags'], s
   return args;
 }
 
+/**
+ * The glass mod runs `session-start` in every session it's loaded in; this marker lets `open` tell
+ * a session without the mod (mods off, an org's policy) apart from one that simply has no glass yet.
+ */
+const modMarker = (cid: string) => join(runtimeDir(), `${cid}.mod`);
+function markModLoaded(cid: string) {
+  try { mkdirSync(runtimeDir(), { recursive: true, mode: 0o700 }); writeFileSync(modMarker(cid), String(Date.now())); } catch {}
+}
+
+const NO_MOD = `Warning: the Claude Glass mod isn't running in this Claude session, so the glass won't fill
+itself (conversation, terminal, changes, plan...). The glass needs Claude Code mods: Claude Code
+2.1.287 or newer, with mods allowed (not turned off by disableAllHooks or an organization's policy).
+Tell the user; a session started after fixing that picks it up.`;
+
 function ingest(sid: string, path: string): string {
   const dir = filesDir(sid);
   mkdirSync(dir, { recursive: true });
@@ -128,10 +142,11 @@ async function main(argv: string[]) {
       const cid = claudeSessionId(flags);
       const cwd = typeof flags.cwd === 'string' ? flags.cwd : process.cwd();
       await cleanupRuntime();
-      // SessionStart normally binds (with the real project dir); this covers sessions it missed.
+      // The mod binds at session start (with the real project dir); this covers sessions it missed.
       const sid = isBound(cid) ? glassIdFor(cid) : bindSession(cid, cwd, loadConfig().scope);
       const r = await launchGlass(sid, cwd);
       console.log(r === 'already' ? 'Claude Glass already open.\n' : 'Claude Glass opened.\n');
+      if (!flags.session && !existsSync(modMarker(cid))) console.log(`${NO_MOD}\n`);
       if (typeof flags.preset === 'string') {
         const p = await call(sid, { op: 'preset', action: 'apply', name: flags.preset });
         console.log(`Preset "${p.applied}" applied.${p.skipped.length ? ` Skipped (app not installed): ${p.skipped.join(', ')}` : ''}\n`);
@@ -380,35 +395,35 @@ async function main(argv: string[]) {
       }
       return;
     }
-    case 'hook': {
-      // Forward a hook payload from stdin (the bash forwarder is the fast path; this is the fallback).
-      const raw = readStdin();
-      let payload: any;
-      try { payload = JSON.parse(raw); } catch { return; }
-      const sid = payload?.session_id;
-      if (!sid || !existsSync(socketPath(sid))) return; // off means off
-      await request(socketPath(sid), { op: 'hook', payload }, 2000).catch(() => {});
+    case 'event': {
+      // Session events from the glass mod: one JSON object per line on stdin, in order.
+      // Off means off: no glass for the session, nothing to do.
+      const cid = claudeSessionId(flags);
+      if (!existsSync(socketPath(cid))) return;
+      const events = readStdin().split('\n').filter((l) => l.trim()).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+      if (events.length) await request(socketPath(cid), { op: 'event', events }, 2000).catch(() => {});
       return;
     }
-    case 'session-start-hook': {
-      const raw = readStdin();
-      let p: any = {};
-      try { p = JSON.parse(raw); } catch {}
-      if (!p.session_id) return;
+    case 'session-start': {
+      // The glass mod, as a session starts (or /clear, resume, compact): bind the session to its
+      // glass, open it if the user wants one per session, and tell the mod what it needs.
+      const cid = claudeSessionId(flags);
+      const source = typeof flags.source === 'string' ? flags.source : 'startup';
+      const projectDir = typeof flags.cwd === 'string' ? flags.cwd : process.cwd();
       const config = loadConfig();
-      const projectDir = process.env.CLAUDE_PROJECT_DIR || p.cwd || process.cwd();
+      markModLoaded(cid);
       await cleanupRuntime();
-      const sid = bindSession(assertSessionId(p.session_id), projectDir, config.scope);
-      const live = await isLive(socketPath(sid), 300);
-      let open = live;
-      if (!live && config.autoStart && (p.source === 'startup' || p.source === 'resume' || !p.source)) {
+      const sid = bindSession(cid, projectDir, config.scope);
+      let open = await isLive(socketPath(sid), 300);
+      if (!open && config.autoStart && (source === 'startup' || source === 'resume')) {
         try { await launchGlass(sid, projectDir); open = true; } catch { open = false; }
       }
+      let guide: string | null = null;
       if (open) {
-        if (live) await request(socketPath(sid), { op: 'hook', payload: p }, 1000).catch(() => {});
-        const guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null);
-        console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: guide ?? guideFor(config) } }));
+        await request(socketPath(sid), { op: 'event', events: [{ e: 'session.start', source, sessionId: cid, cwd: projectDir }] }, 1000).catch(() => {});
+        guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null) ?? guideFor(config);
       }
+      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false }));
       return;
     }
     default:

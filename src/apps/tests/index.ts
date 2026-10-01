@@ -103,27 +103,27 @@ export const tests: AppDef<TestsState> = {
     }
     return unknownCommand('tests', cmd);
   },
-  onHook(s, p) {
-    const ev = p?.hook_event_name;
+  onEvent(s, ev) {
     // A new session (or /clear) can't still be mid-run.
-    if (ev === 'SessionStart' && s.running) { const { running: _r, ...rest } = s; return rest; }
-    if ((ev !== 'PreToolUse' && ev !== 'PostToolUse' && ev !== 'PostToolUseFailure') || p.tool_name !== 'Bash') return s;
-    const command = String(p.tool_input?.command ?? '');
+    if (ev?.e === 'session.start' && s.running) { const { running: _r, ...rest } = s; return rest; }
+    if ((ev?.e !== 'tool.start' && ev?.e !== 'tool.end') || ev.tool !== 'Bash') return s;
+    const command = String(ev.input?.command ?? '');
     const runner = detectRunner(command);
     if (!runner) return s;
     // Started: shown as running (in yellow) until its result comes in.
-    if (ev === 'PreToolUse') return { ...s, running: { command: command.slice(0, 300), runner, at: Date.now(), ...(p.tool_use_id ? { id: String(p.tool_use_id) } : {}) } };
+    if (ev.e === 'tool.start') return { ...s, running: { command: command.slice(0, 300), runner, at: Date.now(), ...(ev.id ? { id: String(ev.id) } : {}) } };
     const { running: _was, ...base } = s;
     s = base;
-    const r = p.tool_response ?? {};
-    const output = `${r.stdout ?? ''}\n${r.stderr ?? ''}\n${ev === 'PostToolUseFailure' ? p.error ?? '' : ''}`;
+    const failed = !!ev.error;
+    const r = ev.result ?? {};
+    const output = `${r.stdout ?? ''}\n${r.stderr ?? ''}\n${failed ? ev.error : ''}`;
     const res = parseResults(output);
     // Nothing recognizable and no failure signal: probably not a real run (e.g. `npm test --help`).
-    if (!res.found && ev !== 'PostToolUseFailure' && !r.interrupted && !/fail|error/i.test(output)) return s;
-    const ok = res.found ? res.failed === 0 : ev !== 'PostToolUseFailure' && !/\bfail/i.test(output);
+    if (!res.found && !failed && !r.interrupted && !/fail|error/i.test(output)) return s;
+    const ok = res.found ? res.failed === 0 : !failed && !/\bfail/i.test(output);
     const files = parseFiles(output);
     const run: TestRun = {
-      at: Date.now(), command: command.slice(0, 300), runner, passed: res.passed, failed: res.failed, skipped: res.skipped, ok, failures: res.failures, durationMs: p.duration_ms,
+      at: Date.now(), command: command.slice(0, 300), runner, passed: res.passed, failed: res.failed, skipped: res.skipped, ok, failures: res.failures, durationMs: ev.durationMs,
       ...(files.length ? { files } : {}), output: output.replace(ANSI, '').trim().slice(-6000),
     };
     return { ...s, runs: capTail([...s.runs, run], 30) };

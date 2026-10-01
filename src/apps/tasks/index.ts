@@ -24,12 +24,12 @@ export const tasks: AppDef<TasksState> = {
     if (cmd === 'clear') return tasks.init();
     return unknownCommand('tasks', cmd);
   },
-  onHook(s, p) {
-    if (p?.hook_event_name === 'SessionStart' && p.source === 'clear') return s.items.length ? tasks.init() : s;
-    if (p?.hook_event_name !== 'PostToolUse') return s;
-    const input = p.tool_input ?? {}, res = p.tool_response ?? {};
+  onEvent(s, ev) {
+    if (ev?.e === 'session.start' && ev.source === 'clear') return s.items.length ? tasks.init() : s;
+    if (ev?.e !== 'tool.end' || ev.error) return s;
+    const input = ev.input ?? {}, res = ev.result ?? {};
     const now = Date.now();
-    switch (p.tool_name) {
+    switch (ev.tool) {
       case 'TaskCreate': {
         const id = String(res.task?.id ?? res.id ?? s.items.length + 1);
         // A fresh list after the last one was all done: start over rather than pile up.

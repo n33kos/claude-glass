@@ -7,7 +7,7 @@ web pages it reads. When Claude wants to *show* you something, like a chart, a m
 comparison or a write-up, it puts it on the glass with one command.
 
 It's built for working with Claude like a coworker, especially by voice, when you can't easily see
-what Claude sees. It is deliberately one-way: Claude shows, you watch.
+what Claude sees. It is primarily one-way: Claude shows, you watch.
 
 *Why "Claude Glass"?* A [Claude glass](https://en.wikipedia.org/wiki/Claude_glass) was an
 18th-century tinted mirror that painters and travelers used to look at a scene through glass,
@@ -25,7 +25,10 @@ named after the painter Claude Lorrain. This one lets you look at Claude's work 
 
 ## Install
 
-Requirements: macOS, Node 20+, and `jq` and `nc` (both ship with macOS).
+Requirements: macOS, Node 20+, and Claude Code 2.1.287 or newer with
+[mods](https://code.claude.com/docs/en/plugins/mods/overview) allowed. The glass is fed by a small
+mod the plugin ships (`hooks/glass-mod.ts`); if mods are off (`disableAllHooks`, or an
+organization's policy), `claude-glass open` says so.
 
 **From the plugin marketplace** (in Claude Code):
 
@@ -42,7 +45,7 @@ claude --plugin-dir ~/claude-glass     # try it for one session
 ```
 
 The first `claude-glass` command installs and builds the app (`npm install && npm run build`,
-a minute or two, once). Hooks do nothing until then, so Claude is never held up.
+a minute or two, once). The mod does nothing until then, so Claude is never held up.
 
 **Updating:** after `/plugin update`, sessions that started earlier still have the old version's
 `claude-glass` on their PATH; it hands every command to the installed version, so they open and
@@ -224,13 +227,13 @@ claude-glass apps                 # what's installed (and what failed to load, a
 ```
 ~/.claude/claude-glass/apps/my-app/
   glass-app.json   type, title, icon, commands, permissions, settings
-  core.js          init() and command(state, name, args): pure state; optional onHook(state, payload)
+  core.js          init() and command(state, name, args): pure state; optional onEvent(state, event)
   view.html        the view; loads the SDK and renders props
   guide.md         instructions for Claude (optional)
   icon.svg         launcher and title bar icon (optional)
 ```
 
-An app can fill itself from Claude Code hooks (`onHook`), take commands from Claude
+An app can fill itself from the session's events (`onEvent`), take commands from Claude
 (`claude-glass app <id> <command>`), declare its own settings (shown in Settings, passed to the
 view), and ship instructions for Claude, with parts that depend on settings. Views are sandboxed
 with no network, microphone or storage unless the manifest asks for specific origins or
@@ -239,15 +242,15 @@ capabilities, which Settings shows. Full guide: [docs/apps.md](docs/apps.md).
 ## How it works
 
 ```
-Claude Code session ──hooks (async)──► scripts/hook-forward.sh ──nc -U──┐
-        │                                                               │
-        └─ Bash tool: `claude-glass <cmd>` (bin/ on PATH) ──socket──────┤
-                                                                        ▼
+Claude Code session
+  ├─ the glass mod (hooks/glass-mod.ts) ── `claude-glass event` ─────────┐
+  └─ Bash tool: `claude-glass <cmd>` (bin/ on PATH) ─────────────────────┤ Unix socket
+                                                                         ▼
                   ┌──────────── Electron main process (one per glass) ────────────┐
                   │  core/server.ts   Unix socket, one JSON request per connection │
                   │  core/reducer.ts  every state change is one reducer action     │
-                  │  core/hooks.ts    hook payloads → actions                      │
-                  │  apps/*           app cores (pure: init, command, onHook)      │
+                  │  core/events.ts   session events → actions                     │
+                  │  apps/*           app cores (pure: init, command, onEvent)     │
                   └────────────▲──────────────────────────────┬─────────────────────┘
                       ipc: dispatch(action)            ipc: state patches
                   ┌────────────┴──────────────────────────────▼─────────────────────┐
@@ -267,27 +270,33 @@ Claude Code session ──hooks (async)──► scripts/hook-forward.sh ──n
 - **Same actions for everyone.** A drag in the window and a command from Claude go through the same
   reducer action. Commands are relative ("move X to the first slot"), so Claude never overwrites
   your arrangement, and it never changes which desktop you're looking at.
-- **Deterministic first.** Anything a hook can show appears automatically, at no token cost.
-  Claude only spends effort on deliberate "let me show you this" moments.
-- **Off means off.** With no glass open, hooks exit immediately (they check for the socket) and
-  nothing is recorded. Reopening a glass restores its history.
-- **Never block Claude.** Forwarding hooks run async with tight timeouts; a frozen glass can't
-  freeze Claude.
-- **One-way.** Your interactions change how things are viewed (layout, what's selected, which
-  revision is shown) and never reach Claude. Every workflow (terminal, tmux, voice, IDE) takes
-  input differently, and a back-channel would make the plugin hard to adopt.
+- **CLI first, no servers.** The mod, you and Claude all drive a glass the same way: the
+  `claude-glass` CLI over the glass's Unix socket. Nothing else runs in the background.
+- **Deterministic first.** Anything the session's events can show appears automatically, at no
+  token cost. Claude only spends effort on deliberate "let me show you this" moments.
+- **Off means off.** With no glass open, the mod doesn't even run the CLI (it checks for the
+  socket) and nothing is recorded. Reopening a glass restores its history.
+- **Never block Claude.** The mod hands events over in the background, in order; a slow or
+  frozen glass can't hold Claude up.
+- **Primarily one-way.** Your interactions change how things are viewed (layout, what's selected,
+  which revision is shown) and don't reach Claude. Every workflow (terminal, tmux, voice, IDE)
+  takes input differently, so anything that does talk back will be an app's opt-in permission,
+  never part of the core.
 
 **Protocol.** One JSON line per connection: `{"op": …}` → `{"ok": true, "result": …}` or
-`{"ok": false, "error": …}`. Ops: `ping`, `hook` (a raw hook payload), `dispatch` (a reducer
-action), `view`, `state`, `catalog`, `guide`, `mods`, `config`, `quit`.
+`{"ok": false, "error": …}`. Ops: `ping`, `event` (session events from the mod), `dispatch` (a
+reducer action), `view`, `state`, `catalog`, `guide`, `mods`, `config`, `quit`.
 
-**Hooks → the glass.** `UserPromptSubmit` and `MessageDisplay` stream the conversation;
-`PreToolUse`/`PostToolUse` build the terminal and, per tool, the Changes diffs (Edit, Write,
-MultiEdit, NotebookEdit), the Plan (plan files, ExitPlanMode), Images (reads of images) and the
-Browser (WebSearch, WebFetch); `PermissionRequest`, `Notification` and AskUserQuestion set "waiting
-on you"; `Stop` and `SessionEnd` mark the session idle or ended; `SessionStart` opens the glass
-(if `autoStart`) and gives Claude the guide. Auto-created windows open once; if you close one, it
-stays closed. Apps with `onHook` see every payload too.
+**The mod → the glass.** The mod (`hooks/glass-mod.ts`) runs inside Claude Code and turns the
+session's events into glass events (`src/core/events.ts`): `turn.start` (your prompt), `text` (the
+reply as it streams), `tool.start`/`tool.end` (the terminal and, per tool, the Changes diffs, the
+Plan, Images, the Browser, Tasks, Agents, Tests, Files), `permission` and AskUserQuestion ("waiting
+on you"), `turn.complete`, `agent.end`, `session.start`/`session.end`. At each session start it runs
+`claude-glass session-start`, which opens the glass (if `autoStart`), and it gives Claude the guide
+with the first message of each conversation. It also reminds Claude to read and edit with its own
+tools when a Bash command did file I/O (`toolReminders`). Events go out in order, a batch per CLI
+call. Auto-created windows open once; if you close one, it stays closed. Apps with `onEvent` see
+every event too.
 
 **State.** A glass is one `GlassState`: the session (activity, what it's waiting on), the ordered
 window list, per-desktop layouts, window instances, each app's own state slice, docks, and
@@ -321,7 +330,7 @@ two groups (tests use temp folders).
 ```sh
 npm install
 npm run build       # esbuild → dist/ (CLI, main, preload, renderer, built-in apps) + the shared Claude Glass.app
-npm test            # unit + integration: the core runs in plain Node, driven by the real CLI and hook script
+npm test            # unit + integration: the core runs in plain Node, driven by the real CLI
 npm run typecheck
 npm run e2e         # launches Electron via Playwright, checks behavior, writes screenshots to test/screenshots/
 npm run demo -- <session-id>   # open a glass seeded with demo content
@@ -329,24 +338,27 @@ node scripts/readme-media.mjs  # regenerate the README screenshots and GIF (docs
 ```
 
 `CLAUDE.md` is the working guide for Claude (and people) changing this code: the rules of the road
-and the gotchas. Hook payload shapes in `test/fixtures/hook-payloads.ndjson` are real captures;
-trust them over docs. To inspect a real glass, `CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open`
-exposes it over the Chrome DevTools Protocol.
+and the gotchas. `test/fixtures/mod-events.ndjson` is a real session recorded through the mod;
+trust it over docs. To inspect a real glass, `CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open`
+exposes it over the Chrome DevTools Protocol. To try the mod from a checkout,
+`claude --plugin-dir ~/claude-glass`; `claude plugin validate .` checks it.
 
 ```
-src/core/       server, reducer, hooks, layout, config, guide, mods (pure Node)
+src/core/       server, reducer, events, layout, config, guide, custom apps (pure Node)
 src/apps/       built-in apps: <type>/index.ts (core) + view.tsx + view.css + guide.md
 src/sdk/        the app SDK (bridge between a view frame and the glass)
 src/main/       Electron main: window, protocols, permissions, browser streams, fetched pages
 src/renderer/   the shell: desktops, windows, launcher, docks, settings
 src/cli/        the claude-glass CLI
-hooks/, skills/, scripts/, bin/   the Claude Code plugin
+hooks/          the glass mod (glass-mod.ts) that feeds the glass from inside Claude Code
+skills/, scripts/, bin/   the rest of the Claude Code plugin
 ```
 
 ## Known limits
 
 - macOS only for now.
-- One-way by design: you can arrange and read, but nothing you do in the glass reaches Claude.
+- Needs Claude Code mods (2.1.287+); without them the glass opens but doesn't fill itself.
+- Primarily one-way: you can arrange and read, but nothing you do in the glass reaches Claude yet.
 
 ## License
 

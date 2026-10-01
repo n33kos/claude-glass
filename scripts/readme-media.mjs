@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { _electron as electron } from 'playwright';
-import { cli, hook, seed } from '../test/e2e/seed.mjs';
+import { cli, event, seed } from '../test/e2e/seed.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'docs/media');
@@ -47,14 +47,14 @@ try {
   await shot('overview');
 
   // Waiting on you: Claude asked a question; the glass shows it (you answer in Claude Code).
-  await hook(env, {
-    hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'toolu_ask',
-    tool_input: { questions: [{ question: 'Ship the fix now, or add the regression test first?', header: 'Next step', options: [{ label: 'Add the test first', description: '50 reconnects, expect 0 re-renders' }, { label: 'Ship now', description: 'Test in a follow-up' }] }] },
+  await event(env, {
+    e: 'tool.start', tool: 'AskUserQuestion', id: 'toolu_ask',
+    input: { questions: [{ question: 'Ship the fix now, or add the regression test first?', header: 'Next step', options: [{ label: 'Add the test first', description: '50 reconnects, expect 0 re-renders' }, { label: 'Ship now', description: 'Test in a follow-up' }] }] },
   });
   await sleep(1200);
   await shot('waiting');
-  await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'toolu_ask', tool_input: {}, tool_response: {} });
-  await hook(env, { hook_event_name: 'Stop' });
+  await event(env, { e: 'tool.end', tool: 'AskUserQuestion', id: 'toolu_ask', input: {}, result: {} });
+  await event(env, { e: 'turn.complete', turnId: 't' });
   await sleep(1800);
 
   // A sidebar: the terminal pinned to the right edge and kept open beside the desktop.

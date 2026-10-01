@@ -10,7 +10,7 @@ import { coerceSetting, parsePermissions, parseSettingSpecs, settingValues } fro
 import { messageText, type ConversationState } from '../../src/apps/conversation';
 import type { DiffState } from '../../src/apps/diff';
 import type { TerminalState } from '../../src/apps/terminal';
-import { applyHook, type HookContext } from '../../src/core/hooks';
+import { applyEvent, type EventContext, type GlassEvent } from '../../src/core/events';
 import { DEFAULT_PALETTES, lightColors, moodOf, parsePalettes } from '../../src/core/colors';
 import { healthReport } from '../../src/core/health';
 import { capturePreset, presetActions } from '../../src/core/presets';
@@ -23,10 +23,14 @@ import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
 import type { GlassState } from '../../src/core/types';
 
-const ctx: HookContext = { ingestFile: (p) => `/stored/${p.split('/').pop()}`, readText: () => '# plan from disk' };
+const ctx: EventContext = { ingestFile: (p) => `/stored/${p.split('/').pop()}`, readText: () => '# plan from disk' };
 const fresh = () => initialState({ id: 'test', cwd: '/tmp/proj' });
-const fixtures = readFileSync(join(__dirname, '../fixtures/hook-payloads.ndjson'), 'utf8')
+// A real session recorded through the glass mod (Read, Edit, Write a plan, Bash, WebSearch, tasks,
+// a background agent), as the glass received it.
+const fixtures: GlassEvent[] = readFileSync(join(__dirname, '../fixtures/mod-events.ndjson'), 'utf8')
   .split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
+const apply = (s: GlassState, ...evs: GlassEvent[]) => evs.reduce((x, ev) => applyEvent(x, ev, ctx), s);
+const toolEnd = (tool: string) => fixtures.find((e) => e.e === 'tool.end' && e.tool === tool)!;
 
 describe('layout', () => {
   it('slices one order across desktops by slot count', () => {
@@ -85,97 +89,114 @@ describe('reducer', () => {
   });
 });
 
-describe('waiting on the user (synthetic payloads: not yet captured live)', () => {
-  const sid = { session_id: 'test' };
-  const ask = {
-    ...sid, hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'q1',
-    tool_input: { questions: [{ question: 'Which dock order?', header: 'Dock', options: [{ label: 'Windows', description: 'Tile order' }, { label: 'Fixed' }] }] },
+describe('waiting on the user (synthetic events: not in the recorded session)', () => {
+  const ask: GlassEvent = {
+    e: 'tool.start', tool: 'AskUserQuestion', id: 'q1',
+    input: { questions: [{ question: 'Which dock order?', header: 'Dock', options: [{ label: 'Windows', description: 'Tile order' }, { label: 'Fixed' }] }] },
   };
-  it('AskUserQuestion shows a question until its PostToolUse', () => {
-    let s = applyHook(fresh(), ask, ctx);
+  it('AskUserQuestion shows a question until its call ends', () => {
+    let s = apply(fresh(), ask);
     expect(s.session.waiting).toMatchObject({ kind: 'question', summary: 'Which dock order?', toolUseId: 'q1' });
     expect(s.session.waiting!.questions![0].options.map((o) => o.label)).toEqual(['Windows', 'Fixed']);
-    s = applyHook(s, { ...sid, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'other', tool_input: {} }, ctx);
+    s = apply(s, { e: 'tool.end', tool: 'Bash', id: 'other', input: {} });
     expect(s.session.waiting).toBeDefined(); // a parallel tool finishing doesn't clear it
-    s = applyHook(s, { ...sid, hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'q1', tool_input: {} }, ctx);
+    s = apply(s, { e: 'tool.end', tool: 'AskUserQuestion', id: 'q1', input: {} });
     expect(s.session.waiting).toBeUndefined();
   });
-  it('PermissionRequest and permission Notifications show a permission wait; Stop clears it', () => {
-    let s = applyHook(fresh(), { ...sid, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm run e2e' } }, ctx);
+  it('a permission prompt shows a wait; the end of the turn or a new prompt clears it', () => {
+    let s = apply(fresh(), { e: 'permission', tool: 'Bash', input: { command: 'npm run e2e' } });
     expect(s.session.waiting).toMatchObject({ kind: 'permission', summary: '$ npm run e2e', tool: 'Bash' });
-    s = applyHook(s, { ...sid, hook_event_name: 'Stop' }, ctx);
+    s = apply(s, { e: 'turn.complete', turnId: 't' });
     expect(s.session.waiting).toBeUndefined();
-    s = applyHook(s, { ...sid, hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'Claude is waiting for your input' }, ctx);
-    expect(s.session.waiting).toBeUndefined();
-    s = applyHook(s, { ...sid, hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' }, ctx);
-    expect(s.session.waiting?.kind).toBe('permission');
-    s = applyHook(s, { ...sid, hook_event_name: 'UserPromptSubmit', prompt: 'hi' }, ctx);
+    s = apply(s, { e: 'permission', tool: 'Bash', input: { command: 'ls' } }, { e: 'turn.start', turnId: 't2', text: 'hi' });
     expect(s.session.waiting).toBeUndefined();
   });
 });
 
-describe('hooks (real captured payloads)', () => {
-  const run = () => fixtures.reduce((s: GlassState, p) => applyHook(s, p, ctx), fresh());
+describe('events (a real recorded session)', () => {
+  const run = () => apply(fresh(), ...fixtures);
 
-  it('builds conversation from prompt + streamed chunks', () => {
+  it('builds the conversation from the prompt and the streamed reply', () => {
     const conv = run().appState.conversation as ConversationState;
-    expect(conv.messages[0].role).toBe('user');
-    expect(conv.messages.filter((m) => m.role === 'assistant').map(messageText)).toEqual([
-      "I'll start by reading the file, then make the changes.",
-      'All done—file updated and command executed.',
-    ]);
+    expect(conv.messages[0]).toMatchObject({ role: 'user', done: true });
+    expect(messageText(conv.messages[0])).toMatch(/^Do these steps in order/);
+    const replies = conv.messages.filter((m) => m.role === 'assistant').map(messageText);
+    expect(replies).toHaveLength(10);
+    expect(replies[3]).toBe("**Step 4: Edit notes.txt to change 'hello' to 'goodbye'**");
+    expect(replies[9]).toMatch(/^All steps completed successfully/);
     expect(conv.messages.every((m) => m.done)).toBe(true);
+  });
+
+  it('streams: the latest text of a block replaces the earlier one', () => {
+    const s = apply(fresh(), { e: 'text', id: 't:0:1', text: 'hel' }, { e: 'text', id: 't:0:1', text: 'hello' }, { e: 'text', id: 't:0:1', text: 'hello world', final: true });
+    const conv = s.appState.conversation as ConversationState;
+    expect(conv.messages).toHaveLength(1);
+    expect(conv.messages[0]).toMatchObject({ done: true });
+    expect(messageText(conv.messages[0])).toBe('hello world');
   });
 
   it('records every tool call in the terminal', () => {
     const term = run().appState.terminal as TerminalState;
-    expect(term.entries.map((e) => e.tool)).toEqual(['Read', 'Edit', 'Bash', 'WebSearch', 'WebFetch']);
+    expect(term.entries.map((e) => e.tool)).toEqual(['ToolSearch', 'TaskCreate', 'TaskCreate', 'TaskCreate', 'Read', 'Read', 'Edit', 'Write', 'Bash', 'Bash', 'WebSearch', 'Agent', 'TaskUpdate', 'TaskUpdate', 'TaskUpdate']);
     expect(term.entries.every((e) => e.status === 'ok')).toBe(true);
-    expect(term.entries[2].summary).toBe('$ echo done');
-    expect(term.entries[2].output).toBe('done');
+    const cat = term.entries.find((e) => e.summary === '$ cat notes.txt')!;
+    expect(cat.output).toBe('goodbye world\nsecond line');
+  });
+
+  it('the session goes working → idle → ended', () => {
+    expect(apply(fresh(), ...fixtures.slice(0, 3)).session.activity).toBe('working');
+    const s = run();
+    expect(s.session.activity).toBe('idle');
+    expect(s.session.endedAt).toBeGreaterThan(0);
+    expect(s.session.cwd).toBe('/private/tmp/proj');
   });
 
   it('auto-opens the changes diff viewer once', () => {
     const s = run();
     expect(s.order).toContain('changes');
     const d = s.appState.changes as DiffState;
-    expect(d.files).toHaveLength(1);
-    expect(d.revisions[d.files[0]][0].hunks[0].lines).toEqual(['-hello world', '+goodbye world']);
+    const notes = '/private/tmp/proj/notes.txt';
+    expect(d.files).toEqual(['/private/tmp/proj/plans/p.md', notes]); // newest first
+    expect(d.revisions[notes][0].hunks[0].lines).toEqual(['-hello world', '+goodbye world', ' second line']);
     // user closes it; further edits don't reopen it
     let s2 = reduce(s, { type: 'window.close', id: 'changes' }).state;
-    const edit = fixtures.find((p) => p.hook_event_name === 'PostToolUse' && p.tool_name === 'Edit');
-    s2 = applyHook(s2, edit, ctx);
+    s2 = apply(s2, toolEnd('Edit'));
     expect(s2.order).not.toContain('changes');
-    expect((s2.appState.changes as DiffState).revisions[d.files[0]]).toHaveLength(2);
+    expect((s2.appState.changes as DiffState).revisions[notes]).toHaveLength(2);
   });
 
-  it('assembles out-of-order chunks by index', () => {
-    let s = fresh();
-    const base = { hook_event_name: 'MessageDisplay', message_id: 'm1', turn_id: 't' };
-    s = applyHook(s, { ...base, index: 1, delta: ' world', final: true }, ctx);
-    s = applyHook(s, { ...base, index: 0, delta: 'hello', final: false }, ctx);
-    const conv = s.appState.conversation as ConversationState;
-    expect(conv.messages).toHaveLength(1);
-    expect(messageText(conv.messages[0])).toBe('hello world');
+  it('shows plans, images, tasks, agents and files automatically', () => {
+    const s = run();
+    expect((s.appState.plan as any).content).toMatch(/^# Plan/);
+    expect((s.appState.images as any).images[0].file).toBe('/stored/icon.png');
+    expect((s.appState.tasks as any).items.map((t: any) => [t.subject, t.status])).toEqual([
+      ['Read files', 'completed'], ['Edit and write files', 'completed'], ['Search and agent task', 'completed'],
+    ]);
+    // A background agent: launched by the Agent call, finished by its own turn's end.
+    expect((s.appState.agents as any).runs[0]).toMatchObject({ description: 'Simple agent response task', agentId: 'a1fe987c11ea142db', background: true, status: 'done', result: 'done' });
+    expect(Object.keys((s.appState.files as any).files)).toEqual(['notes.txt', 'icon.png', 'plans/p.md']);
   });
 
-  it('shows plans and images automatically', () => {
-    let s = fresh();
-    s = applyHook(s, { hook_event_name: 'PostToolUse', tool_name: 'Write', tool_use_id: 'w', tool_input: { file_path: '/p/plans/x.md', content: '# Plan\n- a' }, tool_response: {} }, ctx);
-    expect((s.appState.plan as any).content).toBe('# Plan\n- a');
-    s = applyHook(s, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_use_id: 'r', tool_input: { file_path: '/p/shot.png' }, tool_response: {} }, ctx);
-    expect((s.appState.images as any).images[0].file).toBe('/stored/shot.png');
-    expect(s.order.slice(0, 2)).toEqual(['images', 'plan']);
+  it('a failed tool call is an error, with no side effects', () => {
+    const s = apply(fresh(), { e: 'tool.end', tool: 'Write', id: 'w', input: { file_path: '/p/x.md', content: 'x' }, error: 'File has not been read yet.' });
+    const t = s.appState.terminal as TerminalState;
+    expect(t.entries[0].status).toBe('error');
+    expect(s.instances.changes).toBeUndefined();
   });
 
-  it('pre/post arriving out of order still yields one entry', () => {
+  it('start/end arriving out of order still yields one entry', () => {
     let s = fresh();
-    s = applyHook(s, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'ls' }, tool_response: { stdout: 'a' } }, ctx);
-    s = applyHook(s, { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 'x', tool_input: { command: 'ls' } }, ctx);
+    s = apply(s, { e: 'tool.end', tool: 'Bash', id: 'x', input: { command: 'ls' }, result: { stdout: 'a' } });
+    s = apply(s, { e: 'tool.start', tool: 'Bash', id: 'x', input: { command: 'ls' } });
     const t = s.appState.terminal as TerminalState;
     expect(t.entries).toHaveLength(1);
-    // a late PreToolUse must not flip a finished entry back to running
+    // a late start must not flip a finished entry back to running
     expect(t.entries[0].status).toBe('ok');
+  });
+
+  it('ignores what it does not know', () => {
+    const s = fresh();
+    expect(apply(s, { e: 'nope' } as any, null as any, { foo: 1 } as any)).toEqual(s);
   });
 });
 
@@ -218,16 +239,16 @@ describe('browser app', () => {
     expect(s).toMatchObject({ view: 'shot', shot: { file: '/f/shot.png', url: 'https://b.test/' } });
   });
   it('web research: the query first, then results; a fetched page takes over; cdp navigation takes it back', () => {
-    const web = fixtures.filter((p) => p.tool_name === 'WebSearch' || p.tool_name === 'WebFetch');
+    const web = fixtures.filter((e) => 'tool' in e && e.tool === 'WebSearch');
     let s = fresh();
-    s = applyHook(s, web[0], ctx); // PreToolUse WebSearch
+    s = apply(s, web[0]); // the search starts
     const b = () => s.appState.browser as BrowserState;
     expect(s.order[0]).toBe('browser'); // auto-opened
-    expect(currentWeb(b())).toMatchObject({ kind: 'search', query: 'Chrome DevTools Protocol Page.startScreencast', results: null });
-    s = applyHook(s, web[3], ctx); // PostToolUse WebSearch
+    expect(currentWeb(b())).toMatchObject({ kind: 'search', query: 'Claude glass mirror', results: null });
+    s = apply(s, web[1]); // its results
     expect(b().history).toHaveLength(1); // results fill in the pending search, no new entry
-    expect((currentWeb(b()) as any).results[0]).toEqual({ title: expect.stringContaining('Background transparency'), url: 'https://github.com/ChromeDevTools/devtools-protocol/issues/162' });
-    s = applyHook(s, web[1], ctx); // PreToolUse WebFetch
+    expect((currentWeb(b()) as any).results[0]).toEqual({ title: 'Claude glass', url: 'https://en.wikipedia.org/wiki/Claude_glass' });
+    s = apply(s, { e: 'tool.start', tool: 'WebFetch', id: 'f1', input: { url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/', prompt: 'x' } });
     expect(b().view).toBe('web');
     expect(currentWeb(b())).toMatchObject({ kind: 'page', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' });
     s = reduce(s, { type: 'app.command', id: 'browser', command: 'attach', args: {} }).state;
@@ -285,11 +306,10 @@ describe('custom apps (mods)', () => {
     expect(reports.find((r) => r.type === 'broken')).toMatchObject({ ok: false, error: expect.stringContaining('command()') });
     expect(APPS['tool-count']).toMatchObject({ source: 'user', singleton: true, icon: '#' });
   });
-  it('onHook creates, auto-opens and fills a singleton from hooks', () => {
-    let s = fresh();
-    for (const p of fixtures) s = applyHook(s, p, ctx);
+  it('onEvent creates, auto-opens and fills a singleton from session events', () => {
+    const s = apply(fresh(), ...fixtures);
     expect(s.order).toContain('tool-count');
-    expect((s.appState['tool-count'] as any).counts).toMatchObject({ Read: 1, Edit: 1, Bash: 1 });
+    expect((s.appState['tool-count'] as any).counts).toMatchObject({ Read: 2, Edit: 1, Bash: 2, TaskCreate: 3 });
   });
   it('mod commands run through the reducer; guide lands in Claude’s instructions', () => {
     let s = reduce(fresh(), { type: 'instance.create', appType: 'tool-count' }).state;
@@ -300,11 +320,11 @@ describe('custom apps (mods)', () => {
 });
 
 describe('disabled apps', () => {
-  it('hooks leave turned-off apps untouched (no auto-created windows, no state changes)', () => {
-    const ctxOff: HookContext = { ...ctx, disabled: new Set(['diff', 'terminal']) };
+  it('events leave turned-off apps untouched (no auto-created windows, no state changes)', () => {
+    const ctxOff: EventContext = { ...ctx, disabled: new Set(['diff', 'terminal']) };
     let s = fresh();
     const term = s.appState.terminal;
-    for (const p of fixtures) s = applyHook(s, p, ctxOff);
+    for (const ev of fixtures) s = applyEvent(s, ev, ctxOff);
     expect(s.instances.changes).toBeUndefined();
     expect(s.order).not.toContain('changes');
     expect(s.appState.terminal).toBe(term);
@@ -353,27 +373,26 @@ describe('nested layout', () => {
 });
 
 describe('history mode', () => {
-  const hctx: HookContext = { ...ctx, windowMode: 'history' };
-  const edit = fixtures.find((p) => p.hook_event_name === 'PostToolUse' && p.tool_name === 'Edit');
-  const editAs = (id: string) => ({ ...edit, tool_use_id: id });
+  const hctx: EventContext = { ...ctx, windowMode: 'history' };
+  const editAs = (id: string) => ({ ...toolEnd('Edit'), id }) as GlassEvent;
   it('every action gets its own window, newest at slot 0', () => {
-    let s = applyHook(applyHook(fresh(), editAs('toolu_A1'), hctx), editAs('toolu_B2'), hctx);
+    let s = applyEvent(applyEvent(fresh(), editAs('toolu_A1'), hctx), editAs('toolu_B2'), hctx);
     expect(s.order.slice(0, 2)).toEqual(['changes-tooluB2', 'changes-tooluA1']);
     expect(s.instances['changes-tooluB2'].title).toBe('Changes');
   });
   it("a search's start and results share one browser window", () => {
-    const web = fixtures.filter((p) => p.tool_name === 'WebSearch');
+    const web = fixtures.filter((e) => 'tool' in e && e.tool === 'WebSearch');
     let s = fresh();
-    for (const p of web) s = applyHook(s, p, hctx);
+    for (const ev of web) s = applyEvent(s, ev, hctx);
     const browsers = Object.values(s.instances).filter((i) => i.type === 'browser');
     expect(browsers).toHaveLength(1);
     expect((s.appState[browsers[0].id] as BrowserState).history[0]).toMatchObject({ kind: 'search', results: expect.any(Array) });
   });
   it('keeps only the newest historyLimit windows; pinned ones survive', () => {
     let s = reduce(fresh(), { type: 'settings.set', key: 'historyLimit', value: 3 }).state;
-    s = applyHook(s, editAs('toolu_P0'), hctx);
+    s = applyEvent(s, editAs('toolu_P0'), hctx);
     s = reduce(s, { type: 'window.tuck', id: 'changes-tooluP0', edge: 'left' }).state;
-    for (let i = 1; i <= 5; i++) s = applyHook(s, editAs(`toolu_E${i}`), hctx);
+    for (let i = 1; i <= 5; i++) s = applyEvent(s, editAs(`toolu_E${i}`), hctx);
     const kept = Object.keys(s.instances).filter((id) => id.startsWith('changes-'));
     expect(kept.sort()).toEqual(['changes-tooluE3', 'changes-tooluE4', 'changes-tooluE5', 'changes-tooluP0']);
     expect(s.order).not.toContain('changes-tooluE1');

@@ -3,7 +3,7 @@ import { type AppDef, type Args, capTail, str, unknownCommand } from '../types';
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
-  parts: string[]; // assistant chunks by MessageDisplay index; user = [text]
+  parts: string[]; // assistant: the streamed text (parts[0]); user = [text]
   done: boolean;
   at: number;
 }

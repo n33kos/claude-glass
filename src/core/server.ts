@@ -8,7 +8,7 @@ import { coerceSetting, settingValues } from '../apps/types';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
 import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
-import { applyHook } from './hooks';
+import { applyEvent, type EventContext, type GlassEvent } from './events';
 import { loadMods, type ModReport } from './mods';
 import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
@@ -82,13 +82,17 @@ export class GlassCore {
     return result ?? null;
   }
 
-  hook(payload: unknown): void {
-    this.commit(applyHook(this.state, payload, {
+  /** Session events from the glass mod, in order (one batch per `claude-glass event`). */
+  events(events: unknown[]): void {
+    const ctx: EventContext = {
       ingestFile: (p) => this.ingestFile(p),
       disabled: new Set(this.config.disabledApps ?? []),
       windowMode: this.state.settings.windowMode,
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
-    }));
+    };
+    let s = this.state;
+    for (const ev of events) s = applyEvent(s, ev as GlassEvent, ctx);
+    this.commit(s);
   }
 
   /**
@@ -239,7 +243,7 @@ export class GlassCore {
     try {
       switch (env.op) {
         case 'ping': return { ok: true, result: { session: this.sessionId, pid: process.pid } };
-        case 'hook': this.hook(env.payload); return { ok: true, result: null };
+        case 'event': this.events(Array.isArray(env.events) ? env.events : [env.event]); return { ok: true, result: null };
         case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action) };
         case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };

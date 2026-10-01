@@ -198,19 +198,19 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...s, appState: { ...s.appState, [a.id]: next } } };
     }
 
-    case 'app.hook': {
-      // Apps with onHook see every hook payload. Existing instances update in place; a singleton
-      // is created (and auto-opened once, if it asks) the first time its onHook changes state.
+    case 'app.event': {
+      // Apps with onEvent see every session event. Existing instances update in place; a singleton
+      // is created (and auto-opened once, if it asks) the first time its onEvent changes state.
       let state = s;
       for (const app of Object.values(APPS)) {
-        if (!app.onHook) continue;
+        if (!app.onEvent) continue;
         const ids = Object.values(state.instances).filter((i) => i.type === app.type).map((i) => i.id);
         if (!ids.length && app.singleton) ids.push(app.type);
         for (const id of ids) {
           const exists = !!state.instances[id];
           const prev = exists ? state.appState[id] : app.init();
           let next: unknown;
-          try { next = app.onHook(prev, a.payload); } catch { continue; } // a broken app never breaks hooks
+          try { next = app.onEvent(prev, a.event); } catch { continue; } // a broken app never breaks the feed
           if (next === prev || next === undefined) continue;
           if (!exists) {
             state = autoCommandCreate(state, app.type, !!app.autoOpen);

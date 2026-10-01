@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, _electron as electron } from 'playwright';
-import { cli, hook, seed } from './seed.mjs';
+import { cli, event, seed } from './seed.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const shots = join(root, 'test/screenshots');
@@ -247,10 +247,10 @@ try {
 
   // Tests: the summary's flask stacks recent runs (green/red), with a run in progress on top in yellow.
   {
-    const bash = (ev, stdout, id) => hook(env, { hook_event_name: ev, tool_name: 'Bash', tool_use_id: id, tool_input: { command: 'npx vitest run' }, tool_response: { stdout } });
+    const bash = (e, stdout, id) => event(env, { e, tool: 'Bash', id, input: { command: 'npx vitest run' }, ...(e === 'tool.end' ? { result: { stdout } } : {}) });
     const results = ['Tests  12 passed (12)', 'Tests  2 failed | 10 passed (12)', 'Tests  12 passed (12)', 'Tests  12 passed (12)', 'Tests  1 failed | 11 passed (12)', 'Tests  12 passed (12)'];
-    for (const [i, out] of results.entries()) await bash('PostToolUse', out, `t${i}`);
-    await bash('PreToolUse', '', 'tlive');
+    for (const [i, out] of results.entries()) await bash('tool.end', out, `t${i}`);
+    await bash('tool.start', '', 'tlive');
     await cli(env, 'window', 'open', 'tests');
     await sleep(900);
     const t = appFrame(page, 'tests');
@@ -259,7 +259,7 @@ try {
     await page.locator('[data-window="tests"]').screenshot({ path: join(shots, '16-tests-flask.png') });
     // (>=: the seed may hold earlier runs)
     check(slices >= results.length + 1 && live === 1, `the tests flask stacks each recent run, plus the running one in yellow (${slices} slices, ${live} running)`);
-    await bash('PostToolUse', 'Tests  12 passed (12)', 'tlive');
+    await bash('tool.end', 'Tests  12 passed (12)', 'tlive');
     await sleep(500);
     check((await t.locator('.ts-flask .liquid.run').count()) === 0, 'when the run finishes, its slice turns green or red');
     await cli(env, 'window', 'close', 'tests');
@@ -419,16 +419,16 @@ try {
   }
 
   // Streaming + working state
-  await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'Show me the final diff.' });
-  await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1' });
-  await hook(env, { hook_event_name: 'MessageDisplay', message_id: 'live', turn_id: 't2', index: 0, final: false, delta: 'Building now, then I will' });
+  await event(env, { e: 'turn.start', turnId: 't2', text: 'Show me the final diff.' });
+  await event(env, { e: 'tool.start', tool: 'Bash', input: { command: 'npm run build' }, id: 'live1' });
+  await event(env, { e: 'text', id: 't2:0:0', turnId: 't2', text: 'Building now, then I will' });
   await sleep(500);
   await page.screenshot({ path: join(shots, '08-working.png') });
   check((await page.locator('.presence-working').count()) === 1, 'presence shows working');
 
   // Waiting on the user: permission prompt (pill + terminal lock), then a question (read-only card).
   await cli(env, 'window', 'move', 'terminal', '0');
-  await hook(env, { hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1' });
+  await event(env, { e: 'permission', tool: 'Bash', input: { command: 'npm run build' } });
   await sleep(500);
   await page.screenshot({ path: join(shots, '08b-waiting-permission.png') });
   check((await page.locator('.presence-waiting').count()) === 1 && (await appFrame(page, 'terminal').locator('.t-locked').count()) === 1, 'permission prompt shows waiting pill and locks the terminal row');
@@ -437,10 +437,10 @@ try {
     check(gap < 5, `terminal stays scrolled to the newest entry (gap ${gap}px)`);
   }
   check((await page.locator('.glass.waiting-glow').count()) === 1, 'waiting glow is on by default');
-  await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'npm run build' }, tool_use_id: 'live1', tool_response: { stdout: 'built' } });
-  await hook(env, {
-    hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'ask1',
-    tool_input: { questions: [{ header: 'Deploy', question: 'Ship the build to staging now?', multiSelect: false, options: [
+  await event(env, { e: 'tool.end', tool: 'Bash', input: { command: 'npm run build' }, id: 'live1', result: { stdout: 'built' } });
+  await event(env, {
+    e: 'tool.start', tool: 'AskUserQuestion', id: 'ask1',
+    input: { questions: [{ header: 'Deploy', question: 'Ship the build to staging now?', multiSelect: false, options: [
       { label: 'Yes, ship it', description: 'Deploys the build you just made to staging' },
       { label: 'Not yet', description: 'Keep working locally' }] }] },
   });
@@ -448,7 +448,7 @@ try {
   await page.screenshot({ path: join(shots, '08c-waiting-question.png') });
   const card = page.locator('.question-card');
   check((await card.count()) === 1 && (await card.locator('button').count()) === 0 && (await card.innerText()).includes('Answer in Claude Code'), 'question card is shown, read-only');
-  await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'ask1', tool_input: {}, tool_response: {} });
+  await event(env, { e: 'tool.end', tool: 'AskUserQuestion', id: 'ask1', input: {}, result: {} });
   await sleep(400);
   check((await page.locator('.question-card').count()) === 0 && (await page.locator('.presence-waiting').count()) === 0, 'answering clears the waiting state');
 
@@ -500,18 +500,18 @@ try {
     await new Promise((res) => srv.listen(0, '127.0.0.1', res));
     const url = `http://127.0.0.1:${srv.address().port}/docs/page`;
     try {
-      await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebSearch', tool_use_id: 'ws1', tool_input: { query: 'CDP screencast parameters' } });
+      await event(env, { e: 'tool.start', tool: 'WebSearch', id: 'ws1', input: { query: 'CDP screencast parameters' } });
       await sleep(400);
       check((await appFrame(page, 'browser').locator('.browserview .b-meta').innerText()).includes('searching'), 'web search shows while searching');
-      await hook(env, { hook_event_name: 'PostToolUse', tool_name: 'WebSearch', tool_use_id: 'ws1', tool_input: { query: 'CDP screencast parameters' },
-        tool_response: { query: 'CDP screencast parameters', results: [{ tool_use_id: 'x', content: [
+      await event(env, { e: 'tool.end', tool: 'WebSearch', id: 'ws1', input: { query: 'CDP screencast parameters' },
+        result: { query: 'CDP screencast parameters', results: [{ tool_use_id: 'x', content: [
           { title: 'Chrome DevTools Protocol - Page domain', url: 'https://chromedevtools.github.io/devtools-protocol/tot/Page/' },
           { title: 'How to do video recording on headless chrome', url: 'https://medium.com/@anchen.li/how-to-do-video-recording' },
           { title: 'puppeteer screen recorder', url: 'https://github.com/axelboberg/puppeteer-screen-recorder' }] }, 'Summary text'] } });
       await sleep(500);
       await page.screenshot({ path: join(shots, '09c-web-search.png') });
       check((await appFrame(page, 'browser').locator('.b-results li').count()) === 3, 'web search results are listed');
-      await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebFetch', tool_use_id: 'wf1', tool_input: { url, prompt: 'params?' } });
+      await event(env, { e: 'tool.start', tool: 'WebFetch', id: 'wf1', input: { url, prompt: 'params?' } });
       await appFrame(page, 'browser').locator('.browserview .b-stage img').waitFor({ timeout: 8000 }).catch(() => {});
       await sleep(800);
       await page.screenshot({ path: join(shots, '09d-web-page.png') });
@@ -532,7 +532,7 @@ try {
 
       // Highlight: Claude points at a passage; the page scrolls to it.
       const longUrl = `http://127.0.0.1:${srv.address().port}/long`;
-      await hook(env, { hook_event_name: 'PreToolUse', tool_name: 'WebFetch', tool_use_id: 'wf2', tool_input: { url: longUrl, prompt: 'x' } });
+      await event(env, { e: 'tool.start', tool: 'WebFetch', id: 'wf2', input: { url: longUrl, prompt: 'x' } });
       await sleep(1500);
       await cli(env, 'app', 'browser', 'highlight', '--text', 'frame acknowledgement keeps');
       await sleep(1500);
@@ -582,7 +582,7 @@ try {
     const frame = page.frameLocator('[data-window="tool-count"] iframe.appframe');
     const note = await frame.locator('#note').textContent({ timeout: 4000 }).catch(() => '');
     check(note === 'Hello from a mod', `mod view renders its state (note: ${note})`);
-    check((await frame.locator('.row').count()) >= 3, 'mod filled itself from hooks (onHook)');
+    check((await frame.locator('.row').count()) >= 3, 'custom app filled itself from session events (onEvent)');
     await frame.locator('button[data-by="name"]').click();
     await sleep(300);
     const st = JSON.parse(await cli(env, 'state', 'tool-count')).state;
@@ -1082,12 +1082,12 @@ try {
     // State colors (off by default now; the signal layer says the same): done → green; a new prompt
     // → back to the user's own light.
     await cli(env, 'settings', 'set', 'stateColors', 'true');
-    await hook(env, { hook_event_name: 'Stop' });
+    await event(env, { e: 'turn.complete', turnId: 't2' });
     await sleep(2000);
     const done = await blobColor();
     check(done === '#27ae60', `state colors: the light turns green when Claude is done (${done})`);
     await page.screenshot({ path: join(shots, '14b-state-idle.png') });
-    await hook(env, { hook_event_name: 'UserPromptSubmit', prompt: 'next' });
+    await event(env, { e: 'turn.start', turnId: 't3', text: 'next' });
     await sleep(2000);
     const working = await blobColor();
     check(working !== done, `state colors: working goes back to the user's own light (${working})`);
@@ -1173,7 +1173,7 @@ try {
   }
 
   // Session ended
-  await hook(env, { hook_event_name: 'SessionEnd', reason: 'other' });
+  await event(env, { e: 'session.end', reason: 'other' });
   await sleep(300);
   check((await page.locator('.presence-ended').count()) === 1, 'presence shows session ended');
 

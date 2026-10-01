@@ -33,14 +33,14 @@ export const files: AppDef<FilesState> = {
     if (cmd === 'clear') return { ...files.init(), view: s.view };
     return unknownCommand('files', cmd);
   },
-  onHook(s, p) {
-    if (p?.hook_event_name === 'SessionStart' && p.source === 'clear') return Object.keys(s.files).length ? { ...files.init(), view: s.view } : s;
-    if (p?.hook_event_name !== 'PostToolUse') return s;
-    const tool = p.tool_name;
+  onEvent(s, ev) {
+    if (ev?.e === 'session.start' && ev.source === 'clear') return Object.keys(s.files).length ? { ...files.init(), view: s.view } : s;
+    if (ev?.e !== 'tool.end' || ev.error) return s;
+    const tool = ev.tool;
     const kind = READS.has(tool) ? 'reads' : EDITS.has(tool) ? 'edits' : null;
-    const abs = p.tool_input?.file_path ?? p.tool_input?.notebook_path;
+    const abs = ev.input?.file_path ?? ev.input?.notebook_path;
     if (!kind || typeof abs !== 'string') return s;
-    const cwd = s.cwd ?? p.cwd;
+    const cwd = s.cwd ?? ev.cwd;
     const path = rel(abs, cwd);
     const now = Date.now();
     const prev = s.files[path] ?? { reads: 0, edits: 0, first: now, last: now };

@@ -20,10 +20,10 @@ export interface AppDef<S = any> {
   init(): S;
   /** Apply a command. Must be pure: return new state, throw Error on bad input. */
   command(state: S, command: string, args: Args): S;
-  /** Optional: see every Claude Code hook payload and update state (pure). Singletons are created on first change. */
-  onHook?(state: S, payload: any): S;
-  autoOpen?: boolean; // open the window the first time onHook creates the instance
-  internal?: string[]; // commands only hooks/the view use; hidden from Claude's catalog
+  /** Optional: see every session event (src/core/events.ts, GlassEvent) and update state (pure). Singletons are created on first change. */
+  onEvent?(state: S, event: any): S;
+  autoOpen?: boolean; // open the window the first time onEvent creates the instance
+  internal?: string[]; // commands only events/the view use; hidden from Claude's catalog
   viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
   guide?: string; // instructions for Claude, appended to the glass guide
   settings?: Record<string, SettingSpec>; // the app's own user settings (Settings → Apps, CLI, view props)

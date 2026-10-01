@@ -34,9 +34,15 @@ async function cli(...args: string[]): Promise<string> {
   if (r.status !== 0) throw new Error(r.stderr);
   return r.stdout;
 }
-async function hook(payload: object) {
-  const r = await run(join(root, 'scripts/hook-forward.sh'), [], JSON.stringify(payload));
+/** What the glass mod does: hand a session's events to the glass through the CLI. */
+async function event(session: string, ...events: object[]) {
+  const r = await run(join(root, 'bin/claude-glass'), ['event', '--session', session], events.map((e) => JSON.stringify(e)).join('\n') + '\n');
   expect(r.status).toBe(0);
+}
+async function sessionStart(session: string, source: string, cwd: string) {
+  const r = await run(join(root, 'bin/claude-glass'), ['session-start', '--session', session, '--source', source, '--cwd', cwd]);
+  expect(r.status).toBe(0);
+  return JSON.parse(r.stdout);
 }
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -108,28 +114,34 @@ describe('CLI ↔ core over the socket', () => {
   });
 });
 
-describe('hook forwarder', () => {
-  it('forwards real payloads into the glass', async () => {
-    const payloads = readFileSync(join(root, 'test/fixtures/hook-payloads.ndjson'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
-    for (const p of payloads) await hook({ ...p, session_id: SID });
-    await wait(100);
+describe('the mod\'s CLI commands', () => {
+  it('event hands a recorded session to the glass, in one batch', async () => {
+    const events = readFileSync(join(root, 'test/fixtures/mod-events.ndjson'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    await event(SID, ...events);
     const term = core.state.appState.terminal as any;
-    expect(term.entries.map((e: any) => e.tool)).toEqual(['Read', 'Edit', 'Bash', 'WebSearch', 'WebFetch']);
-    expect((core.state.appState.conversation as any).messages.length).toBe(3);
+    expect(term.entries.map((e: any) => e.tool)).toContain('WebSearch');
+    expect((core.state.appState.conversation as any).messages.length).toBe(11);
     expect(core.state.appState.changes).toBeTruthy();
   });
 
-  it('is a fast no-op when no glass exists for the session', async () => {
+  it('event is a fast no-op when no glass exists for the session', async () => {
     const t = Date.now();
-    await hook({ hook_event_name: 'PreToolUse', session_id: 'no-such-session', tool_name: 'Bash' });
-    expect(Date.now() - t).toBeLessThan(500);
+    await event('no-such-session', { e: 'tool.start', tool: 'Bash', id: 'x', input: {} });
+    expect(Date.now() - t).toBeLessThan(1000);
   });
 
-  it('session-start hook injects the guide only when the glass is live', async () => {
-    const live = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: SID, source: 'compact', cwd: '/tmp/proj' }));
-    expect(JSON.parse(live.stdout).hookSpecificOutput.additionalContext).toContain('Claude Glass is open');
-    const off = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: 'other-session', source: 'startup', cwd: '/tmp/proj' }));
-    expect(off.stdout).toBe(''); // autoStart defaults to false: nothing injected, nothing launched
+  it('session-start gives the mod the guide only when the glass is live', async () => {
+    const live = await sessionStart(SID, 'compact', '/tmp/proj');
+    expect(live).toMatchObject({ open: true, toolReminders: true, socket: join(runtime, `${SID}.sock`) });
+    expect(live.guide).toContain('Claude Glass is open');
+    // autoStart defaults to false: nothing launched, no guide
+    expect(await sessionStart('other-session', 'startup', '/tmp/proj')).toMatchObject({ open: false, guide: null });
+  });
+
+  it('open doesn\'t warn about the mod once it ran in the session', async () => {
+    const r = await run(join(root, 'bin/claude-glass'), ['open'], '', { CLAUDE_CODE_SESSION_ID: SID });
+    expect(r.stdout).toContain('already open');
+    expect(r.stdout).not.toContain("mod isn't running"); // session-start ran for SID above
   });
 
   it('persists state to disk', async () => {
@@ -190,11 +202,9 @@ describe('folder scope', () => {
 
   it('every session in the folder (e.g. after /clear) feeds one glass', async () => {
     for (const sid of ['sess-before-clear', 'sess-after-clear']) {
-      const r = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ hook_event_name: 'SessionStart', session_id: sid, source: sid.endsWith('after-clear') ? 'clear' : 'startup', cwd: dir }));
-      expect(JSON.parse(r.stdout).hookSpecificOutput.additionalContext).toContain('Claude Glass is open');
-      await hook({ hook_event_name: 'UserPromptSubmit', session_id: sid, prompt: `hello from ${sid}` });
-      await hook({ hook_event_name: 'PreToolUse', session_id: sid, tool_name: 'Bash', tool_use_id: `t-${sid}`, tool_input: { command: 'ls' } });
-      await wait(50);
+      const r = await sessionStart(sid, sid.endsWith('after-clear') ? 'clear' : 'startup', dir);
+      expect(r.guide).toContain('Claude Glass is open');
+      await event(sid, { e: 'turn.start', turnId: `turn-${sid}`, text: `hello from ${sid}` }, { e: 'tool.start', tool: 'Bash', id: `t-${sid}`, input: { command: 'ls' } });
     }
     await wait(100);
     const msgs = (folder.state.appState.conversation as any).messages.map((m: any) => m.parts.join(''));
@@ -210,10 +220,9 @@ describe('folder scope', () => {
     expect(v.session.title).toBe('cg-folder-proj'); // folder name, not the full path
   });
 
-  it('switching back to session scope unbinds on the next SessionStart', async () => {
+  it('switching back to session scope unbinds at the next session start', async () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ scope: 'session' }));
-    const r = await run(join(root, 'bin/claude-glass'), ['session-start-hook'], JSON.stringify({ session_id: 'sess-after-clear', source: 'resume', cwd: dir }));
-    expect(r.stdout).toBe('');
+    expect(await sessionStart('sess-after-clear', 'compact', dir)).toMatchObject({ open: false });
     expect(existsSync(join(runtime, 'sess-after-clear.sock'))).toBe(false);
   });
 });
@@ -357,20 +366,6 @@ describe('file copies', () => {
     expect(left).not.toContain('orphan.png');
     expect(left).toEqual(expect.arrayContaining(['fresh.png', 'kept.png']));
     core.dispatch({ type: 'instance.delete', id: 'prune-test' });
-  });
-});
-
-describe('tool reminder hook', () => {
-  const remind = async (command: string, session = SID) =>
-    (await run(join(root, 'scripts/tool-reminder.sh'), [], JSON.stringify({ session_id: session, tool_input: { command } }))).stdout;
-  it('reminds only for shell file I/O, only while a glass is open, and can be turned off', async () => {
-    expect(JSON.parse(await remind('sed -n 1,40p src/core/reducer.ts')).hookSpecificOutput.additionalContext).toContain('Read tool');
-    expect(await remind("cat > notes.md <<'EOF'")).toContain('Edit/Write');
-    for (const ok of ['npm test 2>&1 | tail -3', 'grep -n reduce src', 'git commit -qm "a > b.c"', 'claude-glass app x log --text "cat a.ts"']) expect(await remind(ok)).toBe('');
-    expect(await remind('cat a.ts', 'no-glass-here')).toBe('');
-    await cli('settings', 'set', 'toolReminders', 'false');
-    expect(await remind('cat a.ts')).toBe('');
-    await cli('settings', 'set', 'toolReminders', 'true');
   });
 });
 

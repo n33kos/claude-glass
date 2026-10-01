@@ -7,7 +7,7 @@ exports.command = (state, cmd, args) => {
   throw new Error(`tool-count: unknown command "${cmd}"`);
 };
 
-exports.onHook = (state, p) => {
-  if (p.hook_event_name !== 'PreToolUse' || !p.tool_name) return state;
-  return { ...state, counts: { ...state.counts, [p.tool_name]: (state.counts[p.tool_name] ?? 0) + 1 } };
+exports.onEvent = (state, ev) => {
+  if (ev.e !== 'tool.start' || !ev.tool) return state;
+  return { ...state, counts: { ...state.counts, [ev.tool]: (state.counts[ev.tool] ?? 0) + 1 } };
 };
