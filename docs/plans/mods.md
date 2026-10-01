@@ -87,20 +87,23 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
 
 ## Phase 2 — The Action app and two-way permissions
 
-- [ ] **Manifest permission** `"permissions": { "twoWay": true }`, shown in Settings and
-      `claude-glass apps` like network/microphone; off → the app can't answer anything
-- [ ] **Action app** (`action`, built-in, two-way, docked bottom-right by default). A card per
-      pending request:
-      - **Permission**: the mod's `tool.check` hook awaits `next(e)`; when the decision is
-        `ask`, it shows the card with the tool, its input (a diff preview for Edit/Write, the
-        command for Bash) and Allow / Deny / Allow-always
-      - **App questions**: any two-way app can raise one (Phase 3)
-      - Questions (AskUserQuestion) come in once the experiment below works out
-      - After an answer the card fades out (`action.keepAnswered: false`) or stays as a
-        history row
-- [ ] The terminal must keep working for voice/tmux users: the permission prompt is not a render
-      site, so we decide through `tool.check`, never by redrawing it, and fall back to Claude
-      Code's own prompt (see the experiment below for racing the two)
+- [x] **Manifest permission** `"permissions": { "twoWay": true }`, shown in Settings and
+      `claude-glass apps`. A two-way app's view commands run only from the glass's own window
+      (`GlassCore.dispatch(action, 'ui')`); the socket (CLI, Claude, the mod) can't run them, so
+      nothing but the user approves anything
+- [x] **Action app** (`action`, built-in, two-way): a card per permission prompt, brought to the
+      front, with the tool, a summary, the detail (a diff for Edit/Write, a long command, a URL)
+      and Allow / Always allow (when Claude Code offers rules) / Deny. Answered cards go after a
+      moment, and the window with them (`keepAnswered` keeps them); settings `approvals`,
+      `keepAnswered`, `holdMinutes`
+- [x] **Racing the terminal**: the mod answers `classic.PermissionRequest` (fired exactly when the
+      prompt would show, after rules and the auto-mode classifier). While it waits it draws the
+      same choices in the band above the prompt (1 Allow · 2 Always · 3 Deny · 4 Ask here);
+      whichever is answered first wins and the other side is told. "Ask here", a timeout
+      (`holdMinutes`), an interrupt, or no glass: Claude Code's own prompt. The wait polls
+      `claude-glass action wait <id> --ms 700` (time inside `$` calls is free), so no server
+- [ ] App questions: any two-way app can raise one (Phase 3)
+- [ ] Questions (AskUserQuestion): the experiment below
 - [ ] **Interrupt**: a Stop button in the top bar while Claude works → `$.turn.abort()`
       (setting `interruptButton`, off by default)
 - [ ] Waiting state comes from these exact events (no more inferring it from notifications)

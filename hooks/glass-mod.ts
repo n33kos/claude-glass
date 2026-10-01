@@ -60,6 +60,56 @@ async function sessionStart($: any, source: string) {
   }
 }
 
+/** One CLI call that answers in JSON (the approval commands); null when it couldn't. */
+async function ask($: any, args: string[], stdin?: string, timeoutMs = 5000): Promise<any> {
+  try {
+    const r = await $.process.run([bin($), ...args, '--session', cid], { stdin, timeoutMs })
+    return JSON.parse(String(r.stdout).trim().split('\n').pop() || 'null')
+  } catch {
+    return null
+  }
+}
+
+// An approval in flight: the glass shows a card, and the band above the prompt shows the same
+// choices; whichever the user answers first decides. `choice` is set by the band's buttons.
+type Pending = { id: string; summary: string; canAlways: boolean; choice: string | null }
+let pending: Pending | null = null
+
+/** Ask the user's permission through the glass and the band; the decision, or null for Claude Code's own prompt. */
+async function approve($: any, e: any, signal: AbortSignal | undefined): Promise<any> {
+  const suggestions = Array.isArray(e.permission_suggestions) ? e.permission_suggestions : []
+  const req = await ask($, ['action', 'request'], JSON.stringify({ tool: e.tool_name, input: e.tool_input, canAlways: suggestions.length > 0 }))
+  if (!req?.id) return null // approvals off, or no glass
+  pending = { id: req.id, summary: String(req.summary ?? e.tool_name), canAlways: suggestions.length > 0, choice: null }
+  $.ui.invalidate('ui.render')
+  const deadline = Date.now() + Number(req.holdMs ?? 600_000)
+  let outcome: { choice: string; by: string } | null = null
+  try {
+    while (!outcome) {
+      if (signal?.aborted) { await ask($, ['action', 'close', req.id, '--by', 'interrupted']); return null }
+      if (pending?.choice) {
+        outcome = { choice: pending.choice, by: 'terminal' }
+        await ask($, ['action', 'close', req.id, '--by', 'terminal', '--choice', pending.choice])
+        break
+      }
+      if (Date.now() > deadline) { await ask($, ['action', 'close', req.id, '--by', 'timeout']); return null }
+      // Waiting inside a $ call doesn't count toward the hook's time; check the band between waits.
+      const r = await ask($, ['action', 'wait', req.id, '--ms', '700'], undefined, 5000)
+      if (r?.status === 'answered') outcome = { choice: String(r.choice), by: String(r.by) }
+      else if (!r || r.status === 'gone') return null
+    }
+  } finally {
+    pending = null
+    $.ui.invalidate('ui.render')
+  }
+  switch (outcome.choice) {
+    case 'allow': return { decision: { behavior: 'allow' } }
+    case 'always': return { decision: { behavior: 'allow', updatedPermissions: suggestions } }
+    case 'deny': return { decision: { behavior: 'deny', message: 'The user declined this (in Claude Glass).' } }
+    default: return null // "answer in the terminal": Claude Code's own prompt
+  }
+}
+
 // Shell commands that read or change file contents, which the glass can't show (the user sees
 // Read, Edit and Write). Plain `grep -n` and piping a command's output through head/tail are fine.
 const FILE_IO = /(^|[;&(]|\|\|)\s*(cat|head|tail|less|more|awk|sed|nl|bat)\s|sed\s+-i|grep[^|;&]*\s-[A-Za-z]*[ABC]|<<\s*-?['"]?[A-Za-z_]+|(python3?|node|ruby|perl)\s+(-c|-e)\s|[^0-9&>]>>?\s*[A-Za-z./~][^\s;&|]*\.[A-Za-z]+/
@@ -156,10 +206,34 @@ export function register(on: any) {
     return next(e)
   })
 
-  // Claude Code is showing a permission prompt: the glass says it's waiting on the user.
+  // Claude Code is about to ask the user's permission. The glass says it's waiting on the user,
+  // and, with approvals on (the Action app), asks it there and in the band above the prompt.
   on('classic.PermissionRequest', async ($: any, e: any, next: any) => {
     send($, { e: 'permission', tool: e.tool_name, input: e.tool_input })
-    return next(e)
+    if (!sock || !(await $.fs.exists(sock))) return next(e)
+    const decided = await approve($, e, next.signal)
+    return decided ?? next(e)
+  })
+
+  // The band above the prompt while an approval is in flight: the same choices as the glass card.
+  on('ui.render', { component: 'AbovePrompt' }, async ($: any, e: any, next: any) => {
+    const p = pending
+    if (!p) return next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const pick = (choice: string) => () => { if (pending && pending.id === p.id) { pending.choice = choice; $.ui.invalidate('ui.render') } }
+    const buttons = [
+      Button({ key: 'glass-allow', label: 'Allow', hotkey: '1', plain: true, onPress: pick('allow') }),
+      ...(p.canAlways ? [Button({ key: 'glass-always', label: 'Always allow', hotkey: '2', plain: true, onPress: pick('always') })] : []),
+      Button({ key: 'glass-deny', label: 'Deny', hotkey: '3', plain: true, onPress: pick('deny') }),
+      Button({ key: 'glass-here', label: 'Ask here instead', hotkey: '4', plain: true, dimColor: true, onPress: pick('terminal') }),
+    ]
+    return Box({
+      flexDirection: 'column',
+      children: [
+        Text({ children: [p.choice ? `◉ Claude Glass · ${p.choice === 'terminal' ? 'asking here…' : p.choice}` : `◉ Claude Glass · permission: ${p.summary.slice(0, 160)}`], bold: true }),
+        p.choice ? Text({ children: [' '] }) : Box({ flexDirection: 'row', columnGap: 3, children: buttons }),
+      ],
+    })
   })
 
   on('session.end', async ($: any, e: any, next: any) => {

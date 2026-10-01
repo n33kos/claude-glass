@@ -277,7 +277,7 @@ async function boot() {
 
   ipcMain.handle('glass:init', () => ({ sessionId, state: core.state, config: core.config, apps: Object.values(APPS).map(appInfo), appReports: core.apps }));
   ipcMain.handle('glass:dispatch', (_e, action: Action) => {
-    try { return { ok: true, result: core.dispatch(action) }; } catch (e: any) { return { ok: false, error: e.message }; }
+    try { return { ok: true, result: core.dispatch(action, 'ui') }; } catch (e: any) { return { ok: false, error: e.message }; }
   });
   // The browser tile's shape, so the offscreen page renders to fill it (a view hint, not state).
   ipcMain.on('glass:webAspect', (_e, aspect: number) => { webAspect = Number(aspect) || 0; for (const f of webFeeds.values()) f.fit(webAspect); });

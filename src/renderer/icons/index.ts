@@ -1,5 +1,6 @@
 // The built-in apps' icons: full-tile artwork (its own color and a bold symbol), bundled into the
 // shell as data URLs. A custom app's own icon.svg/png wins over these.
+import action from './action.svg';
 import agents from './agents.svg';
 import browser from './browser.svg';
 import conversation from './conversation.svg';
@@ -14,4 +15,4 @@ import tasks from './tasks.svg';
 import terminal from './terminal.svg';
 import tests from './tests.svg';
 
-export const BUILTIN_ICONS: Record<string, string> = { agents, browser, conversation, diagram, diff, files, html, image, markdown, settings, tasks, terminal, tests };
+export const BUILTIN_ICONS: Record<string, string> = { action, agents, browser, conversation, diagram, diff, files, html, image, markdown, settings, tasks, terminal, tests };

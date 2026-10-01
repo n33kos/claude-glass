@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, _electron as electron } from 'playwright';
-import { cli, event, project, seed } from './seed.mjs';
+import { cli, event, project, run, seed } from './seed.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const shots = join(root, 'test/screenshots');
@@ -493,6 +493,27 @@ try {
   await event(env, { e: 'tool.end', tool: 'AskUserQuestion', id: 'ask1', input: {}, result: {} });
   await sleep(400);
   check((await page.locator('.question-card').count()) === 0 && (await page.locator('.presence-waiting').count()) === 0, 'answering clears the waiting state');
+
+  // Approvals: the mod asks through the glass; the Action app's card answers it (the CLI waits).
+  {
+    const bin = join(root, 'bin/claude-glass');
+    const req = JSON.parse(await run(bin, ['action', 'request'], env, JSON.stringify({ tool: 'Bash', input: { command: 'git push origin main' }, canAlways: true })));
+    await event(env, { e: 'permission', tool: 'Bash', input: { command: 'git push origin main' } });
+    await sleep(700);
+    await page.screenshot({ path: join(shots, '08h-approval.png') });
+    const card = appFrame(page, 'action').locator('.ac-req.pending');
+    check((await card.count()) === 1 && (await card.innerText()).includes('git push origin main'), 'a permission request shows as a card in Action, at the front');
+    const answer = run(bin, ['action', 'wait', req.id, '--ms', '8000'], env);
+    await sleep(200);
+    await card.locator('button.primary').click();
+    const got = JSON.parse(await answer);
+    check(got.status === 'answered' && got.choice === 'allow' && got.by === 'glass', `Allow on the card answers the waiting mod (${JSON.stringify(got)})`);
+    await sleep(400);
+    await page.locator('[data-window="action"]').screenshot({ path: join(shots, '08i-approval-answered.png') }).catch(() => {});
+    await event(env, { e: 'tool.end', tool: 'Bash', id: 'pushed', input: { command: 'git push origin main' }, result: { stdout: '' } });
+    await sleep(1800);
+    check((await page.locator('[data-window="action"]').count()) === 0, 'once answered, the card and its window go away');
+  }
 
   // Browser app: screencast a real headless Chromium over CDP, then a pushed screenshot.
   {

@@ -342,7 +342,7 @@ async function main(argv: string[]) {
       const cat: any[] | null = await call(sessionId(flags), { op: 'catalog' }).catch(() => null);
       const reports: any[] = await call(sessionId(flags), { op: 'apps' }).catch(() => []);
       const rows = cat
-        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}${a.permissions ? `  [can use: ${[...a.permissions.network, a.permissions.microphone && 'microphone', a.permissions.storage && 'storage', a.permissions.sharedSignIn && 'shared sign-in'].filter(Boolean).join(', ')}]` : ''}`)
+        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}${a.permissions ? `  [can use: ${[a.permissions.twoWay && 'answering Claude (two-way)', ...a.permissions.network, a.permissions.microphone && 'microphone', a.permissions.storage && 'storage', a.permissions.sharedSignIn && 'shared sign-in'].filter(Boolean).join(', ')}]` : ''}`)
         : ['(glass not open: showing folders only)', ...(existsSync(dir) ? readdirSync(dir).map((d) => `custom   ${d}`) : [])];
       for (const r of reports) if (!r.ok) rows.push(`FAILED   ${r.type.padEnd(14)} ${r.error}  (${r.dir})`);
       out({ apps: cat, mods: reports }, [...rows, '', `Custom apps folder: ${dir}`].join('\n'));
@@ -374,6 +374,30 @@ async function main(argv: string[]) {
       } else if (kind === 'clear') await dispatch(sid, { type: 'signal', kind: 'clear' });
       else throw new Error(usage);
       out({ ok: true }, 'ok');
+      return;
+    }
+    case 'action': {
+      // The glass mod's approvals (not for Claude): ask through the glass, wait for the answer,
+      // or say it was settled elsewhere. Every reply is one JSON line. Answers themselves only
+      // come from the glass's own window.
+      const [sub, id] = rest;
+      const cid = claudeSessionId(flags);
+      const sock = socketPath(cid);
+      const say = (v: unknown) => console.log(JSON.stringify(v));
+      if (!existsSync(sock)) { say(sub === 'wait' ? { status: 'gone' } : { off: 'no glass' }); return; }
+      if (sub === 'request') {
+        let req: unknown = {};
+        try { req = JSON.parse(readStdin() || '{}'); } catch {}
+        const r = await request(sock, { op: 'action.request', request: req }, 3000).catch(() => null);
+        say(r?.ok ? r.result : { off: r?.error ?? 'the glass did not answer' });
+      } else if (sub === 'wait' && id) {
+        const ms = Math.max(0, Math.min(30_000, Number(flags.ms ?? 1000)));
+        const r = await request(sock, { op: 'action.wait', id, ms }, ms + 3000).catch(() => null);
+        say(r?.ok ? r.result : { status: 'gone' });
+      } else if (sub === 'close' && id) {
+        await request(sock, { op: 'action.close', id, by: flags.by, choice: flags.choice }, 3000).catch(() => {});
+        say({ ok: true });
+      } else throw new Error('usage: claude-glass action request | wait <id> [--ms N] | close <id> [--by terminal|timeout|interrupted] [--choice C]');
       return;
     }
     case 'stored': {

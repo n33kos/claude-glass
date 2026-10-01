@@ -1,0 +1,27 @@
+/* Action: approvals from the glass. Tokens only (docs/design.md). Pending requests are the one
+   place here with color: the amber of "waiting on you". */
+.ac-empty { height: 100%; display: grid; place-items: center; color: var(--text-3); padding: var(--space-6); text-align: center; }
+.action { height: 100%; overflow: auto; padding: var(--space-4) var(--space-5) var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+.ac-req { position: relative; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); padding: var(--space-4); }
+.ac-req.pending { border-color: var(--warn-line); box-shadow: 0 0 0 1px var(--warn-line), 0 0 24px -6px var(--warn-soft); }
+.ac-req.answered { opacity: .75; }
+.ac-ask { font-size: var(--text-size-2xs); font-weight: var(--weight-medium); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-3); }
+.ac-req.pending .ac-ask { color: var(--warn); }
+.ac-allow .ac-ask, .ac-always .ac-ask { color: var(--ok); }
+.ac-deny .ac-ask { color: var(--bad); }
+.ac-what { margin-top: var(--space-1); font: var(--text-size-md) var(--font-mono); color: var(--text-1); word-break: break-word; }
+.ac-what b { font-weight: var(--weight-medium); color: var(--accent-text); margin-right: var(--space-1); }
+.ac-detail { margin: var(--space-3) 0 0; padding: var(--space-3); max-height: 16em; overflow: auto; border-radius: var(--radius-sm); background: var(--surface-sunken, var(--surface-hover));
+  font: var(--text-size-sm)/var(--leading-normal) var(--font-mono); color: var(--text-2); white-space: pre-wrap; word-break: break-all; }
+.ac-detail .add { color: var(--ok); }
+.ac-detail .del { color: var(--bad); }
+.ac-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.ac-buttons button { height: 30px; padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--text-size-sm); font-weight: var(--weight-medium);
+  background: var(--surface-hover); color: var(--text-1); cursor: pointer; }
+.ac-buttons button:hover { background: var(--surface-pressed); }
+.ac-buttons button.primary { background: var(--accent); color: var(--text-on-accent); }
+.ac-buttons button.primary:hover { background: var(--gray-12); }
+.ac-buttons button.deny:hover { background: var(--bad-soft, var(--surface-pressed)); color: var(--bad); }
+.ac-hint { margin-left: auto; font-size: var(--text-size-xs); color: var(--text-3); }
+.ac-dismiss { position: absolute; top: var(--space-2); right: var(--space-3); width: 22px; height: 22px; border-radius: 50%; color: var(--text-3); cursor: pointer; }
+.ac-dismiss:hover { background: var(--surface-hover); color: var(--text-1); }

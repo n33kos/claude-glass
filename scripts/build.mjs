@@ -8,7 +8,7 @@ const common = { bundle: true, sourcemap: 'inline', logLevel: 'warning', target:
 const require = createRequire(import.meta.url);
 
 // Built-in apps that ship in the app format (docs/apps.md). Settings is the one native view.
-const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser', 'tasks', 'agents', 'tests', 'files', 'diagram'];
+const FRAME_APPS = ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser', 'tasks', 'agents', 'tests', 'files', 'diagram', 'action'];
 // Kept in sync with INTERNAL_COMMANDS in src/apps/registry.ts (hidden from Claude's catalog).
 const INTERNAL = new Set(['tool.start', 'tool.end', 'agent', 'filter', 'user', 'chunk', 'turnEnd', 'status', 'web.search', 'web.page', 'web.title', 'web.go', 'web.found', 'web.away', 'web.home']);
 
@@ -44,7 +44,8 @@ async function buildApp(type) {
   const manifest = {
     apiVersion: 1, type: def.type, title: def.title, icon: def.icon, singleton: def.singleton, description: def.description, commands,
     ...(def.viewCommands ? { viewCommands: def.viewCommands } : {}),
-    internal: [...INTERNAL].filter((c) => c in def.commands || def.viewCommands?.includes(c)),
+    internal: [...new Set([...INTERNAL, ...(def.internal ?? [])])].filter((c) => c in def.commands || def.viewCommands?.includes(c) || def.internal?.includes(c)),
+    ...(def.permissions && Object.values(def.permissions).some((v) => v === true || (Array.isArray(v) && v.length)) ? { permissions: def.permissions } : {}),
     ...(def.autoOpen ? { autoOpen: true } : {}),
     ...(def.settings ? { settings: def.settings } : {}),
     ...(def.stored ? { stored: def.stored } : {}),

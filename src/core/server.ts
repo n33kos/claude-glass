@@ -4,7 +4,9 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
-import { coerceSetting, settingValues, storedValues } from '../apps/types';
+import { appInfo, clip, coerceSetting, settingValues, storedValues } from '../apps/types';
+import type { ActionState } from '../apps/action';
+import { summarizeTool } from '../apps/terminal';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
 import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
@@ -57,6 +59,7 @@ export class GlassCore {
     const prev = this.state;
     this.state = next;
     this.storedFiles?.sync(prev, next);
+    this.settleRequests(prev);
     this.scheduleSave();
     for (const fn of this.listeners) fn(this.state, this.config);
   }
@@ -70,7 +73,19 @@ export class GlassCore {
     if (type && disabled.includes(type)) throw new Error(`the "${type}" app is turned off by the user (in Settings). Don't use it.`);
   }
 
-  dispatch(action: Action): unknown {
+  /**
+   * Run one reducer action. `from` is who asked: the glass's own UI (the renderer, over IPC) or
+   * the socket (the CLI: Claude, the user's shell, the mod). A two-way app's view commands answer
+   * back into the Claude session, so only the UI may run them: nothing on the socket can approve
+   * anything.
+   */
+  dispatch(action: Action, from: 'ui' | 'socket' = 'socket'): unknown {
+    if (from !== 'ui' && action.type === 'app.command') {
+      const app = APPS[this.state.instances[action.id]?.type ?? ''];
+      if (app?.permissions?.twoWay && appInfo(app).viewCommands.includes(action.command)) {
+        throw new Error(`"${action.command}" answers back into the Claude session: only the glass's own window can do that`);
+      }
+    }
     // History mode: each page has its own browser window; a highlight goes to the newest page.
     if (action.type === 'app.command' && action.id === 'browser' && action.command === 'highlight' && this.state.settings.windowMode === 'history') {
       const pages = Object.values(this.state.instances)
@@ -88,6 +103,87 @@ export class GlassCore {
     const { state, result } = reduce(this.state, action);
     this.commit(state);
     return result ?? null;
+  }
+
+  // ---- Approvals (the Action app; docs/plans/mods.md, Phase 2) ----------------------------------
+  private waiters = new Map<string, Set<(r: unknown) => void>>();
+
+  private actionSettings() {
+    const app = APPS.action;
+    return app ? settingValues(app, this.config.appSettings?.action) as { approvals: boolean; keepAnswered: boolean; holdMinutes: number } : null;
+  }
+
+  private request(id: string): ActionState['requests'][number] | undefined {
+    return (this.state.appState.action as ActionState | undefined)?.requests.find((r) => r.id === id);
+  }
+
+  /**
+   * The mod asks the user's permission through the glass: a card in the Action app (brought to
+   * the front), answered from the glass's UI. Off (the app turned off, or approvals off): the mod
+   * leaves it to Claude Code's own prompt.
+   */
+  actionRequest(req: { tool?: unknown; input?: unknown; canAlways?: unknown }): { id: string; holdMs: number; summary: string } | { off: string } {
+    const settings = this.actionSettings();
+    if (!settings || this.config.disabledApps?.includes('action')) return { off: 'the Action app is turned off' };
+    if (!settings.approvals) return { off: 'approvals from the glass are off' };
+    const tool = String(req.tool ?? '?');
+    const id = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    let s = this.state;
+    if (!s.instances.action) s = reduce(s, { type: 'instance.create', appType: 'action', open: false }).state;
+    s = reduce(s, { type: 'app.command', id: 'action', command: 'request', args: { id, tool, summary: summarizeTool(tool, req.input), detail: requestDetail(tool, req.input), canAlways: req.canAlways === true } }).state;
+    // It's what the user needs to look at now: to the front (a docked one stays where it is).
+    if (!Object.values(s.tucked ?? {}).some((l) => l?.includes('action'))) s = reduce(s, { type: 'window.open', id: 'action' }).state;
+    this.commit(s);
+    return { id, holdMs: Math.round(settings.holdMinutes * 60_000), summary: summarizeTool(tool, req.input) };
+  }
+
+  /** Wait (up to ms) for a request's answer. Pending, answered (with the choice), or gone. */
+  actionWait(id: string, ms: number): Promise<unknown> {
+    const now = () => {
+      const r = this.request(id);
+      return !r ? { status: 'gone' } : r.status === 'pending' ? null : { status: 'answered', choice: r.answer?.choice, by: r.answer?.by };
+    };
+    const ready = now();
+    if (ready) return Promise.resolve(ready);
+    return new Promise((resolve) => {
+      const set = this.waiters.get(id) ?? new Set();
+      const done = (r: unknown) => { clearTimeout(t); set.delete(done); resolve(r); };
+      const t = setTimeout(() => done({ status: 'pending' }), Math.max(0, Math.min(30_000, ms)));
+      set.add(done);
+      this.waiters.set(id, set);
+    });
+  }
+
+  /** The request was settled elsewhere (the terminal), timed out, or the turn was interrupted. */
+  actionClose(id: string, by: unknown, choice: unknown): void {
+    if (!this.request(id)) return;
+    this.dispatch({ type: 'app.command', id: 'action', command: 'close', args: { id, by, choice } });
+  }
+
+  /** After each change: answer whoever waits on a settled request; tidy up when nothing's pending. */
+  private settleRequests(prev: GlassState): void {
+    const before = (prev.appState.action as ActionState | undefined)?.requests;
+    const after = (this.state.appState.action as ActionState | undefined)?.requests;
+    if (!after || before === after) return;
+    for (const [id, set] of this.waiters) {
+      const r = after.find((x) => x.id === id);
+      if (r && r.status === 'pending') continue;
+      const reply = r ? { status: 'answered', choice: r.answer?.choice, by: r.answer?.by } : { status: 'gone' };
+      for (const fn of [...set]) fn(reply);
+      this.waiters.delete(id);
+    }
+    const settled = after.some((r) => r.status === 'answered' && !before?.find((b) => b.id === r.id && b.status === 'answered'));
+    if (settled && !this.actionSettings()?.keepAnswered) {
+      // A moment to see what was chosen, then the card goes, and the window if nothing's left.
+      setTimeout(() => {
+        const reqs = (this.state.appState.action as ActionState | undefined)?.requests ?? [];
+        let s = this.state;
+        for (const r of reqs) if (r.status === 'answered') s = reduce(s, { type: 'app.command', id: 'action', command: 'dismiss', args: { id: r.id } }).state;
+        const docked = Object.values(s.tucked ?? {}).some((l) => l?.includes('action'));
+        if (!reqs.some((r) => r.status === 'pending') && !docked && s.order.includes('action')) s = reduce(s, { type: 'window.close', id: 'action' }).state;
+        this.commit(s);
+      }, 1500).unref?.();
+    }
   }
 
   /** Session events from the glass mod, in order (one batch per `claude-glass event`). */
@@ -206,7 +302,7 @@ export class GlassCore {
     return Object.values(APPS).filter((a) => !this.config.disabledApps?.includes(a.type)).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
       source: a.source,
-      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage || a.permissions.sharedSignIn) ? { permissions: a.permissions } : {}),
+      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage || a.permissions.sharedSignIn || a.permissions.twoWay) ? { permissions: a.permissions } : {}),
       commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
       ...(a.settings ? { settings: Object.fromEntries(Object.entries(a.settings).map(([k, s]) => [k, { ...s, value: settingValues(a, this.config.appSettings?.[a.type])[k] }])) } : {}),
     }));
@@ -257,7 +353,9 @@ export class GlassCore {
       switch (env.op) {
         case 'ping': return { ok: true, result: { session: this.sessionId, pid: process.pid } };
         case 'event': this.events(Array.isArray(env.events) ? env.events : [env.event]); return { ok: true, result: null };
-        case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action) };
+        case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action, 'socket') };
+        case 'action.request': return { ok: true, result: this.actionRequest((env.request ?? {}) as Record<string, unknown>) };
+        case 'action.close': this.actionClose(String(env.id), env.by, env.choice); return { ok: true, result: null };
         case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
         case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
@@ -307,9 +405,14 @@ export class GlassCore {
         if (nl === -1) return;
         const line = buf.slice(0, nl);
         buf = '';
-        let reply: Reply;
-        try { reply = this.handle(JSON.parse(line)); } catch (e: any) { reply = { ok: false, error: `bad request: ${e.message}` }; }
-        sock.end(JSON.stringify(reply) + '\n');
+        let env: Envelope;
+        try { env = JSON.parse(line); } catch (e: any) { sock.end(JSON.stringify({ ok: false, error: `bad request: ${e.message}` }) + '\n'); return; }
+        // The one op that answers later: waiting on an approval (the connection stays open).
+        if (env?.op === 'action.wait') {
+          void this.actionWait(String(env.id), Number(env.ms ?? 1000)).then((result) => { if (!sock.destroyed) sock.end(JSON.stringify({ ok: true, result }) + '\n'); });
+          return;
+        }
+        sock.end(JSON.stringify(this.handle(env)) + '\n');
       });
       sock.on('error', () => {});
     });
@@ -337,6 +440,26 @@ export class GlassCore {
     const path = socketPath(this.sessionId);
     await new Promise<void>((res) => (this.server ? this.server.close(() => res()) : res()));
     try { unlinkSync(path); } catch {}
+  }
+}
+
+/** What an approval card shows under its summary: the command, the change, the address. */
+export function requestDetail(tool: string, input: any): string | undefined {
+  input = input ?? {};
+  const lines = (t: unknown, mark: string) => String(t ?? '').split('\n').map((l) => mark + l).join('\n');
+  switch (tool) {
+    case 'Bash': { // the summary already shows a short one
+      const c = String(input.command ?? '');
+      return c.length > 100 || c.includes('\n') ? clip(c, 4000) : undefined;
+    }
+    case 'Edit': return clip(`${lines(input.old_string, '- ')}\n${lines(input.new_string, '+ ')}`, 4000);
+    case 'MultiEdit': return clip((Array.isArray(input.edits) ? input.edits : []).map((e: any) => `${lines(e.old_string, '- ')}\n${lines(e.new_string, '+ ')}`).join('\n…\n'), 4000);
+    case 'Write': return clip(lines(input.content, '+ '), 4000);
+    case 'WebFetch': return [input.url, input.prompt].filter(Boolean).join('\n') || undefined;
+    default: {
+      const json = JSON.stringify(input, null, 2);
+      return json && json !== '{}' ? clip(json, 2000) : undefined;
+    }
   }
 }
 

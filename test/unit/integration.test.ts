@@ -267,6 +267,46 @@ describe('stored app values across glasses', () => {
   });
 });
 
+describe('approvals through the glass (the Action app)', () => {
+  const act = (...args: string[]) => run(join(root, 'bin/claude-glass'), ['action', ...args, '--session', SID], args[0] === 'request' ? JSON.stringify({ tool: 'Bash', input: { command: 'rm -rf build' }, canAlways: true }) : '');
+  const json = async (p: Promise<{ stdout: string }>) => JSON.parse((await p).stdout);
+
+  it('a request opens a card at the front; the CLI waits; only the glass window can answer', async () => {
+    const req = await json(act('request'));
+    expect(req).toMatchObject({ id: expect.stringMatching(/^req-/), holdMs: 600_000, summary: '$ rm -rf build' });
+    expect(core.state.order[0]).toBe('action');
+    const card = (core.state.appState.action as any).requests.find((r: any) => r.id === req.id);
+    expect(card).toMatchObject({ status: 'pending', tool: 'Bash', summary: '$ rm -rf build', canAlways: true });
+    expect(card.detail).toBeUndefined(); // a short command is all in the summary
+    expect(await json(act('wait', req.id, '--ms', '50'))).toEqual({ status: 'pending' });
+    // Nothing on the socket can approve: not the CLI's app command, not a raw dispatch.
+    const viaCli = await run(join(root, 'bin/claude-glass'), ['app', 'action', 'answer', '--id', req.id, '--choice', 'allow'], '');
+    expect(viaCli.stderr).toContain("only the glass's own window");
+    expect(() => core.dispatch({ type: 'app.command', id: 'action', command: 'answer', args: { id: req.id, choice: 'allow' } })).toThrow(/only the glass's own window/);
+    // The glass window answers (its view runs the command over IPC: from 'ui').
+    const waiting = json(act('wait', req.id, '--ms', '5000'));
+    await wait(100);
+    core.dispatch({ type: 'app.command', id: 'action', command: 'answer', args: { id: req.id, choice: 'always' } }, 'ui');
+    expect(await waiting).toEqual({ status: 'answered', choice: 'always', by: 'glass' });
+  });
+
+  it('settled in the terminal, it closes with who answered; the card and window go after a moment', async () => {
+    const req = await json(act('request'));
+    await json(act('close', req.id, '--by', 'terminal', '--choice', 'deny'));
+    expect((core.state.appState.action as any).requests.find((r: any) => r.id === req.id).answer).toEqual({ choice: 'deny', by: 'terminal' });
+    await wait(1800);
+    expect((core.state.appState.action as any).requests).toEqual([]);
+    expect(core.state.order).not.toContain('action');
+  });
+
+  it('off when the user turns approvals off (the mod then leaves it to Claude Code\'s prompt)', async () => {
+    await cli('settings', 'set', 'app.action.approvals', 'false');
+    expect(await json(act('request'))).toEqual({ off: 'approvals from the glass are off' });
+    await cli('settings', 'set', 'app.action.approvals', 'true');
+    expect(await json(run(join(root, 'bin/claude-glass'), ['action', 'wait', 'x', '--session', 'no-glass-here'], ''))).toEqual({ status: 'gone' });
+  });
+});
+
 describe('built-in apps ship in the app format', () => {
   it('each compiled dist/apps/<type> folder loads through the custom app loader', () => {
     for (const type of ['image', 'markdown', 'html', 'diff', 'conversation', 'terminal', 'browser']) {

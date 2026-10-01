@@ -120,9 +120,10 @@ export interface AppPermissions {
   microphone: boolean;
   storage: boolean; // its own persistent localStorage/IndexedDB (origin glass-app://<type>)
   sharedSignIn: boolean; // its network origins' sign-in (localStorage + cookies) follows the user to every glass
+  twoWay: boolean; // it may answer back into the Claude session (approvals, questions): the glass is otherwise one-way
 }
 
-export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false };
+export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false };
 
 /** Validate a manifest's permissions: explicit http(s)/ws(s) origins only, no wildcards. */
 export function parsePermissions(raw: unknown): AppPermissions {
@@ -135,7 +136,7 @@ export function parsePermissions(raw: unknown): AppPermissions {
     if (!/^(https?|wss?):$/.test(u.protocol) || u.hostname.includes('*')) throw new Error(`permissions.network: "${o}" must be an http(s) or ws(s) origin`);
     return `${u.protocol}//${u.host}`;
   });
-  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0 };
+  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0, twoWay: r.twoWay === true };
 }
 
 /**

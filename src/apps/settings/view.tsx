@@ -371,8 +371,8 @@ function AppSettings({ type, specs, stored }: { type: string; specs: Record<stri
   );
 }
 
-function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean }): string {
-  return [p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
+function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean; twoWay?: boolean }): string {
+  return [p.twoWay ? 'answering Claude (two-way)' : '', p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
     .filter(Boolean).join(' · ');
 }
 

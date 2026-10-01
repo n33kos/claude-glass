@@ -588,9 +588,12 @@ describe('state colors', () => {
 
 describe('app permissions', () => {
   it('none by default; explicit origins only', () => {
-    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false });
+    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false });
     expect(parsePermissions({ network: ['http://127.0.0.1:3100/api', 'ws://127.0.0.1:3100'], microphone: true, storage: true }))
-      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false });
+      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false, twoWay: false });
+    // Answering back into the session is its own, explicit permission.
+    expect(parsePermissions({ twoWay: true }).twoWay).toBe(true);
+    expect(parsePermissions({ twoWay: 'yes' }).twoWay).toBe(false);
     // Shared sign-in is opt-in, and means nothing without origins to share.
     expect(parsePermissions({ network: ['http://localhost:3100'], sharedSignIn: true }).sharedSignIn).toBe(true);
     expect(parsePermissions({ sharedSignIn: true }).sharedSignIn).toBe(false);

@@ -88,6 +88,7 @@ starts** in Settings (the gear in the launcher), or `claude-glass settings set a
 | Browser | Claude's web searches (results) and the pages it fetches, rendered, with back/forward and the passage Claude says it relied on highlighted; a browser Claude drives (Playwright, Chrome with a DevTools port) streams in live, watch-only (copy the address or open it in your own browser with ↗) |
 | Tasks | Claude's own to-do list, live, with progress and what it's doing now |
 | Agents | the subagents Claude starts: their task, whether they're still running, and what each reported |
+| Action | permission prompts you can answer from the glass (Allow, Always allow, Deny); comes to the front when Claude needs you, goes once answered |
 | Tests | results of the test runs Claude does (npm test, vitest, jest, pytest, go test, cargo test…): pass/fail, failing tests, recent runs |
 | Files | every file Claude read or changed: most recent first, or as a folder tree; click a changed file to see its diff in Changes |
 
@@ -152,6 +153,12 @@ overflow spills onto the next desktop.
   red light on the conversation (a turn that died on an error) come from how the turn really ended.
 - **Waiting on you**: when Claude asks a question or needs a permission, the top bar says so, a
   read-only card shows the question, and the edges glow. You answer in Claude Code, as always.
+- **Approve from the glass** (the Action app, the one built-in two-way app): when Claude Code
+  asks your permission, a card comes to the front with what Claude wants to do and Allow, Always
+  allow and Deny. The same choices show above the prompt in the terminal (1–4), and whichever you
+  answer first decides; "Ask here instead" falls back to Claude Code's own prompt. Nothing but the
+  glass's own window can answer (not the CLI, not Claude). Turn it off in Settings → Apps →
+  Action.
 
   ![Claude asked a question: the top bar, a read-only card, and amber light](docs/media/waiting.png)
 
