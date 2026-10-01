@@ -423,7 +423,8 @@ async function main(argv: string[]) {
       }
       let guide: string | null = null;
       if (open) {
-        await request(socketPath(sid), { op: 'event', events: [{ e: 'session.start', source, sessionId: cid, cwd: projectDir }] }, 1000).catch(() => {});
+        // A reload of the mod (hot reload while developing it) is no new session.
+        if (source !== 'reload') await request(socketPath(sid), { op: 'event', events: [{ e: 'session.start', source, sessionId: cid, cwd: projectDir }] }, 1000).catch(() => {});
         guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null) ?? guideFor(config);
       }
       console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false }));

@@ -4,7 +4,7 @@
 import { searchResults } from '../apps/browser';
 import { summarizeTool } from '../apps/terminal';
 import { autoCommand, reduce } from './reducer';
-import type { GlassState, Waiting } from './types';
+import type { FollowMode, GlassState, Waiting } from './types';
 
 /**
  * What the mod sends: one JSON object per event (`e` names it). Tool inputs and results are the
@@ -14,6 +14,8 @@ export type GlassEvent =
   | { e: 'session.start'; source: 'startup' | 'clear' | 'resume' | 'compact' | 'fork' | string; sessionId?: string; cwd?: string }
   | { e: 'session.end'; reason?: string }
   | { e: 'turn.start'; turnId: string; text: string }
+  /** Claude Code is sending the turn's next request to the model (index from 0). */
+  | { e: 'step'; turnId: string; index: number }
   /** The reply's text so far, in one block (`id` = turn, step and block): the whole text, not a delta. */
   | { e: 'text'; id: string; turnId?: string; text: string; final?: boolean }
   | { e: 'turn.complete'; turnId: string; durationMs?: number; reason?: string; aborted?: boolean }
@@ -37,7 +39,11 @@ export interface EventContext {
   windowMode?: 'live' | 'history';
   /** Set per event: the tool call it belongs to (history mode keys windows by it). */
   toolUseId?: string;
+  /** The user's attention settings: what to do with the window an event fills (FollowMode). */
+  follow?: Partial<Record<FollowKind, FollowMode>>;
 }
+
+export type FollowKind = 'edits' | 'plans' | 'tests' | 'web' | 'images' | 'agents';
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
 const PLAN_RE = /(^|\/)(plans?\/[^/]+\.md|PLAN\.md)$/i;
@@ -73,8 +79,53 @@ export function applyEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): Gl
   if (s.session.modMissing) s = reduce(s, { type: 'session.update', patch: { modMissing: undefined } }).state;
   // Built-in effects first, then any app that watches events itself (onEvent).
   const toolUseId = 'id' in ev && (ev.e === 'tool.start' || ev.e === 'tool.end') ? String(ev.id) : undefined;
-  const next = reduce(builtinEvent(s, ev, { ...ctx, toolUseId }), { type: 'app.event', event: ev }).state;
-  return ctx.disabled?.size ? withoutDisabled(s, next, ctx.disabled) : next;
+  const c = { ...ctx, toolUseId };
+  let next = reduce(builtinEvent(s, ev, c), { type: 'app.event', event: ev }).state;
+  if (ctx.disabled?.size) next = withoutDisabled(s, next, ctx.disabled);
+  return attend(s, next, ev, c);
+}
+
+/**
+ * Attention, by the user's settings rather than Claude's memory: the window an event just filled
+ * is lit, brought to the front, or both. Only windows already on screen are touched.
+ */
+function attend(prev: GlassState, s: GlassState, ev: GlassEvent, ctx: EventContext): GlassState {
+  const f = ctx.follow;
+  if (!f) return s;
+  const id = (base: string) => (ctx.windowMode === 'history' ? historyId(base, ctx) : base);
+  if (ev.e === 'tool.end' && !ev.error) {
+    const path: unknown = ev.input?.file_path;
+    if (EDIT_TOOLS.has(ev.tool) && typeof path === 'string') {
+      return PLAN_RE.test(path) ? follow(s, id('plan'), f.plans, 'spotlight', ctx) : follow(s, id('changes'), f.edits, 'spotlight', ctx);
+    }
+    if (ev.tool === 'ExitPlanMode') return follow(s, id('plan'), f.plans, 'spotlight', ctx);
+    if (ev.tool === 'Read' && typeof path === 'string' && IMAGE_RE.test(path)) return follow(s, id('images'), f.images, 'spotlight', ctx);
+  }
+  if (ev.e === 'tool.start' && !ev.agentId) {
+    if (ev.tool === 'WebSearch' || ev.tool === 'WebFetch') return follow(s, id('browser'), f.web, 'spotlight', ctx);
+    if (ev.tool === 'Agent' || ev.tool === 'Task') return follow(s, 'agents', f.agents, 'spotlight', ctx);
+  }
+  // A test run that just failed (the Tests app read it from this event).
+  const runs = (st: GlassState) => (st.appState.tests as { runs?: { ok: boolean }[] } | undefined)?.runs ?? [];
+  const before = runs(prev), after = runs(s);
+  if (after.length && after !== before && after[after.length - 1] !== before[before.length - 1] && !after[after.length - 1].ok) {
+    return follow(s, 'tests', f.tests, 'alert', ctx);
+  }
+  return s;
+}
+
+function follow(s: GlassState, id: string, mode: FollowMode | undefined, light: 'spotlight' | 'alert', ctx: EventContext): GlassState {
+  if (!mode || mode === 'off' || !s.instances[id]) return s;
+  const tiled = s.order.includes(id);
+  const docked = Object.values(s.tucked ?? {}).some((l) => l?.includes(id));
+  if (!tiled && !docked) return s; // closed: the user put it away
+  // History mode keeps windows in time order: new ones are already in front.
+  if ((mode === 'front' || mode === 'both' || mode === 'focus') && tiled && ctx.windowMode !== 'history') {
+    s = reduce(s, { type: 'window.move', id, index: 0 }).state;
+  }
+  if (mode !== 'front') s = reduce(s, { type: 'signal', kind: light, target: id }).state;
+  if (mode === 'focus' && tiled) s = reduce(s, { type: 'ui.viewDesktop', index: 0 }).state;
+  return s;
 }
 
 /** Undo whatever an event did to apps the user turned off (built-in or custom alike). */
@@ -103,9 +154,14 @@ function builtinEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassSt
     case 'turn.start': {
       s = setWaiting(s, undefined);
       // endedAt: in folder scope another session may have ended while this one keeps going.
-      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined } }).state;
+      s = reduce(s, { type: 'session.update', patch: { activity: 'working', endedAt: undefined, turn: { id: ev.turnId, startedAt: Date.now(), steps: 0 } } }).state;
       // A turn without a typed prompt (a continuation) adds no message.
       return ev.text ? cmd(s, 'conversation', 'user', { text: String(ev.text), id: ev.turnId }) : s;
+    }
+    case 'step': {
+      const t = s.session.turn;
+      const turn = t?.id === ev.turnId ? { ...t, steps: Math.max(t.steps, ev.index + 1) } : { id: ev.turnId, startedAt: Date.now(), steps: ev.index + 1 };
+      return reduce(s, { type: 'session.update', patch: { activity: 'working', turn } }).state;
     }
     case 'text':
       return cmd(s, 'conversation', 'chunk', { messageId: ev.id, index: 0, delta: String(ev.text ?? ''), final: !!ev.final });
@@ -126,12 +182,12 @@ function builtinEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassSt
       return ev.error ? s : applyToolSideEffects(s, ev.tool, input, ev.result, ctx, auto);
     }
     case 'turn.complete':
-      s = reduce(s, { type: 'session.update', patch: { activity: 'idle', waiting: undefined } }).state;
+      s = reduce(s, { type: 'session.update', patch: { activity: 'idle', waiting: undefined, turn: undefined } }).state;
       return cmd(s, 'conversation', 'turnEnd', {});
     case 'agent.end':
       return s;
     case 'session.end':
-      return reduce(s, { type: 'session.update', patch: { endedAt: Date.now(), activity: 'idle', waiting: undefined } }).state;
+      return reduce(s, { type: 'session.update', patch: { endedAt: Date.now(), activity: 'idle', waiting: undefined, turn: undefined } }).state;
     case 'session.start':
       s = reduce(s, { type: 'session.update', patch: { endedAt: undefined, cwd: ev.cwd ?? s.session.cwd } }).state;
       // A session joining a glass with history (folder scope, /clear, resume) gets a divider.
@@ -150,9 +206,11 @@ function builtinEvent(s: GlassState, ev: GlassEvent, ctx: EventContext): GlassSt
  */
 function autoWindow(s: GlassState, ctx: EventContext, opts: Parameters<typeof autoCommand>[1]): GlassState {
   if (ctx.windowMode !== 'history') return autoCommand(s, opts);
-  const key = (ctx.toolUseId ?? String(Date.now())).replace(/[^A-Za-z0-9]/g, '').slice(-10);
-  return pruneHistory(autoCommand(s, { ...opts, id: `${opts.id}-${key}` }));
+  return pruneHistory(autoCommand(s, { ...opts, id: historyId(opts.id, ctx) }));
 }
+
+/** A history-mode window's id: its kind and the tool call that made it. */
+const historyId = (base: string, ctx: EventContext) => `${base}-${(ctx.toolUseId ?? String(Date.now())).replace(/[^A-Za-z0-9]/g, '').slice(-10)}`;
 
 export const HISTORY_LIMIT = 12;
 const HISTORY_ID = /^(changes|plan|images|browser)-[A-Za-z0-9]+$/;

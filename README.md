@@ -144,6 +144,10 @@ overflow spills onto the next desktop.
   waits on you, a green bloom when a long turn is done, red behind a window that broke (a failing
   test run), blue behind a window Claude wants you to look at, and a hairline bar for long work.
   One at a time, and each fades back to graphite. Claude sends its own with `claude-glass signal`.
+- **Attention on its own**: in Settings → Attention, choose what the glass does when an edit,
+  plan, failing test run, web page, image or subagent comes in: light its window, bring it to the
+  front, or both. It happens every time, without Claude having to remember. While Claude works on
+  a turn, a thin white bar runs along the bottom (`turnProgress`).
 - **Waiting on you**: when Claude asks a question or needs a permission, the top bar says so, a
   read-only card shows the question, and the edges glow. You answer in Claude Code, as always.
 
@@ -202,6 +206,10 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `stateColors` | true / **false** | the whole light also follows the session (the signal layer says the same, more precisely) |
 | `statePalettes` | JSON per state | colors for working / waiting / idle / ended (`[]`: your own) |
 | `waitingGlow` | **true** / false | amber edge glow while Claude waits on you |
+| `signalDone` | **true** / false | a green bloom when a long turn is done |
+| `followEdits`, `followPlans`, `followWeb`, `followImages`, `followAgents` | **off** / light / front / both / focus | when an edit, plan, search or page, image, or subagent comes in: light its window, bring it to the front, both, or both and show desktop 1. Only windows on screen move |
+| `followTests` | off / **light** / front / both / focus | the same when a test run fails (lit red) |
+| `turnProgress` | **true** / false | a thin white bar along the bottom while Claude works: it sweeps, brightens on each model request, and fills by tasks done when Claude works through a list |
 | `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |
 | `launcherAutoHide` | true / **false** | hide the launcher until the pointer reaches the bottom (was `dockAutoHide`) |
 | `launcherOrder` | **windows** / fixed | launcher follows window order, or a fixed order by app (was `dockOrder`) |

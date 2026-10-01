@@ -6,7 +6,7 @@ import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon, iconSrc } from './AppIcon';
 import { ThemeContext, useTheme } from './theme';
-import { SignalLayer } from './SignalLayer';
+import { SignalLayer, TurnBar } from './SignalLayer';
 import { FrameView } from './FrameView';
 import { apps, dispatch, useSnapshot } from './store';
 import { VIEWS } from './views';
@@ -480,7 +480,8 @@ export function App() {
         signal: state.settings.backgroundColors, stateColors: config.stateColors !== false,
         palettes: config.statePalettes ?? DEFAULT_PALETTES, mood: moodOf(state.session), own: config.backgroundColors ?? [],
       })} />
-      <SignalLayer state={state} on={config.signals !== false} done={config.signalDone !== false} failed={config.signalFailed !== false} />
+      <SignalLayer state={state} on={config.signals !== false} done={config.signalDone !== false} />
+      {config.turnProgress !== false && <TurnBar state={state} />}
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>

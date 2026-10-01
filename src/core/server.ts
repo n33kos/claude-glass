@@ -89,6 +89,11 @@ export class GlassCore {
       disabled: new Set(this.config.disabledApps ?? []),
       windowMode: this.state.settings.windowMode,
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
+      // Lighting a window is the signal layer's: off means the glass only moves windows.
+      follow: Object.fromEntries((['edits', 'plans', 'tests', 'web', 'images', 'agents'] as const).map((k) => {
+        const mode = this.config[`follow${k[0].toUpperCase()}${k.slice(1)}` as `follow${Capitalize<typeof k>}`];
+        return [k, this.config.signals === false && mode !== 'off' ? (mode === 'light' ? 'off' : 'front') : mode];
+      })),
     };
     let s = this.state;
     for (const ev of events) s = applyEvent(s, ev as GlassEvent, ctx);

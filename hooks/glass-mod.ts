@@ -111,6 +111,7 @@ export function register(on: any) {
   // The reply streams into the conversation: the text so far of each text block.
   on('turn.step', async function* ($: any, e: any, next: any) {
     if (e.agentId) return yield* next(e) // a subagent's reasoning isn't the conversation
+    send($, { e: 'step', turnId: e.turnId, index: e.index })
     const texts = new Map<number, string>()
     const id = (index: number) => `${e.turnId}:${e.index}:${index}`
     const stream = next(e)

@@ -1,8 +1,8 @@
 // The signal layer (docs/design.md): Graphite Mono's chrome has no color, so the wallpaper light is
 // where color speaks. A small vocabulary, one signal at a time, each decaying back to graphite:
 //   waiting on you   amber rises from the bottom edge and breathes          (automatic: hooks)
-//   alert            red flickers behind the window that broke               (Claude, or a failing test run)
-//   spotlight        blue gathers behind one window, its edge lights         (Claude: "look here")
+//   alert            red flickers behind the window that broke               (Claude, or a failing test run: followTests)
+//   spotlight        blue gathers behind one window, its edge lights         (Claude: "look here", or the follow* settings)
 //   done             one green bloom, after a turn long enough to look away  (automatic: Stop)
 //   progress         a pale light at the front of a hairline bar             (Claude: long work, known end)
 // Priority, highest first: waiting, alert, spotlight, done, progress (it resumes when the others end).
@@ -22,7 +22,27 @@ type Active =
 
 interface Local { kind: 'alert' | 'done'; target?: string; at: number }
 
-export function SignalLayer({ state, on, done = true, failed = true }: { state: GlassState; on: boolean; done?: boolean; failed?: boolean }) {
+/**
+ * The turn bar: a thin white line along the bottom while Claude works on a turn (turnProgress).
+ * A turn has no known end, so it sweeps; each new model request (a step) brightens it once. While
+ * Claude works through a task list it fills instead, by tasks done. It pauses while Claude waits on you.
+ */
+export function TurnBar({ state }: { state: GlassState }) {
+  const s = state.session;
+  if (s.activity !== 'working' || s.endedAt || !s.turn) return null;
+  const items = (state.appState.tasks as { items?: { status: string }[] } | undefined)?.items ?? [];
+  const done = items.filter((t) => t.status === 'completed').length;
+  const tasking = items.length > 1 && done < items.length && items.some((t) => t.status !== 'pending');
+  const pct = tasking ? Math.round((done / items.length) * 100) : undefined;
+  return (
+    <div className={`turn-bar${pct == null ? ' sweep' : ''}${s.waiting ? ' paused' : ''}`} aria-hidden>
+      {pct != null && <i className="fill" style={{ width: `${Math.max(pct, 2)}%` }} />}
+      <b key={s.turn.steps} className="pulse" />
+    </div>
+  );
+}
+
+export function SignalLayer({ state, on, done = true }: { state: GlassState; on: boolean; done?: boolean }) {
   const [, tick] = useState(0);
   const local = useRef<Local[]>([]);
   // Done: the session went idle after a long enough turn.
@@ -33,14 +53,7 @@ export function SignalLayer({ state, on, done = true, failed = true }: { state: 
     workingSince.current = null;
     if (done && since && Date.now() - since >= DONE_AFTER_MS && !state.session.endedAt) push({ kind: 'done', at: Date.now() });
   }, [state.session.activity]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Failed: a new test run that failed flags the Tests window.
-  const runs = (state.appState.tests as { runs?: { ok: boolean }[] } | undefined)?.runs;
-  const seenRuns = useRef(runs?.length ?? 0);
-  useEffect(() => {
-    const n = runs?.length ?? 0;
-    if (failed && n > seenRuns.current && runs?.[n - 1] && !runs[n - 1].ok) push({ kind: 'alert', target: 'tests', at: Date.now() });
-    seenRuns.current = n;
-  }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // (A failed test run is lit by the core, by the followTests setting: src/core/events.ts.)
   // Settings' preview buttons play the automatic ones here (they never go through Claude).
   useEffect(() => {
     const on = (e: Event) => { const kind = (e as CustomEvent<'done' | 'alert'>).detail; push({ kind, at: Date.now(), ...(kind === 'alert' ? { target: 'settings' } : {}) }); };

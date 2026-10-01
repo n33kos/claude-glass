@@ -122,7 +122,7 @@ export function guideForSettings(text: string, settings: Record<string, string>)
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<Pick<GlobalConfig, 'disabledApps' | 'nestedView' | 'appSettings'>> & { windowMode?: 'live' | 'history' }): string {
+export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<GlobalConfig> & { windowMode?: 'live' | 'history' }): string {
   const settings = { windowMode: config.windowMode ?? 'live', nestedView: String(!!config.nestedView) };
   // Each app's guide also sees its own settings by key (`<!-- when grid=true -->`).
   const own = (a: AppDef) => Object.fromEntries(Object.entries(settingValues(a, config.appSettings?.[a.type])).map(([k, v]) => [k, String(v)]));
@@ -135,5 +135,18 @@ export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<P
     : '';
   const layout = config.nestedView ? NESTED_VIEW : config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '';
   const history = config.windowMode === 'history' ? HISTORY_MODE : '';
-  return GUIDE + layout + history + appGuides;
+  return GUIDE + layout + history + followGuide(config) + appGuides;
+}
+
+const FOLLOW_WHAT: [keyof GlobalConfig, string][] = [
+  ['followEdits', 'an edit (Changes)'], ['followPlans', 'a plan (Plan)'], ['followTests', 'a failing test run (Tests)'],
+  ['followWeb', 'web research (Browser)'], ['followImages', 'an image you read (Images)'], ['followAgents', 'a subagent starting (Agents)'],
+];
+const FOLLOW_DOES: Record<string, string> = { light: 'lit', front: 'brought to the front', both: 'brought to the front and lit', focus: 'brought to the front, lit, and desktop 1 shown' };
+
+/** The user's attention settings: what the glass already does on its own, so Claude doesn't repeat it. */
+function followGuide(config: Partial<GlobalConfig>): string {
+  const on = FOLLOW_WHAT.map(([key, what]) => [what, String(config[key] ?? 'off')]).filter(([, mode]) => mode !== 'off');
+  if (!on.length) return '';
+  return `\n\nThe user set the glass to follow some things on its own (don't repeat these by hand):\n${on.map(([what, mode]) => `- ${what}: ${FOLLOW_DOES[mode] ?? mode}`).join('\n')}`;
 }

@@ -89,6 +89,68 @@ describe('reducer', () => {
   });
 });
 
+describe('attention: the follow* settings', () => {
+  const edit = () => toolEnd('Edit');
+  const withFollow = (follow: EventContext['follow'], s: GlassState, ...evs: GlassEvent[]) => evs.reduce((x, ev) => applyEvent(x, ev, { ...ctx, follow }), s);
+  // Changes exists and is on screen, but not in front.
+  const base = () => reduce(apply(fresh(), edit()), { type: 'window.move', id: 'changes', index: 2 }).state;
+
+  it('off does nothing; light lights the window where it is', () => {
+    expect(withFollow({ edits: 'off' }, base(), edit()).signal).toBeUndefined();
+    const s = withFollow({ edits: 'light' }, base(), edit());
+    expect(s.signal).toMatchObject({ kind: 'spotlight', target: 'changes' });
+    expect(s.order[0]).not.toBe('changes');
+  });
+
+  it('front moves it to slot 0; both also lights it; focus also shows desktop 1', () => {
+    const front = withFollow({ edits: 'front' }, base(), edit());
+    expect(front.order[0]).toBe('changes');
+    expect(front.signal).toBeUndefined();
+    const both = withFollow({ edits: 'both' }, base(), edit());
+    expect(both.order[0]).toBe('changes');
+    expect(both.signal?.target).toBe('changes');
+    const viewing = reduce(base(), { type: 'ui.viewDesktop', index: 2 }).state;
+    expect(withFollow({ edits: 'focus' }, viewing, edit()).ui.viewingDesktop).toBe(0);
+    expect(withFollow({ edits: 'both' }, viewing, edit()).ui.viewingDesktop).toBe(2); // only focus moves the view
+  });
+
+  it('a window the user closed stays closed', () => {
+    const closed = reduce(base(), { type: 'window.close', id: 'changes' }).state;
+    const s = withFollow({ edits: 'focus' }, closed, edit());
+    expect(s.order).not.toContain('changes');
+    expect(s.signal).toBeUndefined();
+  });
+
+  it('a plan file follows followPlans, not followEdits; a failed test run lights Tests red', () => {
+    const plan: GlassEvent = { e: 'tool.end', tool: 'Write', id: 'w', input: { file_path: '/p/plans/x.md', content: '# Plan' }, result: {} };
+    const s = withFollow({ edits: 'off', plans: 'light' }, fresh(), plan);
+    expect(s.signal?.target).toBe('plan');
+    const run = (stdout: string): GlassEvent => ({ e: 'tool.end', tool: 'Bash', id: `r${stdout.length}`, input: { command: 'npx vitest run' }, result: { stdout } });
+    const failed = withFollow({ tests: 'light' }, reduce(fresh(), { type: 'instance.create', appType: 'tests' }).state, run('Tests  1 failed | 2 passed (3)'));
+    expect(failed.signal).toMatchObject({ kind: 'alert', target: 'tests' });
+    const passed = withFollow({ tests: 'light' }, reduce(fresh(), { type: 'instance.create', appType: 'tests' }).state, run('Tests  3 passed (3)'));
+    expect(passed.signal).toBeUndefined();
+  });
+
+  it('the browser follows web research as it starts; agents when one starts', () => {
+    const s = withFollow({ web: 'both' }, fresh(), { e: 'tool.start', tool: 'WebSearch', id: 'ws', input: { query: 'q' } });
+    expect(s.signal?.target).toBe('browser');
+    const a0 = reduce(reduce(fresh(), { type: 'instance.create', appType: 'agents' }).state, { type: 'window.move', id: 'agents', index: 2 }).state;
+    const a = withFollow({ agents: 'front' }, a0, { e: 'tool.start', tool: 'Agent', id: 'ag', input: { description: 'd', prompt: 'p' } });
+    expect(a.order[0]).toBe('agents');
+  });
+});
+
+describe('the guide and the follow* settings', () => {
+  it('tells Claude what the glass already does on its own, and nothing when all are off', () => {
+    const g = guideFor({ defaultLayout: 'grid', followEdits: 'both', followTests: 'light' });
+    expect(g).toContain("don't repeat these by hand");
+    expect(g).toContain('- an edit (Changes): brought to the front and lit');
+    expect(g).toContain('- a failing test run (Tests): lit');
+    expect(guideFor({ defaultLayout: 'grid' })).not.toContain("don't repeat these by hand");
+  });
+});
+
 describe('waiting on the user (synthetic events: not in the recorded session)', () => {
   const ask: GlassEvent = {
     e: 'tool.start', tool: 'AskUserQuestion', id: 'q1',
@@ -192,6 +254,15 @@ describe('events (a real recorded session)', () => {
     expect(t.entries).toHaveLength(1);
     // a late start must not flip a finished entry back to running
     expect(t.entries[0].status).toBe('ok');
+  });
+
+  it('tracks the turn: started, each model request a step, gone when it ends', () => {
+    let s = apply(fresh(), { e: 'turn.start', turnId: 't1', text: 'go' });
+    expect(s.session.turn).toMatchObject({ id: 't1', steps: 0 });
+    s = apply(s, { e: 'step', turnId: 't1', index: 0 }, { e: 'step', turnId: 't1', index: 1 });
+    expect(s.session.turn).toMatchObject({ id: 't1', steps: 2 });
+    s = apply(s, { e: 'turn.complete', turnId: 't1' });
+    expect(s.session.turn).toBeUndefined();
   });
 
   it('ignores what it does not know', () => {

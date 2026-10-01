@@ -6,6 +6,7 @@ import { BACKGROUNDS, PRESETS } from '../../renderer/backgrounds';
 import { AppIcon } from '../../renderer/AppIcon';
 import { appReports, apps, dispatch, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
+import { FOLLOW_MODES, type FollowMode } from '../../core/types';
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: React.ReactNode }) {
   return (
@@ -34,6 +35,22 @@ function LightColors({ config }: { config: ViewProps['config'] }) {
     </label>
   );
 }
+
+const FOLLOW_LABELS: Record<FollowMode, string> = {
+  off: 'Nothing', light: 'Light it', front: 'Bring it to the front', both: 'Front and light it', focus: 'Front, light it, show desktop 1',
+};
+
+function FollowSelect({ label, setting, config }: { label: string; setting: FollowSetting; config: ViewProps['config'] }) {
+  return (
+    <label className="s-row">
+      <span>{label}</span>
+      <select value={config[setting] ?? 'off'} onChange={(e) => setConfig(setting, e.target.value)}>
+        {FOLLOW_MODES.map((m) => <option key={m} value={m}>{FOLLOW_LABELS[m]}</option>)}
+      </select>
+    </label>
+  );
+}
+type FollowSetting = 'followEdits' | 'followPlans' | 'followTests' | 'followWeb' | 'followImages' | 'followAgents';
 
 const MOOD_LABELS: Record<Mood, string> = { working: 'While Claude works', waiting: 'Waiting on you', idle: 'Done, your turn', ended: 'Session ended' };
 
@@ -156,7 +173,6 @@ export function SettingsView({ glass, config }: ViewProps) {
             </select>
           </label>
           <Toggle label="Green bloom when a long turn is done" on={config.signalDone !== false} onChange={(v) => setConfig('signalDone', v)} />
-          <Toggle label="Red behind Tests when a run fails" on={config.signalFailed !== false} onChange={(v) => setConfig('signalFailed', v)} />
           <Toggle label="Amber edge glow while Claude waits on you" on={config.waitingGlow} onChange={(v) => setConfig('waitingGlow', v)} />
           <div className="s-row">
             <span>Preview</span>
@@ -170,6 +186,16 @@ export function SettingsView({ glass, config }: ViewProps) {
           <StateColors config={config} />
         </div>
       )}
+
+      <h4>Attention</h4>
+      <p className="s-note">What the glass does on its own when something happens, so it doesn't depend on Claude remembering. Only windows on screen move; one you closed stays closed.</p>
+      <FollowSelect label="An edit lands (Changes)" setting="followEdits" config={config} />
+      <FollowSelect label="A plan is written (Plan)" setting="followPlans" config={config} />
+      <FollowSelect label="A test run fails (Tests, lit red)" setting="followTests" config={config} />
+      <FollowSelect label="A web search or page (Browser)" setting="followWeb" config={config} />
+      <FollowSelect label="Claude reads an image (Images)" setting="followImages" config={config} />
+      <FollowSelect label="A subagent starts (Agents)" setting="followAgents" config={config} />
+      <Toggle label="Thin progress bar along the bottom while Claude works" on={config.turnProgress !== false} onChange={(v) => setConfig('turnProgress', v)} />
 
       <h4>Windows &amp; desktops</h4>
       <Toggle label="Nested view: one screen, the focused window largest and the others smaller around it" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />

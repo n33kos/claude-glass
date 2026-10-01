@@ -24,6 +24,7 @@ export interface SessionInfo {
   activity: 'idle' | 'working';
   waiting?: Waiting; // Claude is blocked on the user (shown read-only; answered in Claude Code)
   modMissing?: boolean; // opened from a Claude session the glass mod isn't running in: nothing feeds it
+  turn?: { id: string; startedAt: number; steps: number }; // the turn Claude is working on (each model request is a step)
 }
 
 export interface Waiting {
@@ -53,6 +54,14 @@ export interface SessionSettings {
   backgroundColors?: string[]; // Claude's signal: this glass's wallpaper light (hex), over the user's
 }
 
+/**
+ * What the glass does on its own when something happens: nothing, light the window (the
+ * signal layer: blue, red for a failure), bring it to the front (slot 0), both, or focus (both,
+ * and show the first desktop). Only windows already on screen move; a closed one stays closed.
+ */
+export type FollowMode = 'off' | 'light' | 'front' | 'both' | 'focus';
+export const FOLLOW_MODES: readonly FollowMode[] = ['off', 'light', 'front', 'both', 'focus'];
+
 export interface GlobalConfig {
   autoStart: boolean;
   background: string; // preset name or absolute image path
@@ -70,7 +79,15 @@ export interface GlobalConfig {
   signals: boolean; // the signal layer: the wallpaper light points at windows and reports (done, failed, progress)
   signalStrength: 'subtle' | 'normal' | 'strong'; // how bright signals get
   signalDone: boolean; // automatic: a green bloom after a long turn
-  signalFailed: boolean; // automatic: red behind Tests when a run fails
+  // Attention, automatic (src/core/events.ts): what the glass does when something happens, so Claude
+  // doesn't have to remember. Per kind of event; see FollowMode.
+  followEdits: FollowMode; // an edit lands: its diff (Changes)
+  followPlans: FollowMode; // a plan is written: the Plan
+  followTests: FollowMode; // a test run fails: Tests (lit red)
+  followWeb: FollowMode; // a search or page: the Browser
+  followImages: FollowMode; // Claude reads an image: Images
+  followAgents: FollowMode; // a subagent starts: Agents
+  turnProgress: boolean; // a thin white bar along the bottom while Claude works on a turn
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused

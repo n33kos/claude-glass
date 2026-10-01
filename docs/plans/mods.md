@@ -65,22 +65,17 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
 | `session.compact` | compaction starting |
 | `agent.spawn` | subagents with their model |
 
-- [ ] **Attention settings** (the user chooses; Claude no longer has to remember). One key per
-      kind of event, each `off | spotlight | front | front+spotlight`, plus `focus` (switch to the
-      desktop that shows it):
-      - `attention.edit`: an edit lands → its diff
-      - `attention.plan`: a plan is written
-      - `attention.testFail`: failing tests (today's `signalFailed` folds in here)
-      - `attention.web`: a fetched page or search
-      - `attention.agent`: a subagent starts or reports
-      - `attention.waiting`: Claude waits on you → the Action app (Phase 2)
-      Defaults stay quiet (`off` except waiting/testFail), and the user's docks are never touched.
-      These are reducer actions like any other; the guide tells Claude which ones are automatic
-      so it stops doing them by hand.
-- [ ] **Turn progress bar**: an optional thin white hairline along the bottom while a turn runs
-      (the original revamp design). `turnProgress: off | bar`. A turn has no known end, so it's
-      indeterminate (a slow sweep), pulsing on each `turn.step`; when the task list is active it
-      fills to tasks done / total. Claude's own `signal progress` still wins while set
+- [x] **Attention settings** (the user chooses; Claude no longer has to remember): `followEdits`,
+      `followPlans`, `followTests` (replaces `signalFailed`; default `light`), `followWeb`,
+      `followImages`, `followAgents`, each `off | light | front | both | focus` (focus also shows
+      desktop 1). Applied in `src/core/events.ts` as reducer actions; only windows on screen move
+      (a closed one stays closed; docked ones are lit, not moved; history mode never moves).
+      With signals off, light means nothing. The guide lists what's on so Claude doesn't repeat it.
+      Settings → Attention
+- [ ] Waiting → the Action app (Phase 2)
+- [x] **Turn progress bar** (`turnProgress`, default on): a thin white line along the bottom while
+      a turn runs. It sweeps, brightens on each model request (the mod's `step` event), fills by
+      tasks done while Claude works through a list, and pauses while it waits on you
 - [ ] **Done/failed exactness**: the done bloom from `turn.complete.durationMs` (not Stop
       timing); alert from `isError` / test results
 - [ ] **Turns everywhere**: Changes, Terminal and Conversation group by `turnId`; a "this turn"

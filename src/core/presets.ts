@@ -22,7 +22,7 @@ export interface Preset {
 
 /** Global settings a preset carries: how things look and behave on screen, nothing else. */
 export const LOOK_KEYS = ['nestedView', 'nestedStyle', 'defaultLayout', 'windowOpacity', 'background', 'backgroundColors', 'animateBackground',
-  'stateColors', 'waitingGlow', 'theme', 'signals', 'signalStrength', 'signalDone', 'signalFailed', 'launcherAutoHide', 'launcherOrder', 'launcherGroup', 'dockOpen', 'selectToInteract', 'wheelDesktops'] as const satisfies readonly (keyof GlobalConfig)[];
+  'stateColors', 'waitingGlow', 'theme', 'signals', 'signalStrength', 'signalDone', 'followEdits', 'followPlans', 'followTests', 'followWeb', 'followImages', 'followAgents', 'turnProgress', 'launcherAutoHide', 'launcherOrder', 'launcherGroup', 'dockOpen', 'selectToInteract', 'wheelDesktops'] as const satisfies readonly (keyof GlobalConfig)[];
 
 export const presetsDir = () => join(glassHome(), 'presets');
 const NAME = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,39}$/;

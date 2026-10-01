@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { DEFAULT_PALETTES, parseColors, parsePalettes } from './colors';
 import { isDefaultLayout } from './layout';
 import { configPath } from './paths';
-import type { GlobalConfig } from './types';
+import { FOLLOW_MODES, type FollowMode, type GlobalConfig } from './types';
 
 export const DEFAULT_CONFIG: GlobalConfig = {
   autoStart: false,
@@ -14,7 +14,13 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   signals: true,
   signalStrength: 'normal',
   signalDone: true,
-  signalFailed: true,
+  followEdits: 'off',
+  followPlans: 'off',
+  followTests: 'light',
+  followWeb: 'off',
+  followImages: 'off',
+  followAgents: 'off',
+  turnProgress: true,
   statePalettes: DEFAULT_PALETTES,
   defaultLayout: 'grid',
   windowOpacity: 0.78,
@@ -81,8 +87,16 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'selectToInteract':
     case 'signals':
     case 'signalDone':
-    case 'signalFailed':
+    case 'turnProgress':
     case 'toolReminders': return value === true || value === 'true';
+    case 'followEdits':
+    case 'followPlans':
+    case 'followTests':
+    case 'followWeb':
+    case 'followImages':
+    case 'followAgents':
+      if (!FOLLOW_MODES.includes(value as FollowMode)) throw new Error(`${key} must be ${FOLLOW_MODES.join(', ')}`);
+      return value;
     case 'signalStrength': if (value !== 'subtle' && value !== 'normal' && value !== 'strong') throw new Error('signalStrength must be subtle, normal or strong'); return value;
     case 'theme': if (value !== 'dark' && value !== 'light' && value !== 'system') throw new Error('theme must be dark, light or system'); return value;
     case 'statePalettes': return parsePalettes(value);
@@ -122,7 +136,13 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   signals: 'true|false: the signal layer (the wallpaper light points at windows and reports done, failed, progress)',
   signalStrength: 'subtle|normal|strong: how bright signals get',
   signalDone: 'true|false: a green bloom when a long turn is done',
-  signalFailed: 'true|false: red behind Tests when a test run fails',
+  followEdits: 'off|light|front|both|focus: when an edit lands, light its diff, bring it to the front, both, or both and show desktop 1 (change only if asked)',
+  followPlans: 'off|light|front|both|focus: the same when a plan is written',
+  followTests: 'off|light|front|both|focus: the same when a test run fails (lit red)',
+  followWeb: 'off|light|front|both|focus: the same for a web search or page',
+  followImages: 'off|light|front|both|focus: the same when Claude reads an image',
+  followAgents: 'off|light|front|both|focus: the same when a subagent starts',
+  turnProgress: 'true|false: a thin white bar along the bottom while Claude works on a turn',
   launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
   launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',
   launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, _electron as electron } from 'playwright';
-import { cli, event, seed } from './seed.mjs';
+import { cli, event, project, seed } from './seed.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const shots = join(root, 'test/screenshots');
@@ -434,6 +434,24 @@ try {
   await page.screenshot({ path: join(shots, '08-working.png') });
   check((await page.locator('.presence-working').count()) === 1, 'presence shows working');
   check((await page.locator('.mod-missing').count()) === 0, 'the not-connected notice goes once events arrive');
+  check((await page.locator('.turn-bar.sweep').count()) === 1, 'the turn bar sweeps along the bottom while Claude works');
+  await event(env, { e: 'step', turnId: 't2', index: 1 });
+  await sleep(150);
+  await page.screenshot({ path: join(shots, '08d-turn-bar.png'), clip: { x: 0, y: (page.viewportSize()?.height ?? 900) - 120, width: page.viewportSize()?.width ?? 1440, height: 120 } });
+
+  // Attention: with followEdits on, an edit brings Changes to the front and lights it.
+  {
+    await cli(env, 'settings', 'set', 'followEdits', 'both');
+    await cli(env, 'window', 'move', 'changes', '3');
+    await event(env, { e: 'tool.end', tool: 'Edit', id: 'follow1', input: { file_path: join(project(env), 'src/core/server.ts'), old_string: 'a', new_string: 'b' },
+      result: { structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+b'] }] } });
+    await sleep(500);
+    const st = JSON.parse(await cli(env, 'view', '--json'));
+    check(st.desktops[0].windows[0].id === 'changes' && (await page.locator('.sig-ring.sig-spotlight').count()) === 1, 'followEdits: an edit brings its diff to the front and lights it');
+    await page.screenshot({ path: join(shots, '08e-follow-edit.png') });
+    await cli(env, 'settings', 'set', 'followEdits', 'off');
+    await cli(env, 'signal', 'clear');
+  }
 
   // Waiting on the user: permission prompt (pill + terminal lock), then a question (read-only card).
   await cli(env, 'window', 'move', 'terminal', '0');

@@ -44,6 +44,19 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .sig-ring { --signal-strength: 1; }
 /* Progress: a hairline under the top bar, with what's underway. */
 .sig-bar { position: absolute; z-index: 44; left: 0; right: 0; top: 40px; height: 2px; background: var(--border-subtle); pointer-events: none; }
+/* The turn bar (turnProgress): a thin white line along the bottom while Claude works. */
+.turn-bar { position: absolute; z-index: 45; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; pointer-events: none;
+  background: rgba(255, 255, 255, .12); }
+.turn-bar .fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255, 255, 255, .85); transition: width .8s var(--ease); }
+.turn-bar.sweep::before { content: ''; position: absolute; top: 0; bottom: 0; width: 34%; left: -34%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .95), transparent); animation: turn-sweep 2.2s var(--ease) infinite; }
+.turn-bar .pulse { position: absolute; inset: 0; background: rgba(255, 255, 255, .5); opacity: 0; animation: turn-pulse .9s ease-out; }
+.turn-bar.paused::before { animation-play-state: paused; opacity: .35; }
+[data-theme='light'] .turn-bar { background: rgba(0, 0, 0, .06); }
+[data-theme='light'] .turn-bar .fill { background: rgba(0, 0, 0, .55); }
+[data-theme='light'] .turn-bar.sweep::before { background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .55), transparent); }
+@keyframes turn-sweep { to { left: 100%; } }
+@keyframes turn-pulse { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 .sig-bar i { display: block; height: 100%; background: var(--signal-progress); transition: width .8s var(--ease); }
 .sig-bar span { position: absolute; right: var(--space-5); top: var(--space-2); font: var(--text-size-xs) var(--font-mono); color: var(--text-2);
   padding: var(--space-0) var(--space-3); border-radius: var(--radius-pill); background: var(--surface-overlay); box-shadow: 0 0 0 1px var(--border); }
