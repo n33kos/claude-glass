@@ -14,8 +14,9 @@ export function formatView(v: any): string {
   for (const [dock, sb] of Object.entries(v.sidebars ?? {}) as [string, any][]) {
     const names = (v.tucked?.[dock] ?? []).map((w: any) => `${w.id} (${w.type})`).join(', ');
     const size = sb.height ? `${sb.size}×${sb.height}px` : `${sb.size}px`;
-    lines.push(`Docked ${dock} (${sb.open ? `kept open, ${size}` : 'hidden until hovered'}): ${names}`);
+    lines.push(`Docked ${dock} (${sb.open ? `kept open${sb.float ? ' over the layout' : ''}, ${size}` : 'hidden until hovered'}): ${names}`);
   }
+  if (v.overlays?.length) lines.push(`Overlays (over the whole glass, click-through): ${v.overlays.map((o: any) => `${o.id} (${o.type})`).join(', ')}`);
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
   return lines.join('\n');
 }

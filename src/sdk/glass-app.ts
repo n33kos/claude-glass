@@ -24,7 +24,15 @@ export interface GlassProps<S = any> {
   // Other apps' public state (their core's share()), for the types the manifest's permissions.reads lists.
   shared: { id: string; type: string; title: string; data: unknown }[];
   theme?: 'dark' | 'light'; // the glass's theme; the SDK sets it on the page, so the tokens follow
+  // Overlay apps only (display: 'overlay'; their view covers the whole glass): where every window on
+  // screen is, in the view's own pixels (rank 0 = the one Claude put first; docked ones have `dock`),
+  // and Claude's latest signal (spotlight/alert target, or progress).
+  layout?: OverlayWindow[];
+  signal?: { kind: 'spotlight' | 'alert' | 'progress'; target?: string; value?: number; label?: string; seq: number; at: number } | null;
 }
+
+export interface OverlayWindow { id: string; type: string; title: string; x: number; y: number; w: number; h: number; rank: number; dock?: string }
+export interface HitRect { x: number; y: number; w: number; h: number }
 
 type Listener = (p: GlassProps) => void;
 type FrameListener = (f: { source: string; data: string }) => void;
@@ -81,6 +89,14 @@ const glass = {
     const id = nextId++;
     return new Promise<T>((resolve, reject) => { pending.set(id, { resolve, reject }); post({ kind: 'host', service, args, id }); });
   },
+  /**
+   * Overlay apps: the areas (view pixels) that take the pointer; everywhere else clicks, hovers
+   * and scrolls pass through to the glass beneath. [] (the default) passes everything through.
+   */
+  hit(rects: HitRect[]): void {
+    hitRects = rects.filter((r) => r && r.w > 0 && r.h > 0);
+    post({ kind: 'hit', rects: hitRects });
+  },
   /** Live frames some apps receive from the host (e.g. the browser stream). */
   onFrame(fn: FrameListener): () => void {
     frameListeners.add(fn);
@@ -88,6 +104,17 @@ const glass = {
     return () => frameListeners.delete(fn);
   },
 };
+
+// Overlay hit areas. The host lets the pointer into the view over one of them; once it's in, only
+// the view sees it move, so the view says when it leaves them (the host passes it through again).
+let hitRects: HitRect[] = [];
+let inside = false;
+document.addEventListener('pointermove', (e) => {
+  const now = hitRects.some((r) => e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h);
+  if (inside && !now) post({ kind: 'hit-leave' });
+  inside = now;
+}, true);
+document.addEventListener('mouseleave', () => { if (inside) post({ kind: 'hit-leave' }); inside = false; });
 
 (window as any).glass = glass;
 export default glass;

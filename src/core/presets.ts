@@ -14,7 +14,7 @@ export interface PresetWindow { id: string; type: string; title?: string }
 export interface Preset {
   name: string;
   description: string; // what it's for: shown in Settings, and to Claude when choosing one
-  sidebars?: Partial<Record<Dock, { windows: PresetWindow[]; size?: number; height?: number; open?: boolean; split?: number[] }>>;
+  sidebars?: Partial<Record<Dock, { windows: PresetWindow[]; size?: number; height?: number; open?: boolean; float?: boolean; split?: number[] }>>;
   desktops?: LayoutName[];
   session?: Partial<SessionSettings>; // this glass's settings (history mode, auto-open...)
   look?: Partial<GlobalConfig>; // view settings, which apply to every glass
@@ -66,6 +66,7 @@ export function capturePreset(s: GlassState, config: GlobalConfig, name: string,
     sidebars[e] = {
       windows: ids.map((id) => ({ id, type: s.instances[id].type, title: s.instances[id].title })),
       open: !!s.tuckKeep?.includes(e),
+      ...(s.tuckFloat?.includes(e) ? { float: true } : {}),
       ...(s.tuckSize?.[e] ? { size: s.tuckSize[e] } : {}),
       ...(height ? { height } : {}),
       ...(s.tuckSplit?.[e]?.length === ids.length ? { split: s.tuckSplit[e] } : {}),
@@ -99,6 +100,7 @@ export function presetActions(s: GlassState, p: Preset, installed: (type: string
     if (sb.size || (sb.height && isCorner(e))) actions.push({ type: 'tuck.size', edge: e, size: sb.size || undefined, height: isCorner(e) ? sb.height || undefined : undefined });
     if (sb.split?.length === ws.length && ws.length > 1) actions.push({ type: 'tuck.split', edge: e, shares: sb.split });
     actions.push({ type: 'tuck.keep', edge: e, keep: sb.open !== false });
+    if (sb.open !== false) actions.push({ type: 'tuck.float', edge: e, float: sb.float === true });
   }
   p.desktops?.forEach((layout, desktop) => actions.push({ type: 'desktop.layout', desktop, layout }));
   for (const [key, value] of Object.entries(p.session ?? {})) actions.push({ type: 'settings.set', key, value });

@@ -25,7 +25,8 @@ export interface AppManifest {
   internal?: string[];
   viewCommands?: string[];
   autoOpen?: boolean;
-  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean; sharedSignIn?: boolean; twoWay?: boolean };
+  display?: 'window' | 'overlay'; // overlay: covers the whole glass, click-through
+  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[] };
   settings?: Record<string, unknown>;
   stored?: Record<string, unknown>; // persistent values: { key: { scope, default } }
 }
@@ -96,6 +97,7 @@ export function readApp(appDir: string): AppDef {
     internal: Array.isArray(m.internal) ? m.internal.map(String) : undefined,
     viewCommands: Array.isArray(m.viewCommands) ? m.viewCommands.map(String) : undefined,
     autoOpen: m.autoOpen === true,
+    display: m.display === 'overlay' ? 'overlay' : undefined,
     init: core.init,
     command: core.command,
     onEvent: core.onEvent,

@@ -19,10 +19,26 @@ interface Props {
   glass: GlassState;
   run: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
   savedSettings?: Record<string, unknown>; // this app's saved settings (config.appSettings[type])
+  layout?: import('../sdk/glass-app').OverlayWindow[]; // overlay apps: where the windows are
 }
 
-export function FrameView({ app, id, meta, state, width, height, glass, run, savedSettings }: Props) {
+export function FrameView({ app, id, meta, state, width, height, glass, run, savedSettings, layout }: Props) {
   const ref = useRef<HTMLIFrameElement>(null);
+  // Overlay apps: the frame lets the pointer through, except over the areas its view asked for.
+  const hitRects = useRef<{ x: number; y: number; w: number; h: number }[]>([]);
+  const [hitting, setHitting] = useState(false);
+  useEffect(() => {
+    if (!app.overlay) return;
+    // Over a hit area, the frame takes the pointer; its view says when it leaves ('hit-leave').
+    const onMove = (e: PointerEvent) => {
+      const f = ref.current?.getBoundingClientRect();
+      if (!f || hitting) return;
+      const x = e.clientX - f.left, y = e.clientY - f.top;
+      if (hitRects.current.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h)) setHitting(true);
+    };
+    window.addEventListener('pointermove', onMove, true);
+    return () => window.removeEventListener('pointermove', onMove, true);
+  }, [app.overlay, hitting]);
   const [ready, setReady] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
@@ -36,7 +52,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
   const own = glass.stored?.[app.type];
   const stored = useMemo(() => storedValues(app, own), [app, own]);
   const theme = useThemeValue(); // the shell's (theme.ts); the frame sets it on its own page
-  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings, stored, shared, theme };
+  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings, stored, shared, theme,
+    ...(app.overlay ? { layout: layout ?? [], signal: glass.signal ?? null } : {}) };
   const post = (msg: object) => ref.current?.contentWindow?.postMessage({ glass: 1, ...msg }, '*');
   const latest = useRef(props);
   latest.current = props;
@@ -52,6 +69,11 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
         setReady(true);
         post({ kind: 'props', props: latest.current });
         window.glass.lastFrame(id).then((f) => { if (f) for (const [source, data] of Object.entries(f)) if (data) post({ kind: 'frame', source, data }); });
+      }
+      else if (m.kind === 'hit' && app.overlay && Array.isArray(m.rects)) {
+        hitRects.current = m.rects.filter((r: any) => r && [r.x, r.y, r.w, r.h].every(Number.isFinite)).slice(0, 64);
+      } else if (m.kind === 'hit-leave' && app.overlay) {
+        setHitting(false);
       }
       else if (m.kind === 'run' && typeof m.command === 'string') {
         if (app.viewCommands.includes(m.command)) void run(m.command, m.args && typeof m.args === 'object' ? m.args : {});
@@ -110,7 +132,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
 
   // Props on ready and on every change (state slices keep identity when unchanged).
   useEffect(() => { if (ready) post({ kind: 'props', props }); },
-    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings, stored, shared, app.type === 'conversation' && glass.attachments, theme]); // eslint-disable-line react-hooks/exhaustive-deps
+    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings, stored, shared, app.type === 'conversation' && glass.attachments, theme,
+      app.overlay && JSON.stringify(layout), app.overlay && glass.signal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live frames for this instance (browser stream); the latest ones are replayed on 'ready'.
   useEffect(() => window.glass.onFrame((f) => { if (f.id === id) post({ kind: 'frame', source: f.source, data: f.data }); }), [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -119,7 +142,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
     <>
       {/* Sandboxed (forms allowed: submit handlers are normal UI); an app that asked for storage gets its own origin (glass-app://<type>), and one
           that asked for the microphone gets it via Permissions Policy (main grants it per app). */}
-      <iframe ref={ref} className="appframe" src={`glass-app://${app.type}/view.html`} title={meta.title}
+      <iframe ref={ref} className={`appframe${app.overlay ? ' overlay-frame' : ''}`} src={`glass-app://${app.type}/view.html`} title={meta.title}
+        style={app.overlay ? { pointerEvents: hitting ? 'auto' : 'none' } : undefined}
         sandbox={app.permissions.storage ? 'allow-scripts allow-forms allow-same-origin' : 'allow-scripts allow-forms'}
         allow={app.permissions.microphone ? ["microphone 'src'", ...app.permissions.network.filter((o) => o.startsWith('http'))].join(' ') : undefined} />
       {lightbox && <Lightbox {...lightbox} onClose={() => setLightbox(null)} />}

@@ -25,9 +25,11 @@ interface Drag {
   mod?: boolean; // ⌘ held
 }
 
-type TuckState = { tucked?: Partial<Record<Dock, string[]>>; tuckKeep?: Dock[]; tuckSize?: Partial<Record<Dock, number>>; tuckHeight?: Partial<Record<Corner, number>> };
+type TuckState = { tucked?: Partial<Record<Dock, string[]>>; tuckKeep?: Dock[]; tuckFloat?: Dock[]; tuckSize?: Partial<Record<Dock, number>>; tuckHeight?: Partial<Record<Corner, number>> };
 
 const keptOpen = (s: TuckState, d: Dock) => !!s.tuckKeep?.includes(d) && !!s.tucked?.[d]?.length;
+/** Kept open beside the layout: it takes its room (a floating dock doesn't). */
+const takesRoom = (s: TuckState, d: Dock) => keptOpen(s, d) && !s.tuckFloat?.includes(d);
 /** Docks whose windows stack (sides and corners); top/bottom ones sit side by side. */
 const stacks = (d: Dock) => d !== 'top' && d !== 'bottom';
 
@@ -93,7 +95,7 @@ const CORNER_HOT = 56; // px square at a stage corner that hovers its corner doc
 /** Room the kept-open side columns take: the widest kept dock on each side (edge or corner). */
 function sideRoom(s: TuckState, W: number, H: number) {
   const col = (side: 'left' | 'right') => Math.max(0, ...([side, `top-${side}`, `bottom-${side}`] as Dock[])
-    .filter((d) => keptOpen(s, d)).map((d) => edgeSize(d, W, H, s.tuckSize) + GAP));
+    .filter((d) => takesRoom(s, d)).map((d) => edgeSize(d, W, H, s.tuckSize) + GAP));
   return { l: col('left'), r: col('right') };
 }
 
@@ -313,13 +315,14 @@ export function App() {
   }, [v, pages, setView, config.wheelDesktops, config.nestedStyle, focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Docks kept open take their space from the layout: side columns (edge and corner docks), then
-  // top/bottom docks between them.
+  // top/bottom docks between them. Floating ones lie over it instead.
   const kept = state.tuckKeep ?? [];
+  const floating = state.tuckFloat ?? [];
   const inset = useMemo(() => {
-    const room = (e: Edge) => (keptOpen(state, e) ? edgeSize(e, size.W, size.H, state.tuckSize) + GAP : 0);
+    const room = (e: Edge) => (takesRoom(state, e) ? edgeSize(e, size.W, size.H, state.tuckSize) + GAP : 0);
     const side = sideRoom(state, size.W, size.H);
     return { l: side.l, r: side.r, t: room('top'), b: room('bottom') };
-  }, [size.W, size.H, kept.join(), state.tucked, state.tuckSize]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size.W, size.H, kept.join(), floating.join(), state.tucked, state.tuckSize]); // eslint-disable-line react-hooks/exhaustive-deps
   const carousel = config.nestedStyle === 'carousel';
   const placed = useMemo(() => place(pages, size.W, size.H, focus, inset, carousel), [pages, size, focus, inset, carousel]);
   const opacityFor = (m: InstanceMeta) => m.opacity ?? state.settings.windowOpacity ?? config.windowOpacity;
@@ -586,6 +589,7 @@ export function App() {
         })}
         <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} onWindowDragStart={onDragStart}
           drag={drag ?? (dockDrag ? { id: dockDrag.id, px: dockDrag.px, py: dockDrag.py, ox: 0, oy: 0, tuck: dockDrag.tuck, slot: dockDrag.slot ?? null } : null)} />
+        <Overlays W={size.W} H={size.H} stageRef={stageRef} />
       </main>
 
       {config.launcherAutoHide && <div className="dock-hot" aria-hidden />}
@@ -698,6 +702,60 @@ function QuestionCard({ waiting }: { waiting: Waiting }) {
       ))}
       <p className="qc-foot">Answer in Claude Code</p>
     </aside>
+  );
+}
+
+/**
+ * Overlay apps' windows: each over the whole glass, above every window and dock, transparent and
+ * click-through but where its view asks (FrameView). They get where the windows are, measured from
+ * the screen (so moves, docks sliding out and animations count), while one is open.
+ */
+function Overlays({ W, H, stageRef }: { W: number; H: number; stageRef: React.RefObject<HTMLDivElement | null> }) {
+  const { state, config } = useSnapshot();
+  const ids = (state.overlays ?? []).filter((id) => state.instances[id] && apps[state.instances[id].type]?.frame);
+  const [layout, setLayout] = useState<import('../sdk/glass-app').OverlayWindow[]>([]);
+  const orderKey = state.order.join();
+  useEffect(() => {
+    if (!ids.length) return;
+    let last = '';
+    const measure = () => {
+      const st = stageRef.current?.getBoundingClientRect();
+      if (!st) return;
+      const out: import('../sdk/glass-app').OverlayWindow[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>('.window[data-window]')) {
+        const id = el.dataset.window!;
+        const meta = state.instances[id];
+        if (!meta || ids.includes(id)) continue;
+        const r = el.getBoundingClientRect();
+        // On screen: inside the stage and actually showing (not a parked desktop or a hidden dock).
+        if (r.width < 8 || r.height < 8 || r.right <= st.left || r.left >= st.right || r.bottom <= st.top || r.top >= st.bottom) continue;
+        if (getComputedStyle(el).visibility === 'hidden' || Number(getComputedStyle(el.closest('.edge-panel') ?? el).opacity) < 0.5) continue;
+        const dock = el.closest('.edge-panel') ? DOCKS.find((d) => state.tucked?.[d]?.includes(id)) : undefined;
+        out.push({ id, type: meta.type, title: meta.title, x: Math.round(r.left - st.left), y: Math.round(r.top - st.top), w: Math.round(r.width), h: Math.round(r.height),
+          rank: dock ? -1 : state.order.indexOf(id), ...(dock ? { dock } : {}) });
+      }
+      const key = JSON.stringify(out);
+      if (key !== last) { last = key; setLayout(out); }
+    };
+    measure();
+    const t = setInterval(measure, 200);
+    return () => clearInterval(t);
+  }, [ids.join(), orderKey, state.tucked, state.instances, W, H]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!ids.length) return null;
+  return (
+    <div className="overlay-layer">
+      {[...ids].reverse().map((id) => {
+        const meta = state.instances[id];
+        const app = apps[meta.type]!;
+        const run = (command: string, args: Record<string, unknown> = {}) => dispatch({ type: 'app.command', id, command, args });
+        return (
+          <div key={id} className="overlay-app" data-overlay={id}>
+            <FrameView app={app} id={id} meta={meta} state={state.appState[id] ?? null} width={W} height={H} glass={state} run={run}
+              savedSettings={config.appSettings?.[meta.type]} layout={layout} />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1101,8 +1159,9 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
   const docks = DOCKS.map((edge) => {
     const ids = (state.tucked?.[edge] ?? []).filter((id) => state.instances[id]);
     const kept = !!state.tuckKeep?.includes(edge);
+    const floats = kept && !!state.tuckFloat?.includes(edge);
     const open = !!ids.length && (peek === edge || kept || drag?.from === edge);
-    return { edge, ids, kept, open, r: panelRect(edge, W, H, live) };
+    return { edge, ids, kept, floats, open, r: panelRect(edge, W, H, live) };
   });
   // Corners win over edges: an edge's hover strip stops short of a corner that has a dock.
   const cornerReach = (c: Corner) => {
@@ -1114,7 +1173,7 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
     : { top: cornerReach(`top-${e}`) && CORNER_HOT, bottom: cornerReach(`bottom-${e}`) && CORNER_HOT });
   return (
     <>
-      {docks.map(({ edge, ids, kept, open, r }) => {
+      {docks.map(({ edge, ids, kept, floats, open, r }) => {
         if (!ids.length) return null;
         const vertical = stacks(edge);
         const corner = isCorner(edge) ? edge : null;
@@ -1173,10 +1232,23 @@ function EdgePanels({ W, H, peek, setPeek, drag, onWindowDragStart }: {
                         </svg></>
                       : ids.map((id) => <span key={id}><AppIcon type={state.instances[id].type} /></span>)}
                   </button>
+                  {/* Kept open: float it over the layout (which keeps its room), or set it beside again. */}
+                  {state3 === 'open' && kept && (
+                    <button className={`edge-cap edge-float open${floats ? ' kept' : ''}${hovered ? ' hover' : ''}`} aria-pressed={floats}
+                      style={stacks(edge) ? { left: cx, top: cy + 30 } : { left: cx + 30, top: cy }}
+                      title={floats ? `Set the ${where} dock beside the layout again` : `Float the ${where} dock over the layout (the layout keeps its room)`}
+                      onMouseEnter={() => enterPull(edge)} onMouseLeave={() => { setNear(null); release(); }}
+                      onClick={() => void dispatch({ type: 'tuck.float', edge, float: !floats })}>
+                      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
+                        <rect x="2" y="5" width="9" height="9" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" opacity=".55" />
+                        <rect x="5" y="2" width="9" height="9" rx="1.6" fill={floats ? 'currentColor' : 'var(--surface-overlay)'} stroke="currentColor" strokeWidth="1.4" />
+                      </svg>
+                    </button>
+                  )}
                 </>
               );
             })()}
-            <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${peek === edge ? ' hover' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
+            <div className={`edge-panel ${edge}${open ? ' open' : ''}${kept ? ' kept' : ''}${floats ? ' floats' : ''}${peek === edge ? ' hover' : ''}${drag?.tuck === edge ? ' drop-on' : ''}${resizing?.edge === edge ? ' resizing' : ''}`}
               style={{ left: r.x, top: r.y, width: pw, height: ph }} onMouseEnter={() => hold(edge)} onMouseLeave={release}>
               {/* Resize from the inner side; a corner from its two inner sides and its inner corner.
                   A handle's class names the side of the stage its dock hugs (it sits opposite). */}

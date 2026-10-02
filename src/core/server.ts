@@ -410,10 +410,11 @@ export class GlassCore {
       // Docks (edges and corners; "sidebars" for compatibility): open = kept open, taking room from
       // the layout (px size: width for sides and corners, height for top/bottom; corners also a height).
       sidebars: Object.fromEntries(DOCKS.filter((e) => s.tucked?.[e]?.length).map((e) => [e, {
-        open: !!s.tuckKeep?.includes(e), size: s.tuckSize?.[e] ?? edgeSize(e, 1440, 860),
+        open: !!s.tuckKeep?.includes(e), ...(s.tuckFloat?.includes(e) ? { float: true } : {}), size: s.tuckSize?.[e] ?? edgeSize(e, 1440, 860),
         ...(isCorner(e) ? { height: s.tuckHeight?.[e] ?? cornerHeight(e, 860) } : {}), windows: s.tucked![e]!,
       }])),
-      closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
+      ...(s.overlays?.length ? { overlays: s.overlays.filter((id) => s.instances[id]).map(meta) } : {}),
+      closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !s.overlays?.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
     };
   }
 

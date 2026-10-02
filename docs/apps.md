@@ -151,6 +151,29 @@ Parts that only apply in one mode go in a block; the rest is always included:
 Keys: `windowMode` (`live` | `history`), `nestedView` (`true` | `false`), and your app's own
 settings by key (below).
 
+### Overlay apps
+
+With `"display": "overlay"` in the manifest, your app's window isn't tiled or docked: when it's
+open (from the launcher, or `claude-glass window open <id>`) it covers the whole glass, above every
+window and dock, with a transparent page. The pointer passes through it to the glass beneath,
+except over the areas you name:
+
+```js
+glass.hit([{ x: 120, y: 40, w: 48, h: 56 }]); // view pixels; [] (the default) passes everything through
+```
+
+Call it again whenever those areas move (the glass only lets the pointer in where they are; once
+it's in, your page gets the events, and the SDK hands it back when it leaves them). An overlay
+also gets two more props:
+
+| Prop | |
+|---|---|
+| `layout` | every window on screen: `{ id, type, title, x, y, w, h, rank, dock? }` in your view's pixels, measured as they move (rank 0 is the window Claude put first; docked ones have `dock` and rank -1) |
+| `signal` | Claude's latest signal: `{ kind: 'spotlight' \| 'alert' \| 'progress', target?, value?, label?, seq, at }`, or null |
+
+Good for a character that hops to whatever Claude points at, annotations over windows, or a
+heads-up display. Keep hit areas small: everything else belongs to the windows beneath.
+
 ### Settings
 
 An app can declare its own settings in the manifest. They show under the app in Settings → Apps,

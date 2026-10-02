@@ -114,7 +114,8 @@ overflow spills onto the next desktop.
   the edge (or corner) and click to open it, or set docks to open on hover. Docked windows float on
   the wallpaper like any window. Hover an open dock and a lock on its inner edge keeps it open (or
   releases it); kept open, the layout makes room, and a dock that slides out on hover comes over
-  kept ones. Drag its inner edge to
+  kept ones. The button under the lock floats a kept dock over the layout instead: it stays open
+  on top and the layout keeps its full size beneath. Drag its inner edge to
   resize it (a corner dock resizes both ways from its inner corner), the gap between two of its
   windows to share it differently, and a window out of it to undock. Corner docks suit apps that
   want a fixed, modest size: a kept corner takes the end of its side's column and the edge dock
@@ -273,6 +274,11 @@ claude-glass apps                 # what's installed (and what failed to load, a
   guide.md         instructions for Claude (optional)
   icon.svg         launcher and title bar icon (optional)
 ```
+
+An app can also be an **overlay** (`"display": "overlay"`): its window covers the whole glass
+above every window, transparent and click-through except where its view asks for the pointer,
+and it's told where every window is and what Claude is signaling. Room for things like a pet that
+hops between windows, annotations, or a heads-up display.
 
 An app can fill itself from the session's events (`onEvent`), take commands from Claude
 (`claude-glass app <id> <command>`), declare its own settings (shown in Settings, passed to the

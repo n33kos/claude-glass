@@ -56,7 +56,7 @@ function untuck(s: GlassState, id: string): GlassState {
   if (!s.tucked || !DOCKS.some((e) => s.tucked![e]?.includes(id))) return s;
   const tucked = Object.fromEntries(DOCKS.map((e) => [e, (s.tucked![e] ?? []).filter((x) => x !== id)]).filter(([, l]) => l.length));
   // An emptied dock can't stay open.
-  return { ...s, tucked, tuckKeep: (s.tuckKeep ?? []).filter((e) => e in tucked) };
+  return { ...s, tucked, tuckKeep: (s.tuckKeep ?? []).filter((e) => e in tucked), tuckFloat: (s.tuckFloat ?? []).filter((e) => e in tucked) };
 }
 
 export const tuckedEdge = (s: GlassState, id: string): Dock | undefined => DOCKS.find((e) => s.tucked?.[e]?.includes(id));
@@ -69,8 +69,15 @@ export function reduce(s: GlassState, a: Action): ReduceResult {
   if (r.state.tucked && r.state.order.some((id) => tuckedEdge(r.state, id))) {
     r.state = { ...r.state, order: r.state.order.filter((id) => !tuckedEdge(r.state, id)) };
   }
+  // An overlay app's window opens over the whole glass (on top), never in the tiling order.
+  const over = r.state.order.filter((id) => isOverlay(r.state, id));
+  if (over.length) {
+    r.state = { ...r.state, order: r.state.order.filter((id) => !over.includes(id)), overlays: [...over, ...(r.state.overlays ?? []).filter((id) => !over.includes(id))] };
+  }
   return r;
 }
+
+const isOverlay = (s: GlassState, id: string) => APPS[s.instances[id]?.type]?.display === 'overlay';
 
 function reduceRaw(s: GlassState, a: Action): ReduceResult {
   switch (a.type) {
@@ -82,12 +89,13 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     case 'window.close': {
       requireInstance(s, a.id);
       const t = untuck(s, a.id);
-      return { state: { ...t, order: t.order.filter((x) => x !== a.id) } };
+      return { state: { ...t, order: t.order.filter((x) => x !== a.id), ...(t.overlays ? { overlays: t.overlays.filter((x) => x !== a.id) } : {}) } };
     }
 
     case 'window.tuck': {
       requireInstance(s, a.id);
       needDock(a.edge);
+      if (isOverlay(s, a.id)) throw new Error(`"${a.id}" is an overlay: it covers the whole glass, it can't be docked`);
       const t = untuck(s, a.id);
       const list = [...(t.tucked?.[a.edge] ?? [])];
       list.splice(a.index == null ? list.length : clampIndex(a.index, list.length), 0, a.id);
@@ -99,7 +107,19 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     case 'tuck.keep': {
       needDock(a.edge);
       const keep = (s.tuckKeep ?? []).filter((e) => e !== a.edge);
-      return { state: { ...s, tuckKeep: a.keep && s.tucked?.[a.edge]?.length ? [...keep, a.edge] : keep } };
+      const kept = a.keep && !!s.tucked?.[a.edge]?.length;
+      // Released: it stops floating too.
+      const tuckFloat = kept ? s.tuckFloat : (s.tuckFloat ?? []).filter((e) => e !== a.edge);
+      return { state: { ...s, tuckKeep: kept ? [...keep, a.edge] : keep, tuckFloat } };
+    }
+
+    case 'tuck.float': {
+      // Kept open over the layout (true) or beside it (false). Floating keeps a dock open.
+      needDock(a.edge);
+      if (!s.tucked?.[a.edge]?.length) throw new Error(`nothing is docked ${a.edge}`);
+      const others = (s.tuckFloat ?? []).filter((e) => e !== a.edge);
+      const tuckKeep = s.tuckKeep?.includes(a.edge) ? s.tuckKeep : [...(s.tuckKeep ?? []), a.edge];
+      return { state: { ...s, tuckKeep, tuckFloat: a.float ? [...others, a.edge] : others } };
     }
 
     case 'tuck.size': {
@@ -140,7 +160,7 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       const { [a.id]: _i, ...instances } = t.instances;
       const { [a.id]: _a, ...appState } = t.appState;
       const { [a.id]: _p, ...shared } = t.shared ?? {};
-      return { state: { ...t, instances, appState, shared, order: t.order.filter((x) => x !== a.id), autoOpened: t.autoOpened.filter((x) => x !== a.id) } };
+      return { state: { ...t, instances, appState, shared, overlays: (t.overlays ?? []).filter((x) => x !== a.id), order: t.order.filter((x) => x !== a.id), autoOpened: t.autoOpened.filter((x) => x !== a.id) } };
     }
 
     case 'window.move': {

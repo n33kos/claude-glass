@@ -846,6 +846,33 @@ describe('edge sidebars', () => {
     s = reduce(s, { type: 'window.untuck', id: 'terminal' }).state;
     expect(s.tuckKeep).toEqual([]);
   });
+  it('an overlay app\'s window opens over the whole glass, out of the layout and the docks', () => {
+    APPS['ov-test'] = { type: 'ov-test', title: 'Overlay', icon: '◎', singleton: true, description: '', commands: {}, init: () => ({}), command: (s: any) => s, display: 'overlay' };
+    try {
+      let s = reduce(fresh(), { type: 'instance.create', appType: 'ov-test' }).state;
+      expect(s.order).not.toContain('ov-test');
+      expect(s.overlays).toEqual(['ov-test']);
+      expect(() => reduce(s, { type: 'window.tuck', id: 'ov-test', edge: 'right' })).toThrow(/overlay/);
+      s = reduce(s, { type: 'window.close', id: 'ov-test' }).state;
+      expect(s.overlays).toEqual([]);
+      s = reduce(s, { type: 'window.open', id: 'ov-test' }).state;
+      expect([s.order.includes('ov-test'), s.overlays]).toEqual([false, ['ov-test']]);
+      s = reduce(s, { type: 'instance.delete', id: 'ov-test' }).state;
+      expect(s.overlays).toEqual([]);
+    } finally { delete APPS['ov-test']; }
+  });
+  it('a dock floats over the layout: kept open, until released or emptied', () => {
+    let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'bottom' }).state;
+    expect(() => reduce(s, { type: 'tuck.float', edge: 'left', float: true })).toThrow(/nothing is docked/);
+    s = reduce(s, { type: 'tuck.float', edge: 'bottom', float: true }).state;
+    expect(s.tuckKeep).toEqual(['bottom']); // floating keeps it open
+    expect(s.tuckFloat).toEqual(['bottom']);
+    s = reduce(s, { type: 'tuck.float', edge: 'bottom', float: false }).state;
+    expect([s.tuckKeep, s.tuckFloat]).toEqual([['bottom'], []]); // beside the layout again
+    s = reduce(s, { type: 'tuck.float', edge: 'bottom', float: true }).state;
+    expect(reduce(s, { type: 'tuck.keep', edge: 'bottom', keep: false }).state.tuckFloat).toEqual([]); // released
+    expect(reduce(s, { type: 'window.untuck', id: 'terminal' }).state.tuckFloat).toEqual([]); // emptied
+  });
   it('corner docks take windows like edges, and sizes in both directions (height: corners only)', () => {
     let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'bottom-right' }).state;
     expect(s.tucked).toEqual({ 'bottom-right': ['terminal'] });

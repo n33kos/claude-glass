@@ -139,6 +139,9 @@ export interface GlassState {
   // Apps' public state, per instance: what each core's share() chooses to make readable. Other apps
   // see an instance's only when their manifest lists its type in permissions.reads.
   shared?: Record<string, unknown>;
+  // Open windows of overlay apps (display: 'overlay'): out of the layout, each over the whole glass,
+  // the first on top.
+  overlays?: string[];
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
   // Windows docked at an edge or corner (shown to users as "dock"; stored as "tucked"): out of the
@@ -146,6 +149,8 @@ export interface GlassState {
   tucked?: Partial<Record<Dock, string[]>>;
   // Docks that stay open; the layout makes room for them.
   tuckKeep?: Dock[];
+  // Kept-open docks that float over the layout instead (it keeps their space).
+  tuckFloat?: Dock[];
   // Dock sizes the user dragged (px: width for left/right and corners, height for top/bottom).
   tuckSize?: Partial<Record<Dock, number>>;
   // The signal layer: Claude's latest signal (the wallpaper light points at a window, flags one that
@@ -182,6 +187,7 @@ export type Action =
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
   | { type: 'tuck.keep'; edge: Dock; keep: boolean }
+  | { type: 'tuck.float'; edge: Dock; float: boolean }
   | { type: 'tuck.split'; edge: Dock; shares: number[] } // one share per window in the dock
   | { type: 'tuck.size'; edge: Dock; size?: number; height?: number } // height: corners only
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
