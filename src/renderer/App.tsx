@@ -496,6 +496,14 @@ export function App() {
             </span>
           )}
           {config.askBox === true && !s.endedAt && <AskBox />}
+          {/* The background window has no title bar (the layout covers it): its controls live here. */}
+          {state.backdrop && state.instances[state.backdrop] && (
+            <span className="backdrop-chip" title="This window fills the glass behind everything">
+              <AppIcon type={state.instances[state.backdrop].type} />{state.instances[state.backdrop].title} · background
+              <button onClick={() => void dispatch({ type: 'window.backdrop', id: null })} title="Put it back into the layout">Back into the layout</button>
+              <button aria-label="Close it" title="Close it" onClick={() => void dispatch({ type: 'window.close', id: state.backdrop! })}>×</button>
+            </span>
+          )}
           {(state.attachments ?? []).map((a) => (
             <span key={a.id} className="attach-chip" title={`Goes with your next prompt, as context Claude reads:\n\n${a.text.slice(0, 600)}`}>
               <i aria-hidden />{a.label}
@@ -717,7 +725,7 @@ function Backdrop({ W, H }: { W: number; H: number }) {
     <div className="backdrop-layer">
       <WindowFrame meta={meta} style={{ width: W, height: H }} dragging={false} dropTarget={false} placement="backdrop"
         opacity={meta.opacity ?? state.settings.windowOpacity ?? config.windowOpacity}>
-        <AppBody id={id} meta={meta} w={W} h={H} />
+        <AppBody id={id} meta={meta} w={W} h={H + 36} />{/* no title bar to leave room for */}
       </WindowFrame>
     </div>
   );
@@ -877,7 +885,8 @@ function WindowFrame(props: {
       style={{ ...props.style, ['--glass' as any]: props.opacity }}
       data-window={meta.id}
     >
-      <div className="titlebar" onPointerDown={(e) => { if (!props.onDragStart || (e.target as HTMLElement).closest('button')) return; e.preventDefault(); props.onDragStart(e); }}>
+      {/* The background window has no title bar: the layout would cover it (the top bar has its controls). */}
+      {placement !== 'backdrop' && <div className="titlebar" onPointerDown={(e) => { if (!props.onDragStart || (e.target as HTMLElement).closest('button')) return; e.preventDefault(); props.onDragStart(e); }}>
         <div className="lights">
           <button className="light close" title="Close window" aria-label="Close window" onClick={() => dispatch({ type: 'window.close', id: meta.id })} />
           {!history && !tucked && !placement && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
@@ -895,11 +904,11 @@ function WindowFrame(props: {
             {/* Where this window lives: the layout, free anywhere, or filling the background. */}
             {page && page.layout !== 'nested' && <hr />}
             {placement !== 'free' && <button onClick={() => place({ type: 'window.free', id: meta.id })}><PlaceGlyph kind="free" />Free window</button>}
-            {placement !== 'backdrop' && <button onClick={() => place({ type: 'window.backdrop', id: meta.id })}><PlaceGlyph kind="backdrop" />Fill the background</button>}
+            <button onClick={() => place({ type: 'window.backdrop', id: meta.id })}><PlaceGlyph kind="backdrop" />Fill the background</button>
             {(placement || tucked) && <button onClick={() => place({ type: 'window.untuck', id: meta.id })}><PlaceGlyph kind="tile" />Back into the layout</button>}
           </div>
         )}
-      </div>
+      </div>}
       <div className="body">{props.children}</div>
       {props.onTileClick
         ? <div className="body-shield" title="Bring to the middle" onPointerDown={props.onTileClick} />

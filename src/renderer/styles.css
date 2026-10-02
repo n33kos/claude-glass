@@ -138,6 +138,12 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .attach-chip i { flex: none; width: 10px; height: 10px; border: 1.5px solid currentColor; border-radius: 5px 5px 2px 2px; transform: rotate(-35deg); }
 .attach-chip button { flex: none; width: 18px; height: 18px; border-radius: 50%; color: inherit; cursor: pointer; }
 .attach-chip button:hover { background: var(--accent-line); }
+/* The background window's controls (it has no title bar). */
+.backdrop-chip { margin-left: var(--space-2); display: inline-flex; align-items: center; gap: var(--space-2); height: 24px; padding: 0 var(--space-1) 0 var(--space-2);
+  border-radius: var(--radius-pill); font-size: var(--text-size-xs); color: var(--text-2); background: var(--surface-hover); white-space: nowrap; }
+.backdrop-chip .app-icon { width: 16px; height: 16px; border-radius: 4px; }
+.backdrop-chip button { flex: none; height: 18px; padding: 0 var(--space-2); border-radius: var(--radius-pill); color: var(--text-1); cursor: pointer; }
+.backdrop-chip button:hover { background: var(--surface-pressed); }
 /* Stop (interruptButton): the working pill itself; on hover its dot becomes a red stop square. */
 .presence.stoppable { font: inherit; font-size: var(--text-size-sm); cursor: pointer; }
 .presence.stoppable i { transition: border-radius var(--dur-2), transform var(--dur-2); }
