@@ -95,44 +95,73 @@ async function ask($: any, args: string[], stdin?: string, timeoutMs = 5000): Pr
   }
 }
 
-// An approval in flight: the glass shows a card, and the band above the prompt shows the same
-// choices; whichever the user answers first decides. `choice` is set by the band's buttons.
-type Pending = { id: string; summary: string; canAlways: boolean; choice: string | null }
+// A request in flight (a permission, or one of Claude's questions): the glass shows a card, and
+// the band above the prompt shows the same choices; whichever the user answers first decides.
+// `choice` is set by the band's buttons: an approval's choice, a question's option label, or
+// 'terminal' (leave it to Claude Code's own prompt or dialog).
+type Pending = { id: string; kind: 'permission' | 'question'; summary: string; canAlways: boolean; options: string[]; choice: string | null }
 let pending: Pending | null = null
+
+/** Wait for the glass or the band; the outcome, or null for Claude Code's own prompt. */
+async function settle($: any, req: any, p: Pending, signal: AbortSignal | undefined): Promise<{ choice: string; answers?: Record<string, string> } | null> {
+  pending = p
+  $.ui.invalidate('ui.render')
+  const deadline = Date.now() + Number(req.holdMs ?? 600_000)
+  try {
+    for (;;) {
+      if (signal?.aborted) { await ask($, ['action', 'close', p.id, '--by', 'interrupted']); return null }
+      if (pending?.choice) {
+        const choice = pending.choice
+        if (choice === 'terminal') { await ask($, ['action', 'close', p.id, '--by', 'terminal']); return null }
+        if (p.kind === 'question') {
+          const answers = { [p.summary]: choice }
+          await ask($, ['action', 'close', p.id, '--by', 'terminal', '--answers'], JSON.stringify(answers))
+          return { choice: 'answered', answers }
+        }
+        await ask($, ['action', 'close', p.id, '--by', 'terminal', '--choice', choice])
+        return { choice }
+      }
+      if (Date.now() > deadline) { await ask($, ['action', 'close', p.id, '--by', 'timeout']); return null }
+      // Waiting inside a $ call doesn't count toward the hook's time; check the band between waits.
+      const r = await ask($, ['action', 'wait', p.id, '--ms', '700'], undefined, 5000)
+      if (r?.status === 'answered') return { choice: String(r.choice), ...(r.answers ? { answers: r.answers } : {}) }
+      if (!r || r.status === 'gone') return null
+    }
+  } finally {
+    pending = null
+    $.ui.invalidate('ui.render')
+  }
+}
 
 /** Ask the user's permission through the glass and the band; the decision, or null for Claude Code's own prompt. */
 async function approve($: any, e: any, signal: AbortSignal | undefined): Promise<any> {
   const suggestions = Array.isArray(e.permission_suggestions) ? e.permission_suggestions : []
   const req = await ask($, ['action', 'request'], JSON.stringify({ tool: e.tool_name, input: e.tool_input, canAlways: suggestions.length > 0 }))
   if (!req?.id) return null // approvals off, or no glass
-  pending = { id: req.id, summary: String(req.summary ?? e.tool_name), canAlways: suggestions.length > 0, choice: null }
-  $.ui.invalidate('ui.render')
-  const deadline = Date.now() + Number(req.holdMs ?? 600_000)
-  let outcome: { choice: string; by: string } | null = null
-  try {
-    while (!outcome) {
-      if (signal?.aborted) { await ask($, ['action', 'close', req.id, '--by', 'interrupted']); return null }
-      if (pending?.choice) {
-        outcome = { choice: pending.choice, by: 'terminal' }
-        await ask($, ['action', 'close', req.id, '--by', 'terminal', '--choice', pending.choice])
-        break
-      }
-      if (Date.now() > deadline) { await ask($, ['action', 'close', req.id, '--by', 'timeout']); return null }
-      // Waiting inside a $ call doesn't count toward the hook's time; check the band between waits.
-      const r = await ask($, ['action', 'wait', req.id, '--ms', '700'], undefined, 5000)
-      if (r?.status === 'answered') outcome = { choice: String(r.choice), by: String(r.by) }
-      else if (!r || r.status === 'gone') return null
-    }
-  } finally {
-    pending = null
-    $.ui.invalidate('ui.render')
-  }
+  const outcome = await settle($, req, { id: req.id, kind: 'permission', summary: String(req.summary ?? e.tool_name), canAlways: suggestions.length > 0, options: [], choice: null }, signal)
+  if (!outcome) return null
   switch (outcome.choice) {
     case 'allow': return { decision: { behavior: 'allow' } }
     case 'always': return { decision: { behavior: 'allow', updatedPermissions: suggestions } }
     case 'deny': return { decision: { behavior: 'deny', message: 'The user declined this (in Claude Glass).' } }
     default: return null // "answer in the terminal": Claude Code's own prompt
   }
+}
+
+/**
+ * The questions experiment: Claude's AskUserQuestion, answered through the glass (and the band,
+ * for one question with one choice to make). The tool's result, or null for Claude Code's dialog.
+ */
+async function answerQuestions($: any, input: any, signal: AbortSignal | undefined): Promise<any> {
+  const questions = Array.isArray(input?.questions) ? input.questions : []
+  if (!questions.length) return null
+  const req = await ask($, ['action', 'request'], JSON.stringify({ kind: 'question', tool: 'AskUserQuestion', input }))
+  if (!req?.id) return null // the experiment is off, or no glass
+  const one = questions.length === 1 && !questions[0].multiSelect ? questions[0] : null
+  const options = one && Array.isArray(one.options) && one.options.length <= 4 ? one.options.map((o: any) => String(o?.label ?? '')) : []
+  const outcome = await settle($, req, { id: req.id, kind: 'question', summary: String(questions[0].question ?? ''), canAlways: false, options, choice: null }, signal)
+  if (!outcome?.answers) return null
+  return { questions, answers: outcome.answers }
 }
 
 // Shell commands that read or change file contents, which the glass can't show (the user sees
@@ -220,7 +249,10 @@ export function register(on: any) {
     const { tool, tool_use_id: id, agentId, ...input } = e
     const at = Date.now()
     send($, { e: 'tool.start', id, tool, input, agentId, cwd })
-    const r = await next(e)
+    // The questions experiment: the glass may answer Claude's question (else Claude Code's dialog).
+    const answered = tool === 'AskUserQuestion' && !agentId && sock && (await $.fs.exists(sock))
+      ? await answerQuestions($, input, next.signal) : null
+    const r = answered ? { result: answered } : await next(e)
     const error = errorOf(r)
     send($, { e: 'tool.end', id, tool, input, result: error ? undefined : slim(r?.result), error, durationMs: Date.now() - at, agentId, cwd })
     if (tool === 'Bash' && !error && toolReminders && !agentId && sock && FILE_IO.test(String(input.command ?? ''))
@@ -251,16 +283,25 @@ export function register(on: any) {
     if (!p) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     const pick = (choice: string) => () => { if (pending && pending.id === p.id) { pending.choice = choice; $.ui.invalidate('ui.render') } }
-    const buttons = [
-      Button({ key: 'glass-allow', label: 'Allow', hotkey: '1', plain: true, onPress: pick('allow') }),
-      ...(p.canAlways ? [Button({ key: 'glass-always', label: 'Always allow', hotkey: '2', plain: true, onPress: pick('always') })] : []),
-      Button({ key: 'glass-deny', label: 'Deny', hotkey: '3', plain: true, onPress: pick('deny') }),
-      Button({ key: 'glass-here', label: 'Ask here instead', hotkey: '4', plain: true, dimColor: true, onPress: pick('terminal') }),
-    ]
+    const buttons = p.kind === 'question'
+      // A question: its options (one question, one choice, up to four), or just the way back to the dialog.
+      ? [
+          ...p.options.map((label, i) => Button({ key: `glass-opt-${i}`, label: label.slice(0, 40), hotkey: String(i + 1), plain: true, onPress: pick(label) })),
+          Button({ key: 'glass-here', label: p.options.length ? 'Answer in the dialog' : 'Answer here instead', hotkey: String(p.options.length + 1), plain: true, dimColor: true, onPress: pick('terminal') }),
+        ]
+      : [
+          Button({ key: 'glass-allow', label: 'Allow', hotkey: '1', plain: true, onPress: pick('allow') }),
+          ...(p.canAlways ? [Button({ key: 'glass-always', label: 'Always allow', hotkey: '2', plain: true, onPress: pick('always') })] : []),
+          Button({ key: 'glass-deny', label: 'Deny', hotkey: '3', plain: true, onPress: pick('deny') }),
+          Button({ key: 'glass-here', label: 'Ask here instead', hotkey: '4', plain: true, dimColor: true, onPress: pick('terminal') }),
+        ]
+    const title = p.choice ? `◉ Claude Glass · ${p.choice === 'terminal' ? 'asking here…' : p.choice}`
+      : p.kind === 'question' ? `◉ Claude Glass · Claude asks: ${p.summary.slice(0, 160)}${p.options.length ? '' : ' (answer in the glass)'}`
+      : `◉ Claude Glass · permission: ${p.summary.slice(0, 160)}`
     return Box({
       flexDirection: 'column',
       children: [
-        Text({ children: [p.choice ? `◉ Claude Glass · ${p.choice === 'terminal' ? 'asking here…' : p.choice}` : `◉ Claude Glass · permission: ${p.summary.slice(0, 160)}`], bold: true }),
+        Text({ children: [title], bold: true }),
         p.choice ? Text({ children: [' '] }) : Box({ flexDirection: 'row', columnGap: 3, children: buttons }),
       ],
     })

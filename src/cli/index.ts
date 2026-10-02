@@ -395,7 +395,10 @@ async function main(argv: string[]) {
         const r = await request(sock, { op: 'action.wait', id, ms }, ms + 3000).catch(() => null);
         say(r?.ok ? r.result : { status: 'gone' });
       } else if (sub === 'close' && id) {
-        await request(sock, { op: 'action.close', id, by: flags.by, choice: flags.choice }, 3000).catch(() => {});
+        // A question answered in the terminal: its answers as JSON on stdin (so the card can show them).
+        let answers: unknown;
+        if (flags.answers === true) try { answers = JSON.parse(readStdin() || 'null'); } catch {}
+        await request(sock, { op: 'action.close', id, by: flags.by, choice: flags.choice, ...(answers ? { answers } : {}) }, 3000).catch(() => {});
         say({ ok: true });
       } else throw new Error('usage: claude-glass action request | wait <id> [--ms N] | close <id> [--by terminal|timeout|interrupted] [--choice C]');
       return;

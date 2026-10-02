@@ -513,6 +513,26 @@ try {
     await event(env, { e: 'tool.end', tool: 'Bash', id: 'pushed', input: { command: 'git push origin main' }, result: { stdout: '' } });
     await sleep(1800);
     check((await page.locator('[data-window="action"]').count()) === 0, 'once answered, the card and its window go away');
+
+    // The questions experiment: Claude's question as a card; one click answers it.
+    await cli(env, 'settings', 'set', 'app.action.questions', 'true');
+    const input = { questions: [
+      { question: 'Ship the fix now, or add the regression test first?', header: 'Next step', multiSelect: false, options: [
+        { label: 'Add the test first', description: '50 reconnects, expect 0 re-renders' }, { label: 'Ship now', description: 'Test in a follow-up' }] },
+    ] };
+    const q = JSON.parse(await run(bin, ['action', 'request'], env, JSON.stringify({ kind: 'question', tool: 'AskUserQuestion', input })));
+    await event(env, { e: 'tool.start', tool: 'AskUserQuestion', id: 'ask-q', input });
+    await sleep(700);
+    await page.screenshot({ path: join(shots, '08j-question-card.png') });
+    check((await page.locator('.question-card').count()) === 0, 'the read-only question card steps aside while Action has the question');
+    const qAnswer = run(bin, ['action', 'wait', q.id, '--ms', '8000'], env);
+    await sleep(200);
+    await appFrame(page, 'action').locator('.ac-options button', { hasText: 'Add the test first' }).click();
+    const qGot = JSON.parse(await qAnswer);
+    check(qGot.answers?.['Ship the fix now, or add the regression test first?'] === 'Add the test first', `a click on an option answers Claude's question (${JSON.stringify(qGot)})`);
+    await event(env, { e: 'tool.end', tool: 'AskUserQuestion', id: 'ask-q', input, result: { questions: input.questions, answers: qGot.answers } });
+    await cli(env, 'settings', 'set', 'app.action.questions', 'false');
+    await sleep(1800);
   }
 
   // Browser app: screencast a real headless Chromium over CDP, then a pushed screenshot.

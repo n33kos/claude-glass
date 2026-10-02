@@ -158,7 +158,8 @@ overflow spills onto the next desktop.
   allow and Deny. The same choices show above the prompt in the terminal (1–4), and whichever you
   answer first decides; "Ask here instead" falls back to Claude Code's own prompt. Nothing but the
   glass's own window can answer (not the CLI, not Claude). Turn it off in Settings → Apps →
-  Action.
+  Action. An experiment there, off by default, does the same for Claude's own questions
+  (AskUserQuestion): options as buttons, or your own words.
 
   ![Claude asked a question: the top bar, a read-only card, and amber light](docs/media/waiting.png)
 

@@ -507,7 +507,9 @@ export function App() {
         <Version />
       </header>
 
-      {waiting?.kind === 'question' && <QuestionCard waiting={waiting} />}
+      {/* Read-only, unless the Action app has the question to answer (the questions experiment). */}
+      {waiting?.kind === 'question' && !(state.appState.action as { requests?: { kind: string; status: string }[] } | undefined)?.requests?.some((r) => r.kind === 'question' && r.status === 'pending')
+        && <QuestionCard waiting={waiting} />}
 
       <main className={`stage${drag || dockDrag ? ' dragging-any' : ''}`} ref={stageRef}>
         <div className="strip" style={{ transform: `translateX(${-v * size.W}px)` }}>

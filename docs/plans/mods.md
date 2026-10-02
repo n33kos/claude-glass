@@ -168,13 +168,17 @@ Built (docs/apps.md, "Stored values"):
 
 Separate from the Action app's first version; we try it and keep what works.
 
-- [ ] AskUserQuestion on the glass: its `tool.call` → the question and options as buttons on an
-      Action card; the answer comes back as the tool's `{ result }`
-- [ ] Race the terminal: can the mod show its own `$.ui.ask` (or let Claude Code's dialog show)
-      and withdraw it when the glass answers first, and the reverse? If not: hold for the glass
-      for `action.holdSeconds` (default 0 = off), then fall back to the terminal
-- [ ] The same for permission cards
-- [ ] Decide: glass and terminal side by side, glass first with a fallback, or not at all
+- [x] AskUserQuestion on the glass (`app.action.questions`, off by default): the mod holds the
+      `tool.call`, the Action app shows each question with its options as buttons, multi-select
+      toggles, and a field for the user's own words; the answers come back as the tool's
+      `{ result: { questions, answers } }`. The read-only question card steps aside meanwhile
+- [x] Racing the terminal: `$.ui.ask` can't be withdrawn once shown, and Claude Code's own
+      prompt and dialog can't either, so the mod draws its own choices in the band above the
+      prompt (its own, so it can take them away). For a question: one question with one choice
+      to make shows its options there (1–4); otherwise just "Answer here instead". Either way the
+      way back to Claude Code's own dialog stays one key away
+- [x] The same for permission cards (Phase 2)
+- [ ] Decide after using it: keep questions off by default, or turn them on
 
 ## Phase 3 — Two-way apps: the mods interface for app authors
 

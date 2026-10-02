@@ -110,7 +110,7 @@ export class GlassCore {
 
   private actionSettings() {
     const app = APPS.action;
-    return app ? settingValues(app, this.config.appSettings?.action) as { approvals: boolean; keepAnswered: boolean; holdMinutes: number } : null;
+    return app ? settingValues(app, this.config.appSettings?.action) as { approvals: boolean; keepAnswered: boolean; holdMinutes: number; questions: boolean } : null;
   }
 
   private request(id: string): ActionState['requests'][number] | undefined {
@@ -122,26 +122,30 @@ export class GlassCore {
    * the front), answered from the glass's UI. Off (the app turned off, or approvals off): the mod
    * leaves it to Claude Code's own prompt.
    */
-  actionRequest(req: { tool?: unknown; input?: unknown; canAlways?: unknown }): { id: string; holdMs: number; summary: string } | { off: string } {
+  actionRequest(req: { kind?: unknown; tool?: unknown; input?: unknown; canAlways?: unknown }): { id: string; holdMs: number; summary: string } | { off: string } {
     const settings = this.actionSettings();
     if (!settings || this.config.disabledApps?.includes('action')) return { off: 'the Action app is turned off' };
-    if (!settings.approvals) return { off: 'approvals from the glass are off' };
-    const tool = String(req.tool ?? '?');
+    const question = req.kind === 'question';
+    if (question ? !settings.questions : !settings.approvals) return { off: question ? 'questions from the glass are off' : 'approvals from the glass are off' };
+    const tool = String(req.tool ?? (question ? 'AskUserQuestion' : '?'));
     const id = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     let s = this.state;
     if (!s.instances.action) s = reduce(s, { type: 'instance.create', appType: 'action', open: false }).state;
-    s = reduce(s, { type: 'app.command', id: 'action', command: 'request', args: { id, tool, summary: summarizeTool(tool, req.input), detail: requestDetail(tool, req.input), canAlways: req.canAlways === true } }).state;
+    const args = question
+      ? { id, tool, kind: 'question', questions: (req.input as { questions?: unknown } | undefined)?.questions }
+      : { id, tool, summary: summarizeTool(tool, req.input), detail: requestDetail(tool, req.input), canAlways: req.canAlways === true };
+    s = reduce(s, { type: 'app.command', id: 'action', command: 'request', args }).state;
     // It's what the user needs to look at now: to the front (a docked one stays where it is).
     if (!Object.values(s.tucked ?? {}).some((l) => l?.includes('action'))) s = reduce(s, { type: 'window.open', id: 'action' }).state;
     this.commit(s);
-    return { id, holdMs: Math.round(settings.holdMinutes * 60_000), summary: summarizeTool(tool, req.input) };
+    return { id, holdMs: Math.round(settings.holdMinutes * 60_000), summary: question ? this.request(id)?.summary ?? 'Claude has a question' : summarizeTool(tool, req.input) };
   }
 
   /** Wait (up to ms) for a request's answer. Pending, answered (with the choice), or gone. */
   actionWait(id: string, ms: number): Promise<unknown> {
     const now = () => {
       const r = this.request(id);
-      return !r ? { status: 'gone' } : r.status === 'pending' ? null : { status: 'answered', choice: r.answer?.choice, by: r.answer?.by };
+      return !r ? { status: 'gone' } : r.status === 'pending' ? null : answered(r);
     };
     const ready = now();
     if (ready) return Promise.resolve(ready);
@@ -155,9 +159,9 @@ export class GlassCore {
   }
 
   /** The request was settled elsewhere (the terminal), timed out, or the turn was interrupted. */
-  actionClose(id: string, by: unknown, choice: unknown): void {
+  actionClose(id: string, by: unknown, choice: unknown, answers?: unknown): void {
     if (!this.request(id)) return;
-    this.dispatch({ type: 'app.command', id: 'action', command: 'close', args: { id, by, choice } });
+    this.dispatch({ type: 'app.command', id: 'action', command: 'close', args: { id, by, choice, ...(answers && typeof answers === 'object' ? { answers } : {}) } });
   }
 
   /** After each change: answer whoever waits on a settled request; tidy up when nothing's pending. */
@@ -168,7 +172,7 @@ export class GlassCore {
     for (const [id, set] of this.waiters) {
       const r = after.find((x) => x.id === id);
       if (r && r.status === 'pending') continue;
-      const reply = r ? { status: 'answered', choice: r.answer?.choice, by: r.answer?.by } : { status: 'gone' };
+      const reply = r ? answered(r) : { status: 'gone' };
       for (const fn of [...set]) fn(reply);
       this.waiters.delete(id);
     }
@@ -380,7 +384,7 @@ export class GlassCore {
         case 'event': this.events(Array.isArray(env.events) ? env.events : [env.event]); return { ok: true, result: null };
         case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action, 'socket') };
         case 'action.request': return { ok: true, result: this.actionRequest((env.request ?? {}) as Record<string, unknown>) };
-        case 'action.close': this.actionClose(String(env.id), env.by, env.choice); return { ok: true, result: null };
+        case 'action.close': this.actionClose(String(env.id), env.by, env.choice, env.answers); return { ok: true, result: null };
         case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
         case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
@@ -469,6 +473,9 @@ export class GlassCore {
     try { unlinkSync(path); } catch {}
   }
 }
+
+/** A settled request, as the mod's wait sees it. */
+const answered = (r: ActionState['requests'][number]) => ({ status: 'answered', choice: r.answer?.choice, by: r.answer?.by, ...(r.answer?.answers ? { answers: r.answer.answers } : {}) });
 
 /** What an approval card shows under its summary: the command, the change, the address. */
 export function requestDetail(tool: string, input: any): string | undefined {

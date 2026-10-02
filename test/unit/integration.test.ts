@@ -299,6 +299,30 @@ describe('approvals through the glass (the Action app)', () => {
     expect(core.state.order).not.toContain('action');
   });
 
+  it('questions (the experiment): off by default; on, the glass answers with an answer per question', async () => {
+    const qreq = (input: object) => run(join(root, 'bin/claude-glass'), ['action', 'request', '--session', SID], JSON.stringify({ kind: 'question', tool: 'AskUserQuestion', input }));
+    const input = { questions: [
+      { question: 'Ship it now?', header: 'Deploy', multiSelect: false, options: [{ label: 'Yes' }, { label: 'Not yet', description: 'keep testing' }] },
+      { question: 'Which checks?', header: 'Checks', multiSelect: true, options: [{ label: 'Lint' }, { label: 'Tests' }, { label: 'E2E' }] },
+    ] };
+    expect(await json(qreq(input))).toEqual({ off: 'questions from the glass are off' });
+    await cli('settings', 'set', 'app.action.questions', 'true');
+    const req = await json(qreq(input));
+    expect(req).toMatchObject({ id: expect.any(String), summary: 'Ship it now?' });
+    const card = (core.state.appState.action as any).requests.find((r: any) => r.id === req.id);
+    expect(card).toMatchObject({ kind: 'question', questions: [{ question: 'Ship it now?', header: 'Deploy' }, { question: 'Which checks?', multiSelect: true }] });
+    expect(() => core.dispatch({ type: 'app.command', id: 'action', command: 'answer', args: { id: req.id, answers: { 'Ship it now?': 'Yes' } } }, 'ui')).toThrow(/every question/);
+    const waiting = json(act('wait', req.id, '--ms', '5000'));
+    await wait(100);
+    core.dispatch({ type: 'app.command', id: 'action', command: 'answer', args: { id: req.id, answers: { 'Ship it now?': 'Not yet', 'Which checks?': 'Lint, Tests' } } }, 'ui');
+    expect(await waiting).toEqual({ status: 'answered', choice: 'answered', by: 'glass', answers: { 'Ship it now?': 'Not yet', 'Which checks?': 'Lint, Tests' } });
+    // Answered in the terminal's band: the card shows what was chosen there.
+    const req2 = await json(qreq({ questions: [input.questions[0]] }));
+    await run(join(root, 'bin/claude-glass'), ['action', 'close', req2.id, '--session', SID, '--by', 'terminal', '--answers'], JSON.stringify({ 'Ship it now?': 'Yes' }));
+    expect((core.state.appState.action as any).requests.find((r: any) => r.id === req2.id).answer).toEqual({ choice: 'answered', by: 'terminal', answers: { 'Ship it now?': 'Yes' } });
+    await cli('settings', 'set', 'app.action.questions', 'false');
+  });
+
   it('off when the user turns approvals off (the mod then leaves it to Claude Code\'s prompt)', async () => {
     await cli('settings', 'set', 'app.action.approvals', 'false');
     expect(await json(act('request'))).toEqual({ off: 'approvals from the glass are off' });
