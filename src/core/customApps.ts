@@ -73,6 +73,7 @@ export function readApp(appDir: string): AppDef {
   if (core.onHook !== undefined) throw new Error('onHook was replaced by onEvent(state, event): see docs/apps.md');
   if (core.onEvent !== undefined && typeof core.onEvent !== 'function') throw new Error('onEvent must be a function');
   if (core.register !== undefined && typeof core.register !== 'function') throw new Error('register must be a function');
+  if (core.share !== undefined && typeof core.share !== 'function') throw new Error('share must be a function');
   if (core.register && !permissions.twoWay) throw new Error('register(on) answers back into the Claude session: it needs "permissions": { "twoWay": true }');
 
   // Icon: an image file (named in the manifest, or icon.svg/icon.png in the folder), else a glyph.
@@ -99,6 +100,7 @@ export function readApp(appDir: string): AppDef {
     command: core.command,
     onEvent: core.onEvent,
     register: core.register,
+    share: core.share,
     guide,
     settings,
     stored,

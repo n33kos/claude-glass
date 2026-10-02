@@ -58,7 +58,7 @@ async function flush($: any) {
   }
 }
 
-// Controls from the glass (the Stop button, when the user turned it on). A background loop runs
+// Controls from the glass (Stop, a message the user sent from it). A background loop runs
 // `claude-glass watch`, which waits on the socket for one, so the glass never pushes anything.
 let turnId = '' // the main loop's running turn
 let openAtStart = false // a glass was open when the session started (then Claude gets the ask tool)
@@ -77,21 +77,13 @@ const ASK_TOOL = {
     required: ['question'],
   },
 }
-let configFile = '' // the glass's config.json, to see whether the Stop button is on
 let watching = 0 // the loop's generation: a reload starts a new one, and the old one stops
 
-/** Whether the user turned on a control (the Stop button, the Ask box): only then is there anything to collect. */
-async function controlsOn($: any): Promise<boolean> {
-  try {
-    const c = configFile ? JSON.parse(await $.fs.read(configFile)) : {}
-    return c.interruptButton === true || c.askBox === true
-  } catch { return false }
-}
-
+// While a glass is open there's always something the user may send (Conversation's message box).
 async function watchControls($: any, gen: number) {
   if (gen !== watching) return
-  // Nothing to collect without a glass, or with the controls off: look again in a while.
-  if (!cid || !(await glassUp($)) || !(await controlsOn($))) {
+  // Nothing to collect without a glass: look again in a while.
+  if (!cid || !(await glassUp($))) {
     $.clock.after(15_000, () => { void watchControls($, gen) })
     return
   }
@@ -113,7 +105,6 @@ async function sessionStart($: any, source: string) {
     sock = typeof info.socket === 'string' ? info.socket : ''
     guide = typeof info.guide === 'string' ? info.guide : null
     toolReminders = info.toolReminders !== false
-    configFile = typeof info.config === 'string' ? info.config : configFile
     subs = info.hooks && typeof info.hooks === 'object' ? info.hooks : {}
     openAtStart = info.open === true
   } catch {

@@ -17,7 +17,7 @@ declare global {
       version?(): Promise<{ version: string; dev: boolean }>;
       applyUpdate(): void;
       interrupt(): void; // Stop: end Claude's turn (interruptButton)
-      submitPrompt(text: string): void; // Ask Claude from the glass (askBox)
+      submitPrompt(text: string, from: 'conversation' | 'header'): void; // message Claude from the glass
       onUpdate(fn: (u: { version: string } | null) => void): () => void;
       projectImages(): Promise<{ ok: boolean; result?: { root: string; images: { path: string; rel: string; mtime: number; size: number }[] }; error?: string }>;
       openLink(url: string): void;

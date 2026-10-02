@@ -397,12 +397,14 @@ describe('two-way apps and point-and-ask, through the CLI the mod uses', () => {
     expect(await asked).toEqual({ answer: 'Right' });
   });
 
-  it('the Ask box: only when on; the mod collects the prompt with watch', async () => {
-    g.submitPrompt('ignored: off');
+  it('prompts from the glass: Conversation always, the header field only when on; the mod collects them with watch', async () => {
+    g.submitPrompt('ignored: header off', 'header');
     expect(await out(['watch', '--ms', '50'])).toEqual([]);
-    g.config.askBox = true;
-    g.submitPrompt('  what changed?  ');
+    g.submitPrompt('  what changed?  ', 'conversation');
     expect(await out(['watch', '--ms', '50'])).toEqual([{ kind: 'prompt', text: 'what changed?', at: expect.any(Number) }]);
+    g.config.askBox = true;
+    g.submitPrompt('and why?', 'header');
+    expect(await out(['watch', '--ms', '50'])).toEqual([{ kind: 'prompt', text: 'and why?', at: expect.any(Number) }]);
     g.config.askBox = false;
   });
 });

@@ -3,6 +3,7 @@
 // ask for host services. It can't reach Claude, other apps, or the shell's DOM.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { settingValues, storedValues, type AppInfo } from '../apps/types';
+import { readableShared } from '../core/shared';
 import type { GlassState, InstanceMeta } from '../core/types';
 import { Lightbox } from './Lightbox';
 import { dispatch } from './store';
@@ -25,13 +26,17 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
   const [ready, setReady] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
-  const session = { cwd: glass.session.cwd, activity: glass.session.activity, ended: !!glass.session.endedAt, waiting: glass.session.waiting ?? null };
+  const session = { cwd: glass.session.cwd, activity: glass.session.activity, ended: !!glass.session.endedAt, waiting: glass.session.waiting ?? null,
+    // Conversation is where the user messages Claude: it sees what goes with the next prompt.
+    ...(app.type === 'conversation' ? { attachments: (glass.attachments ?? []).map((a) => ({ id: a.id, label: a.label, text: a.text.slice(0, 600) })) } : {}) };
   const settings = useMemo(() => settingValues(app, savedSettings), [app, savedSettings]);
+  // Other apps' public state, for the types this app's manifest may read (permissions.reads).
+  const shared = useMemo(() => readableShared(glass, app.permissions.reads), [glass.shared, glass.instances, app]);
   // The app's persistent values (manifest "stored"), defaults filled in.
   const own = glass.stored?.[app.type];
   const stored = useMemo(() => storedValues(app, own), [app, own]);
   const theme = useThemeValue(); // the shell's (theme.ts); the frame sets it on its own page
-  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings, stored, theme };
+  const props = { id, meta: { id, type: meta.type, title: meta.title }, state, size: { width, height }, session, settings, stored, shared, theme };
   const post = (msg: object) => ref.current?.contentWindow?.postMessage({ glass: 1, ...msg }, '*');
   const latest = useRef(props);
   latest.current = props;
@@ -75,6 +80,9 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
     else if (service === 'attach' && typeof args.text === 'string' && (app.builtin || app.permissions.twoWay)) {
       void dispatch({ type: 'attach.add', label: String(args.label ?? app.title), text: args.text, from: app.type });
     }
+    // Conversation's message box: sent as the user's prompt (with what's attached), once Claude is free.
+    else if (service === 'prompt' && app.type === 'conversation' && typeof args.text === 'string') window.glass.submitPrompt(args.text, 'conversation');
+    else if (service === 'detach' && app.type === 'conversation' && typeof args.id === 'string') void dispatch({ type: 'attach.remove', id: args.id });
   }
 
   /** Files → Changes: select the file in the Changes window that has it (the live one, else the newest) and bring it into view. */
@@ -101,7 +109,7 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
 
   // Props on ready and on every change (state slices keep identity when unchanged).
   useEffect(() => { if (ready) post({ kind: 'props', props }); },
-    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings, stored, theme]); // eslint-disable-line react-hooks/exhaustive-deps
+    [ready, state, width, height, meta.title, session.cwd, session.activity, session.waiting, session.ended, settings, stored, shared, app.type === 'conversation' && glass.attachments, theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live frames for this instance (browser stream); the latest ones are replayed on 'ready'.
   useEffect(() => window.glass.onFrame((f) => { if (f.id === id) post({ kind: 'frame', source: f.source, data: f.data }); }), [id]); // eslint-disable-line react-hooks/exhaustive-deps

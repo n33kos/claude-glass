@@ -210,7 +210,7 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Thin progress bar along the bottom while Claude works" on={config.turnProgress !== false} onChange={(v) => setConfig('turnProgress', v)} />
       <Toggle label="How full Claude's context is, in the top bar" on={config.contextGauge !== false} onChange={(v) => setConfig('contextGauge', v)} />
       <Toggle label="Stop from the status pill while Claude works (it ends the turn: answers back into Claude Code)" on={config.interruptButton === true} onChange={(v) => setConfig('interruptButton', v)} />
-      <Toggle label="An Ask Claude field in the top bar (what you type is sent as your prompt: answers back into Claude Code)" on={config.askBox === true} onChange={(v) => setConfig('askBox', v)} />
+      <Toggle label="An Ask Claude field in the header too (Conversation always has its message box; sent as your prompt)" on={config.askBox === true} onChange={(v) => setConfig('askBox', v)} />
       <Toggle label="Tell Claude what's on the glass with every prompt (costs tokens; Claude ranks windows from it)" on={config.viewContext === true} onChange={(v) => setConfig('viewContext', v)} />
 
       <h4>Windows &amp; desktops</h4>
@@ -374,8 +374,8 @@ function AppSettings({ type, specs, stored }: { type: string; specs: Record<stri
   );
 }
 
-function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean; twoWay?: boolean }): string {
-  return [p.twoWay ? 'answering Claude (two-way)' : '', p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
+function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[] }): string {
+  return [p.twoWay ? 'answering Claude (two-way)' : '', p.reads?.length ? `reads what ${p.reads.join(', ')} share${p.reads.length === 1 ? 's' : ''}` : '',p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
     .filter(Boolean).join(' · ');
 }
 

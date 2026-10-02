@@ -490,7 +490,7 @@ async function main(argv: string[]) {
         guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null) ?? guideFor(config);
       }
       const hooks = open ? await request(socketPath(sid), { op: 'event', events: [] }, 1000).then((r) => (r.ok ? (r.result as { hooks?: unknown }).hooks : {})).catch(() => ({})) : {};
-      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false, config: configPath(), hooks }));
+      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false, hooks }));
       return;
     }
     default:

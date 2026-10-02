@@ -153,7 +153,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   turnProgress: 'true|false: a thin white bar along the bottom while Claude works on a turn',
   contextGauge: 'true|false: how full Claude\'s context window is, in the top bar (hover: tokens, cost, plan limits)',
   interruptButton: 'true|false: two-way: while Claude works, clicking the status pill ends the turn (change only if asked)',
-  askBox: 'true|false: two-way: an "Ask Claude" field in the top bar; what the user types there is sent as their prompt (change only if asked)',
+  askBox: 'true|false: two-way: an "Ask Claude" field in the header (Conversation always has its own message box); what the user types is sent as their prompt (change only if asked)',
   viewContext: 'true|false: each prompt carries what\'s on the glass now (like claude-glass view), so Claude needn\'t run view; costs tokens (change only if asked)',
   launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
   launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',

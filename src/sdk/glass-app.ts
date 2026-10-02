@@ -17,9 +17,12 @@ export interface GlassProps<S = any> {
     activity: 'idle' | 'working';
     ended: boolean;
     waiting: { kind: 'question' | 'permission'; summary: string; tool?: string; toolUseId?: string } | null;
+    attachments?: { id: string; label: string; text: string }[]; // Conversation only: what goes with the next prompt
   };
   settings: Record<string, unknown>; // the app's own settings (manifest "settings"), defaults filled in
   stored: Record<string, unknown>; // the app's persistent values (manifest "stored"), defaults filled in
+  // Other apps' public state (their core's share()), for the types the manifest's permissions.reads lists.
+  shared: { id: string; type: string; title: string; data: unknown }[];
   theme?: 'dark' | 'light'; // the glass's theme; the SDK sets it on the page, so the tokens follow
 }
 

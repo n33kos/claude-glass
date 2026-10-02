@@ -208,6 +208,27 @@ The user (or Claude) can look at and change them with `claude-glass stored <type
 `claude-glass stored <type> set <key> <json>` and `claude-glass stored <type> reset [key]`;
 Settings → Apps shows how many values an app keeps, with a Reset link.
 
+### Public state
+
+Apps can read each other, safely: both sides opt in. An app that has something to offer exports
+`share(state)` from `core.js`, a pure function that picks what other apps may see (JSON, up to
+64 KB per window; leave out anything private, return `undefined` to share nothing):
+
+```js
+exports.share = (state) => ({ counts: state.counts }); // not state.note
+```
+
+An app that wants to read it lists the type in its manifest, and Settings shows the user which
+apps read which:
+
+```json
+"permissions": { "reads": ["tool-count"] }
+```
+
+The reader gets every open window of those types as `[{ id, type, title, data }]`: its view as
+the `shared` prop, its core as `ctx.shared` in `command` and `onEvent`. Reading is all it gets:
+it can't change another app's state or run its commands. Without `reads`, nothing is visible.
+
 ## Two-way apps
 
 The glass is one-way unless an app says otherwise: with `"permissions": { "twoWay": true }` in
@@ -267,6 +288,7 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 | `microphone` | `getUserMedia({ audio: true })` (never the camera), for the view and for pages it embeds from its `network` origins (give the inner iframe `allow="microphone"`). macOS will also ask the user once. |
 | `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
 | `twoWay` | hooks on the Claude session (`register(on)`, above), and point and ask from its view |
+| `reads` | other apps' public state, for the types listed (see Public state) |
 | `sharedSignIn` | the sign-in of pages it embeds from its `network` origins follows the user to every glass: their `localStorage` and cookies, saved together in `~/.claude/claude-glass/app-storage.json` (owner-only) and given to a glass whose page is missing either. Only for sites made for many devices signed in at once (a pairing token, like vmux's). Leave it off for sites that rotate refresh tokens or keep sign-in elsewhere (IndexedDB): glasses would log each other out, or restore half a sign-in. Signing out in one glass doesn't reach the shared copy; **Reset data** clears it. |
 
 Pages an app embeds from its `network` origins are third-party inside the glass, so browsers
@@ -299,7 +321,7 @@ Messages are `postMessage` objects with `glass: 1`.
 | Direction | `kind` | Fields |
 |---|---|---|
 | view → glass | `ready` | (sent by the SDK on load) |
-| glass → view | `props` | `props: { id, meta, state, size, session, settings, stored, theme }` |
+| glass → view | `props` | `props: { id, meta, state, size, session, settings, stored, shared, theme }` |
 | view → glass | `run` | `command`, `args` (view commands only) |
 | view → glass | `store` | `values` (stored values the manifest declares) |
 | view → glass | `host` | `service: 'lightbox' \| 'aspect'`, `args` |

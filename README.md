@@ -166,7 +166,9 @@ overflow spills onto the next desktop.
   selection in a markdown window (the plan) attaches it to your next prompt (a chip in the top
   bar; × takes it off); Claude reads it with what you say. Opt-in extras in
   Settings: Stop (`interruptButton`: the "Claude is working" pill turns into a stop button on
-  hover) and an Ask Claude field (`askBox`) beside it in the top bar.
+  hover) and an Ask Claude field in the header (`askBox`). Conversation always has a message box
+  at the bottom: what you type goes to Claude as your prompt (once it's free), with anything you
+  attached shown as chips above it.
 
   ![Claude asked a question: the top bar, a read-only card, and amber light](docs/media/waiting.png)
 
@@ -228,7 +230,7 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `followTests` | off / **light** / front / both / focus | the same when a test run fails (lit red) |
 | `interruptButton` | true / **false** | two-way: while Claude works, the status pill stops the turn when clicked (like Esc); hovering shows a red stop square |
 | `viewContext` | true / **false** | each prompt tells Claude what's on the glass now (so it ranks windows from what's really there; costs tokens) |
-| `askBox` | true / **false** | two-way: an Ask Claude field in the top bar; what you type is sent as your prompt (once Claude is free) |
+| `askBox` | true / **false** | two-way: an Ask Claude field in the header, beside Conversation's own message box; what you type is sent as your prompt (once Claude is free) |
 | `contextGauge` | **true** / false | how full Claude's context window is, in the top bar (hover: tokens, cost, plan limits; amber near full) |
 | `turnProgress` | **true** / false | a thin white bar along the bottom while Claude works: it sweeps, brightens on each model request, and fills by tasks done when Claude works through a list |
 | `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |

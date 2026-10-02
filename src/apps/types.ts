@@ -27,6 +27,12 @@ export interface AppDef<S = any> {
   onEvent?(state: S, event: any, ctx?: AppContext): S;
   stored?: Record<string, StoredSpec>; // persistent values the app keeps, by scope (manifest "stored")
   /**
+   * Optional: the app's public state, from an instance's state (pure; JSON, up to 64 KB). Other apps
+   * read it only when their manifest lists this app's type in permissions.reads. Leave anything out
+   * that only this app should see; return undefined to share nothing.
+   */
+  share?(state: S): unknown;
+  /**
    * Two-way apps only (permissions.twoWay): hooks on the Claude session, like a Claude Code mod's
    * `register(on)`. The glass mod forwards the events they ask for (src/core/apphooks.ts).
    */
@@ -80,7 +86,14 @@ export interface AppContext {
    * one). Typed as the state; the reducer recognizes the write (a StoreWrite) and unwraps it.
    */
   store<S>(state: S, patch: Record<string, unknown>): S;
+  /** What other apps share (their share()), for the types this app's permissions.reads lists. */
+  shared: SharedEntry[];
 }
+
+/** One instance's public state, as an app that may read it sees it. */
+export interface SharedEntry { id: string; type: string; title: string; data: unknown }
+
+export const SHARED_MAX_BYTES = 64 * 1024; // an instance's public state
 
 /** A core's answer that also writes persistent values (made by ctx.store). */
 export class StoreWrite<S = unknown> {
@@ -146,9 +159,12 @@ export interface AppPermissions {
   storage: boolean; // its own persistent localStorage/IndexedDB (origin glass-app://<type>)
   sharedSignIn: boolean; // its network origins' sign-in (localStorage + cookies) follows the user to every glass
   twoWay: boolean; // it may answer back into the Claude session (approvals, questions): the glass is otherwise one-way
+  reads: string[]; // app types whose public state (their share()) it may read
 }
 
-export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false };
+export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false, reads: [] };
+
+const APP_TYPE = /^[a-z][a-z0-9-]{0,39}$/;
 
 /** Validate a manifest's permissions: explicit http(s)/ws(s) origins only, no wildcards. */
 export function parsePermissions(raw: unknown): AppPermissions {
@@ -161,7 +177,11 @@ export function parsePermissions(raw: unknown): AppPermissions {
     if (!/^(https?|wss?):$/.test(u.protocol) || u.hostname.includes('*')) throw new Error(`permissions.network: "${o}" must be an http(s) or ws(s) origin`);
     return `${u.protocol}//${u.host}`;
   });
-  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0, twoWay: r.twoWay === true };
+  const reads = (Array.isArray(r.reads) ? r.reads : []).map((t) => {
+    if (typeof t !== 'string' || !APP_TYPE.test(t)) throw new Error(`permissions.reads: "${t}" is not an app type`);
+    return t;
+  });
+  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0, twoWay: r.twoWay === true, reads: [...new Set(reads)] };
 }
 
 /**

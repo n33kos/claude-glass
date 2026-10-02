@@ -633,12 +633,12 @@ function ContextGauge({ usage }: { usage?: SessionUsage }) {
   );
 }
 
-/** Ask Claude from the glass (askBox, two-way): sent as your prompt, once Claude is free. */
+/** Ask Claude from the header (askBox, two-way; Conversation always has its own box): sent as your prompt, once Claude is free. */
 function AskBox() {
   const [text, setText] = useState('');
   const [sent, setSent] = useState(false);
   return (
-    <form className="ask-box" onSubmit={(e) => { e.preventDefault(); if (!text.trim()) return; window.glass.submitPrompt(text); setText(''); setSent(true); setTimeout(() => setSent(false), 2500); }}>
+    <form className="ask-box" onSubmit={(e) => { e.preventDefault(); if (!text.trim()) return; window.glass.submitPrompt(text, 'header'); setText(''); setSent(true); setTimeout(() => setSent(false), 2500); }}>
       <input value={text} onChange={(e) => setText(e.target.value)} placeholder={sent ? 'Sent to Claude' : 'Ask Claude…'} aria-label="Ask Claude (sent as your prompt)" />
     </form>
   );

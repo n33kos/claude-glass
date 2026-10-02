@@ -136,6 +136,9 @@ export interface GlassState {
   // Things the user attached from the glass for their next prompt (point and ask): the mod adds
   // them as context Claude reads with it, then they're gone.
   attachments?: Attachment[];
+  // Apps' public state, per instance: what each core's share() chooses to make readable. Other apps
+  // see an instance's only when their manifest lists its type in permissions.reads.
+  shared?: Record<string, unknown>;
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
   // Windows docked at an edge or corner (shown to users as "dock"; stored as "tucked"): out of the

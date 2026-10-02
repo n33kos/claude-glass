@@ -282,10 +282,11 @@ export class GlassCore {
     for (const fn of [...this.watchers]) fn();
   }
 
-  /** The user asked Claude something from the glass (askBox): the mod submits it as their prompt. */
-  submitPrompt(text: string): void {
+  /** The user messaged Claude from the glass (Conversation's box, or the header field when askBox is
+   *  on): the mod submits it as their prompt. */
+  submitPrompt(text: string, from: 'conversation' | 'header'): void {
     const t = String(text ?? '').trim().slice(0, 10_000);
-    if (this.config.askBox !== true || !t) return;
+    if ((from === 'header' && this.config.askBox !== true) || !t) return;
     this.controls.push({ kind: 'prompt', text: t, at: Date.now() });
     for (const fn of [...this.watchers]) fn();
   }

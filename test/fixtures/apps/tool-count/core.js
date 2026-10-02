@@ -14,6 +14,9 @@ exports.command = (state, cmd, args, ctx) => {
   throw new Error(`tool-count: unknown command "${cmd}"`);
 };
 
+// Public state: other apps that list "tool-count" in permissions.reads see the counts (not the note).
+exports.share = (state) => ({ counts: state.counts });
+
 exports.onEvent = (state, ev, ctx) => {
   if (ev.e !== 'tool.start' || !ev.tool) return state;
   const next = { ...state, counts: { ...state.counts, [ev.tool]: (state.counts[ev.tool] ?? 0) + 1 } };

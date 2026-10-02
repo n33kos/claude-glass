@@ -1,7 +1,8 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
-import { STORED_MAX_BYTES, StoreWrite, storedValues, type AppContext, type AppDef } from '../apps/types';
+import { SHARED_MAX_BYTES, STORED_MAX_BYTES, StoreWrite, storedValues, type AppContext, type AppDef } from '../apps/types';
 import { parseColors } from './colors';
+import { readableShared } from './shared';
 import { DOCKS, isCorner, isDock, isLayout } from './layout';
 import type { Action, Dock, GlassState, InstanceMeta, SessionInfo } from './types';
 
@@ -139,7 +140,8 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       const t = t0.signal?.target === a.id ? (({ signal: _s, ...rest }) => rest as GlassState)(t0) : t0; // a signal at a deleted window goes with it
       const { [a.id]: _i, ...instances } = t.instances;
       const { [a.id]: _a, ...appState } = t.appState;
-      return { state: { ...t, instances, appState, order: t.order.filter((x) => x !== a.id), autoOpened: t.autoOpened.filter((x) => x !== a.id) } };
+      const { [a.id]: _p, ...shared } = t.shared ?? {};
+      return { state: { ...t, instances, appState, shared, order: t.order.filter((x) => x !== a.id), autoOpened: t.autoOpened.filter((x) => x !== a.id) } };
     }
 
     case 'window.move': {
@@ -304,17 +306,36 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
   }
 }
 
-/** What a core gets beside its state: its persistent values, and the way to write them. */
+/** What a core gets beside its state: its persistent values, the way to write them, and what the
+ *  apps it may read share. */
 function appContext(s: GlassState, app: AppDef): AppContext {
-  return { stored: storedValues(app, s.stored?.[app.type]), store: <S,>(state: S, patch: Record<string, unknown>) => new StoreWrite(state, patch) as unknown as S };
+  return {
+    stored: storedValues(app, s.stored?.[app.type]),
+    store: <S,>(state: S, patch: Record<string, unknown>) => new StoreWrite(state, patch) as unknown as S,
+    shared: readableShared(s, app.permissions?.reads ?? []),
+  };
 }
 
-/** A core's answer: new state for the instance, and any persistent values it wrote. */
+/** A core's answer: new state for the instance, any persistent values it wrote, and its public state. */
 function applyCore(s: GlassState, app: AppDef, id: string, out: unknown, keepState = true): GlassState {
   const next = out instanceof StoreWrite ? out.state : out;
   let state = keepState && next !== undefined ? { ...s, appState: { ...s.appState, [id]: next } } : s;
   if (out instanceof StoreWrite) state = writeStored(state, app, out.patch);
+  if (app.share && state.appState[id] !== s.appState[id]) state = writeShared(state, app, id);
   return state;
+}
+
+/** Recompute an instance's public state (share(), JSON, within the size limit; else nothing). */
+function writeShared(s: GlassState, app: AppDef, id: string): GlassState {
+  let data: unknown;
+  try {
+    const out = app.share!(s.appState[id]);
+    const json = out === undefined ? undefined : JSON.stringify(out);
+    data = json !== undefined && json.length <= SHARED_MAX_BYTES ? JSON.parse(json) : undefined;
+  } catch { data = undefined; } // a broken share() shares nothing
+  const { [id]: _old, ...rest } = s.shared ?? {};
+  if (data === undefined) return s.shared && id in s.shared ? { ...s, shared: rest } : s;
+  return { ...s, shared: { ...rest, [id]: data } };
 }
 
 /** Write an app's persistent values: declared keys, JSON, within the size limit. undefined resets one. */

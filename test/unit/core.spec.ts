@@ -22,6 +22,7 @@ import { collectHooks, runHooks, subscriptions } from '../../src/core/apphooks';
 import { APPS } from '../../src/apps/registry';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
+import { readableShared } from '../../src/core/shared';
 import type { GlassState } from '../../src/core/types';
 
 const ctx: EventContext = { ingestFile: (p) => `/stored/${p.split('/').pop()}`, readText: () => '# plan from disk' };
@@ -449,6 +450,18 @@ describe('custom apps', () => {
     s = reduce(s, { type: 'stored.reset', app: 'tool-count' }).state;
     expect(s.stored?.['tool-count']).toBeUndefined();
   });
+  it('public state: share() picks what other apps see; only apps whose permissions.reads lists the type read it', () => {
+    let s = apply(fresh(), { e: 'tool.start', tool: 'Bash', id: 'b1', input: {} });
+    s = reduce(s, { type: 'app.command', id: 'tool-count', command: 'note', args: { text: 'private' } }).state;
+    expect(s.shared?.['tool-count']).toEqual({ counts: { Bash: 1 } }); // the note isn't shared
+    expect(APPS.guard.permissions?.reads).toEqual(['tool-count']);
+    expect(readableShared(s, APPS.guard.permissions!.reads)).toEqual([{ id: 'tool-count', type: 'tool-count', title: 'Tool count', data: { counts: { Bash: 1 } } }]);
+    expect(readableShared(s, [])).toEqual([]); // no permission, nothing
+    expect(readableShared(s, ['diff'])).toEqual([]);
+    s = reduce(s, { type: 'instance.delete', id: 'tool-count' }).state;
+    expect(s.shared?.['tool-count']).toBeUndefined();
+    expect(() => parsePermissions({ reads: ['Not A Type'] })).toThrow(/not an app type/);
+  });
   it('a stored write from an event does not create a window that has nothing to show', () => {
     // tool-count is a singleton that auto-creates on its first change; here only the count changes.
     const s = apply(fresh(), { e: 'tool.start', tool: 'Read', id: 'r', input: {} });
@@ -610,9 +623,9 @@ describe('state colors', () => {
 
 describe('app permissions', () => {
   it('none by default; explicit origins only', () => {
-    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false });
+    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false, reads: [] });
     expect(parsePermissions({ network: ['http://127.0.0.1:3100/api', 'ws://127.0.0.1:3100'], microphone: true, storage: true }))
-      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false, twoWay: false });
+      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false, twoWay: false, reads: [] });
     // Answering back into the session is its own, explicit permission.
     expect(parsePermissions({ twoWay: true }).twoWay).toBe(true);
     expect(parsePermissions({ twoWay: 'yes' }).twoWay).toBe(false);
