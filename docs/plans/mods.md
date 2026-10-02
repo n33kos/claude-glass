@@ -4,17 +4,18 @@ Claude Code mods (function hooks: `register(on)`, middleware over every event, a
 the glass see events exactly, act on them in-process, and, when an app is allowed to, talk back.
 This plan covers everything we'd build on that, in phases. Each phase ships on its own.
 
-**North star, revised (2026-10-01).** The core stays one-way: Claude shows, the user watches.
-Two-way is an opt-in **per-app permission**. A two-way app can answer approvals and questions,
-add context to a prompt, or start/stop a turn. It never changes how the core works, and every
-two-way path falls back to Claude Code's own UI when the glass is closed, slow or absent.
+**North star, revised again (2026-10-02).** The glass is interactive: Claude shows its work, and
+the user answers back from it (messages, commands, approvals, questions, point and ask, Stop).
+Everything that reaches the session goes through the mod, and every path falls back to Claude
+Code's own UI when the glass is closed, slow or absent. Custom apps answer back only with the
+`twoWay` permission, and may then hook any mod event.
 
 ## Phase 0 — Foundations
 
 - [x] Claude Code 2.1.287; mods are on for this account (a server flag; no env override needed —
       `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` does nothing in 2.1.287). Minimum in the README
 - [x] North star reworded in `CLAUDE.md`, `README.md`, `docs/apps.md` and `ROADMAP.md`:
-      "primarily one-way; two-way is an app's opt-in permission"; CLI first, no servers
+      (since dropped: the glass is interactive); CLI first, no servers
 - [x] **The glass mod replaced the settings hooks.** `hooks/hooks.json` is just
       `"modules": ["./glass-mod.ts"]` (TypeScript Claude Code loads as is; no build step, so it
       works before the first build). The old path is deleted:
@@ -48,12 +49,11 @@ two-way path falls back to Claude Code's own UI when the glass is closed, slow o
       guide, events and the reminder, approvals, a two-way app's refusal; the CLI answered from the
       test). Part of `npm test`; vitest files are `*.spec.ts` so the two runners don't collide
 - [x] The plugin is renamed `glass` (`claude-` names are reserved); CLI, repo, app keep theirs
-- [ ] At release: rename the entry in `~/claude-plugins/.claude-plugin/marketplace.json` to
-      `glass` in the same push (not before: the installed `claude-glass@n33kos` would break)
+- [x] Released as 3.0.0 with the marketplace entry renamed `glass` (`~/claude-plugins`)
 - [x] The glass's own "mods" are "apps" now (`src/core/customApps.ts`, the `apps` op,
       `test/fixtures/apps`); "mod" only means the Claude Code mod
 
-## Phase 1 — Exact, deterministic signals and attention (one-way)
+## Phase 1 — Exact, deterministic signals and attention
 
 Events, not Claude's memory, drive the signal layer and window order, so they're right every time.
 
@@ -181,11 +181,11 @@ Separate from the Action app's first version; we try it and keep what works.
       to make shows its options there (1–4); otherwise just "Answer here instead". Either way the
       way back to Claude Code's own dialog stays one key away
 - [x] The same for permission cards (Phase 2)
-- [ ] Decide after using it: keep questions off by default, or turn them on
+- [x] Questions come to the glass by default while it's open (Action → settings turns it off)
 
 ## Phase 3 — Two-way apps: the mods interface for app authors
 
-- [x] An app's `core.js` may export `register(on)` (two-way apps only; a one-way app that does
+- [x] An app's `core.js` may export `register(on)` (two-way apps only; any other app that does
       isn't loaded), mirroring mods: `on(event, matcher?, async (glass, e, next) => …)` over
       `tool.call` and `prompt.submit` (before Claude Code acts; no "after" across the process
       boundary). `src/core/apphooks.ts`. The glass tells the mod which tools are hooked in its
@@ -193,8 +193,15 @@ Separate from the Action app's first version; we try it and keep what works.
       `claude-glass hook <event>`. Checked live: an app refused a command, Claude read why
 - [x] `glass` handle: `stored` / `store(patch)`, `ask(question, options)` (an Action card; the
       wait doesn't count toward the handler's 10s)
-- [ ] More events and handle methods when an app needs them (`tool.check`, `turn.*`,
-      `prompt.submit` from a handler, `turn.abort`)
+- [x] Any mod event, by Claude Code's own name: the mod hooks `*` and forwards what an app
+      subscribed to, as Claude Code has it (no list to keep in step; `src/core/hookable.ts`
+      names the few that can't be: streams, drawing, the mod's transport)
+- [ ] Handle methods when an app needs them (`prompt.submit` from a handler, `turn.abort`)
+- [x] **Public state**: a core's `share(state)`; readers list types in `permissions.reads`;
+      cached only for types some app reads. Built-ins share basics (Changes, Tasks, Terminal,
+      Files, Tests, Conversation)
+- [x] **Conversation** always has a message box (with the attached context as chips);
+      **Terminal** has a command line that sends `!<command>` for Claude to run
 - [x] **Claude asks the glass**: the mod registers `mcp__glass__ask` (question, options) in
       sessions that start with a glass open → an Action card → "The user answered: …". No
       preview field: Claude points at windows already on the glass
@@ -242,7 +249,7 @@ Decided against for the time being; revisit only if there's a clear need.
 ## Risks and open questions
 
 - Latency: a forwarded event costs one CLI call (~40 ms); forward only what's subscribed and
-  don't await one-way forwards
+  don't await event batches (only hooks an app answers are awaited)
 - Racing the terminal prompt (Phase 2 spike) decides how the Action app feels
 - Mods run before settings hooks: a mod that answers `tool.call` skips other plugins'
   PreToolUse hooks. Ours always calls `next` unless the user answered

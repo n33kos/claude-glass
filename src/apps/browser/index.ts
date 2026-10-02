@@ -8,7 +8,7 @@ import { type AppDef, type Args, capTail, str, unknownCommand } from '../types';
 //    `frame --file`. Only the latest one is kept.
 //  - web: Claude's WebSearch/WebFetch, filled by hooks. Search results render as a list; fetched
 //    pages load in a hidden, sandboxed Electron window whose frames stream in like cdp.
-// One-way: the glass watches, it never clicks or types into a page Claude is using.
+// Watch only: the glass never clicks or types into a page Claude is using.
 
 export interface WebResult { title: string; url: string }
 export type WebActivity =

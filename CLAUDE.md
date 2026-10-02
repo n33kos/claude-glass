@@ -3,16 +3,15 @@
 Read `README.md` first (what it is, how the pieces fit, settings), then `docs/apps.md` (the app format).
 
 ## North star: a window into Claude's desktop
-Claude Glass is a primarily one-way window into what Claude is doing. Claude shows; the user
-watches. Tiling, dragging, desktops, and settings are conveniences for *viewing*.
+Claude Glass is an interactive window onto what Claude is doing: Claude shows its work there,
+and the user can answer back from it (messages, commands, approvals, questions, point and ask,
+Stop). Tiling, dragging, desktops and settings shape how it's viewed.
 
-- Prefer one-way (Claude → glass) for every feature. It keeps the architecture clean.
-- Some user interaction is fine when it only changes how things are viewed (layout, opacity,
-  which revision is shown).
-- Two-way (the glass answering back into the session: approvals, questions, prompt context) is
-  allowed only as an app's opt-in permission, through the mod, and must never shape the core.
-  Every workflow (terminal, tmux, voice, IDE) receives input differently, so Claude Code's own
-  prompts always keep working. The plan is `docs/plans/mods.md`.
+- Everything that reaches the session goes through the mod; nothing else talks to Claude Code.
+  Claude Code's own prompts always keep working too: every workflow (terminal, tmux, voice, IDE)
+  takes input its own way, and the glass is one more, never the only one.
+- Custom apps answer back only with the `twoWay` permission; the built-ins that do (Action,
+  Conversation, Terminal) are reviewed here. The plan is `docs/plans/mods.md`.
 - CLI first, no servers: the mod, the user and Claude all drive a glass through the
   `claude-glass` CLI over its Unix socket. Never add a port, HTTP endpoint or daemon.
 - Not a file browser, IDE, or editor. Apps render what Claude did or chose to show.

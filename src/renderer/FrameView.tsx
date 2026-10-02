@@ -80,8 +80,9 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
     else if (service === 'attach' && typeof args.text === 'string' && (app.builtin || app.permissions.twoWay)) {
       void dispatch({ type: 'attach.add', label: String(args.label ?? app.title), text: args.text, from: app.type });
     }
-    // Conversation's message box: sent as the user's prompt (with what's attached), once Claude is free.
-    else if (service === 'prompt' && app.type === 'conversation' && typeof args.text === 'string') window.glass.submitPrompt(args.text, 'conversation');
+    // Conversation's message box, Terminal's command line: sent as the user's prompt (with what's
+    // attached), once Claude is free. Only these built-ins; other apps can't speak for the user.
+    else if (service === 'prompt' && (app.type === 'conversation' || app.type === 'terminal') && app.builtin && typeof args.text === 'string') window.glass.submitPrompt(args.text, 'conversation');
     else if (service === 'detach' && app.type === 'conversation' && typeof args.id === 'string') void dispatch({ type: 'attach.remove', id: args.id });
   }
 

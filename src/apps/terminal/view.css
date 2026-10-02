@@ -36,4 +36,9 @@
 .t-log { color: var(--warn); padding: 3px 0; }
 .spin { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--warn); border-right-color: transparent; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* A command for Claude to run (sent as `!command`). */
+.t-input { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-top: 1px solid var(--border); background: var(--surface-sunken); }
+.t-input:focus-within { border-top-color: var(--accent-line); }
+.t-prompt { color: var(--ok); flex: none; }
+.t-input input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--text-1); font: inherit; padding: 3px 0; }
 .t-empty { color: var(--text-3); padding: var(--space-5) var(--space-1); font-family: var(--font-sans); }

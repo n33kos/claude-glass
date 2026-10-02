@@ -10,8 +10,8 @@ claude-glass apps                 # what's installed, and why a broken app didn'
 claude-glass close && claude-glass open   # restart the glass to pick up changes
 ```
 
-The glass is primarily one-way: Claude shows, the user watches. An app displays things; its view can
-change how things are viewed (select, page, filter) but has no way to send anything to Claude.
+An app displays things; its view changes how they're viewed (select, page, filter). Reaching into
+the Claude session (hooks, point and ask) takes the `twoWay` permission (see Two-way apps).
 
 ## The folder
 
@@ -231,7 +231,7 @@ it can't change another app's state or run its commands. Without `reads`, nothin
 
 ## Two-way apps
 
-The glass is one-way unless an app says otherwise: with `"permissions": { "twoWay": true }` in
+With `"permissions": { "twoWay": true }` in
 its manifest (Settings shows it as "answering Claude"), an app may hook the Claude session, like a
 [Claude Code mod](https://code.claude.com/docs/en/plugins/mods/overview)'s `register(on)`.
 The glass mod forwards the events your app hooks, before Claude Code acts on them:
@@ -310,7 +310,7 @@ storage and the storage and cookies of its declared origins (e.g. to log an embe
 
 Everything else, for every app, stays denied. Apps with these permissions can talk back to other
 services (a voice app, say): that's allowed as the app's own choice. Only `twoWay` reaches back
-into the Claude session, and only through the hooks above; the glass core stays one-way.
+into the Claude session, and only through the hooks above.
 
 ## Turning apps off
 

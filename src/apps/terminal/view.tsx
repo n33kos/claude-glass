@@ -39,6 +39,27 @@ function Entry({ e, cwd, locked, host }: { e: TermEntry; cwd: string; locked: bo
   );
 }
 
+/** A command for Claude to run: sent as your prompt with Claude Code's `!` prefix, once Claude is free. */
+function CommandLine({ host }: { host: AppViewProps['host'] }) {
+  const [cmd, setCmd] = useState('');
+  const [sent, setSent] = useState(false);
+  const send = () => {
+    const c = cmd.trim().replace(/^!\s*/, '');
+    if (!c) return;
+    host('prompt', { text: `!${c}` });
+    setCmd('');
+    setSent(true);
+    setTimeout(() => setSent(false), 2500);
+  };
+  return (
+    <form className="t-input" onSubmit={(e) => { e.preventDefault(); send(); }}>
+      <span className="t-prompt" aria-hidden>!</span>
+      <input value={cmd} onChange={(e) => setCmd(e.target.value)} spellCheck={false} aria-label="A command for Claude to run"
+        placeholder={sent ? 'Sent: Claude runs it once it\'s free' : 'Run a command through Claude…'} />
+    </form>
+  );
+}
+
 export default function TerminalView({ state, run, session, host }: AppViewProps<TerminalState>) {
   const tools = useMemo(() => [...new Set(state.entries.filter((e) => e.tool).map((e) => e.tool!))].sort(), [state.entries]);
   const hidden = new Set(state.hidden);
@@ -63,6 +84,7 @@ export default function TerminalView({ state, run, session, host }: AppViewProps
         {visible.length === 0 && <div className="t-empty">Tool calls show up here as Claude works.</div>}
         {visible.map((e) => <Entry key={e.id} e={e} cwd={session.cwd} locked={e.id === lockedId} host={host} />)}
       </div>
+      {!session.ended && <CommandLine host={host} />}
     </div>
   );
 }

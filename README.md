@@ -7,7 +7,9 @@ web pages it reads. When Claude wants to *show* you something, like a chart, a m
 comparison or a write-up, it puts it on the glass with one command.
 
 It's built for working with Claude like a coworker, especially by voice, when you can't easily see
-what Claude sees. It is primarily one-way: Claude shows, you watch.
+what Claude sees, and it talks back: message Claude from Conversation, run commands through it
+from Terminal, approve its permission prompts, answer its questions, point at a change and ask,
+or stop it mid-turn.
 
 *Why "Claude Glass"?* A [Claude glass](https://en.wikipedia.org/wiki/Claude_glass) was an
 18th-century tinted mirror that painters and travelers used to look at a scene through glass,
@@ -316,10 +318,9 @@ Claude Code session
   socket) and nothing is recorded. Reopening a glass restores its history.
 - **Never block Claude.** The mod hands events over in the background, in order; a slow or
   frozen glass can't hold Claude up.
-- **Primarily one-way.** Your interactions change how things are viewed (layout, what's selected,
-  which revision is shown) and don't reach Claude. Every workflow (terminal, tmux, voice, IDE)
-  takes input differently, so anything that does talk back will be an app's opt-in permission,
-  never part of the core.
+- **One more way in, never the only one.** What you send from the glass goes through the mod,
+  exactly as if typed; Claude Code's own prompts keep working, so the terminal, tmux, voice or an
+  IDE work alongside it. Custom apps answer back only with the `twoWay` permission.
 
 **Protocol.** One JSON line per connection: `{"op": …}` → `{"ok": true, "result": …}` or
 `{"ok": false, "error": …}`. Ops: `ping`, `event` (session events from the mod), `dispatch` (a
@@ -403,7 +404,7 @@ skills/, scripts/, bin/   the rest of the Claude Code plugin
 
 - macOS only for now.
 - Needs Claude Code mods (2.1.287+); without them the glass opens but doesn't fill itself.
-- Primarily one-way: you can arrange and read, but nothing you do in the glass reaches Claude yet.
+- What you send from the glass waits until Claude is free (like a prompt typed mid-turn).
 
 ## License
 

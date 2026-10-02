@@ -1,7 +1,7 @@
 # Roadmap
 
 Ideas and planned features, roughly in priority order. Everything here must fit the north star in
-`CLAUDE.md`: primarily one-way; anything that reaches Claude is an app's opt-in permission. The
+`CLAUDE.md`: an interactive window, where everything that reaches Claude goes through the mod. The
 mods work (deterministic signals, the Action app, two-way apps, persistent app state) is planned
 in `docs/plans/mods.md`.
 

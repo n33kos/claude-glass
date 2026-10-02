@@ -160,7 +160,7 @@ export interface AppPermissions {
   microphone: boolean;
   storage: boolean; // its own persistent localStorage/IndexedDB (origin glass-app://<type>)
   sharedSignIn: boolean; // its network origins' sign-in (localStorage + cookies) follows the user to every glass
-  twoWay: boolean; // it may answer back into the Claude session (approvals, questions): the glass is otherwise one-way
+  twoWay: boolean; // it may answer back into the Claude session (hooks, point and ask)
   reads: string[]; // app types whose public state (their share()) it may read
 }
 
