@@ -25,6 +25,12 @@ const hooked = (tool: string) => (subs['tool.call'] ?? []).some((t) => t === '*'
 
 const bin = ($: any) => `${$.plugin.root}/bin/claude-glass`
 
+/** Whether this session's glass is open (its socket is there); a check that fails means no. */
+async function glassUp($: any): Promise<boolean> {
+  if (!sock) return false
+  try { return await $.fs.exists(sock) } catch { return false }
+}
+
 function send($: any, ev: Ev) {
   if (!cid) return
   if (ev.e === 'text') {
@@ -42,7 +48,7 @@ async function flush($: any) {
     while (queue.length) {
       const batch = queue
       queue = []
-      if (!sock || !(await $.fs.exists(sock))) continue // no glass: off means off
+      if (!(await glassUp($))) continue // no glass: off means off
       const stdin = batch.map((x) => JSON.stringify(x)).join('\n') + '\n'
       const r = await $.process.run([bin($), 'event', '--session', cid], { stdin, timeoutMs: 5000 }).catch(() => null)
       try { const out = JSON.parse(String(r?.stdout ?? '').trim() || 'null'); if (out?.hooks) subs = out.hooks } catch {}
@@ -85,7 +91,7 @@ async function controlsOn($: any): Promise<boolean> {
 async function watchControls($: any, gen: number) {
   if (gen !== watching) return
   // Nothing to collect without a glass, or with the controls off: look again in a while.
-  if (!cid || !sock || !(await $.fs.exists(sock)) || !(await controlsOn($))) {
+  if (!cid || !(await glassUp($)) || !(await controlsOn($))) {
     $.clock.after(15_000, () => { void watchControls($, gen) })
     return
   }
@@ -240,14 +246,14 @@ export function register(on: any) {
   // The guide, with the first message of each conversation, while a glass is open.
   on('prompt.context', async ($: any, e: any, next: any) => {
     const r = await next(e)
-    if (!guide || !sock || !(await $.fs.exists(sock))) return r
+    if (!guide || !(await glassUp($))) return r
     return { ...r, blocks: [...r.blocks, { name: 'claudeGlass', text: guide }] }
   })
 
   // A prompt goes through the glass while one is open: what the user attached there joins it as
   // context Claude reads, and two-way apps that hook prompts may change it or keep it back.
   on('prompt.submit', async ($: any, e: any, next: any) => {
-    if (!sock || !(await $.fs.exists(sock))) return next(e)
+    if (!(await glassUp($))) return next(e)
     const r = await ask($, ['hook', 'prompt.submit'], JSON.stringify({ text: e.text, context: e.context ?? [] }), LONGEST)
     if (r?.answer?.drop !== undefined) return { drop: String(r.answer.drop) }
     if (!r?.e) return next(e)
@@ -297,7 +303,7 @@ export function register(on: any) {
     const { tool, tool_use_id: id, agentId, ...input } = e
     const at = Date.now()
     send($, { e: 'tool.start', id, tool, input, agentId, cwd })
-    const glassOpen = !!sock && (await $.fs.exists(sock))
+    const glassOpen = await glassUp($)
     // Two-way apps that hook this tool may refuse it or answer it themselves.
     const app = glassOpen && hooked(tool) ? (await ask($, ['hook', 'tool.call'], JSON.stringify({ tool, input, agentId }), LONGEST))?.answer : null
     // The questions experiment: the glass may answer Claude's question (else Claude Code's dialog).
@@ -312,8 +318,8 @@ export function register(on: any) {
       : await next(e)
     const error = errorOf(r)
     send($, { e: 'tool.end', id, tool, input, result: error ? undefined : slim(r?.result), error, durationMs: Date.now() - at, agentId, cwd })
-    if (tool === 'Bash' && !error && toolReminders && !agentId && sock && FILE_IO.test(String(input.command ?? ''))
-      && !/^\s*git\s|claude-glass\s/.test(String(input.command)) && (await $.fs.exists(sock))) {
+    if (tool === 'Bash' && !error && toolReminders && !agentId && glassOpen && FILE_IO.test(String(input.command ?? ''))
+      && !/^\s*git\s|claude-glass\s/.test(String(input.command))) {
       return { ...r, context: [...(r.context ?? []), REMINDER] }
     }
     return r
@@ -329,7 +335,7 @@ export function register(on: any) {
   // and, with approvals on (the Action app), asks it there and in the band above the prompt.
   on('classic.PermissionRequest', async ($: any, e: any, next: any) => {
     send($, { e: 'permission', tool: e.tool_name, input: e.tool_input })
-    if (!sock || !(await $.fs.exists(sock))) return next(e)
+    if (!(await glassUp($))) return next(e)
     const decided = await approve($, e, next.signal)
     return decided ?? next(e)
   })

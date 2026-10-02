@@ -23,7 +23,9 @@ watches. Tiling, dragging, desktops, and settings are conveniences for *viewing*
 ## Commands
 - `npm install` — deps (Electron, React, esbuild, vitest, playwright)
 - `npm run build` — esbuild bundles everything into `dist/` (cli, main, preload, renderer)
-- `npm test` — vitest unit + integration (no Electron needed)
+- `npm test` — vitest unit + integration (`test/unit/*.spec.ts`, no Electron needed), then the
+  mod's own tests in Claude Code's runtime (`claude plugin test .`: `hooks/*.test.ts`; that runner
+  takes every `*.test.ts` in the plugin, so vitest files are `*.spec.ts`)
 - `npm run typecheck` — `tsc --noEmit`
 - `npm run e2e` — builds, launches Electron via Playwright, writes PNGs to `test/screenshots/`
 - `npm run demo -- <session-id>` — opens a glass and seeds it with demo content (manual look)

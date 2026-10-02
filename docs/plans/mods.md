@@ -44,7 +44,9 @@ two-way path falls back to Claude Code's own UI when the glass is closed, slow o
 - [x] Vitest unit + integration tests on recorded events, the CLI's `event` and `session-start`;
       e2e seeds through `claude-glass event`. Verified live: a headless `claude -p` session with
       `--plugin-dir` filled every window, got the guide and the reminder
-- [ ] Mod unit tests with `claude plugin test` (`hooks/*.test.ts`)
+- [x] Mod unit tests with `claude plugin test` (`hooks/glass-mod.test.ts`: session start and the
+      guide, events and the reminder, approvals, a two-way app's refusal; the CLI answered from the
+      test). Part of `npm test`; vitest files are `*.spec.ts` so the two runners don't collide
 - [x] The plugin is renamed `glass` (`claude-` names are reserved); CLI, repo, app keep theirs
 - [ ] At release: rename the entry in `~/claude-plugins/.claude-plugin/marketplace.json` to
       `glass` in the same push (not before: the installed `claude-glass@n33kos` would break)

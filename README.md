@@ -371,7 +371,7 @@ two groups (tests use temp folders).
 ```sh
 npm install
 npm run build       # esbuild → dist/ (CLI, main, preload, renderer, built-in apps) + the shared Claude Glass.app
-npm test            # unit + integration: the core runs in plain Node, driven by the real CLI
+npm test            # unit + integration (the core in plain Node, driven by the real CLI), then the mod's tests (claude plugin test)
 npm run typecheck
 npm run e2e         # launches Electron via Playwright, checks behavior, writes screenshots to test/screenshots/
 npm run demo -- <session-id>   # open a glass seeded with demo content

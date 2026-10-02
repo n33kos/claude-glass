@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/build.mjs && node scripts/make-app.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run test/unit && claude plugin test .",
     "e2e": "npm run build && node test/e2e/run.mjs",
     "demo": "npm run build && node scripts/demo.mjs"
   },
