@@ -75,7 +75,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   background: var(--surface-bar); /* no backdrop blur on always-on surfaces: see .window */
   border-bottom: 1px solid var(--border-subtle);
 }
-.topbar button { -webkit-app-region: no-drag; }
+.topbar :is(button, input, select, textarea) { -webkit-app-region: no-drag; }
 /* macOS fullscreen hides the traffic lights, so their inset goes too. */
 .fullscreen .topbar { padding-left: var(--space-5); }
 .session { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
