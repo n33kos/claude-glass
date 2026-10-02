@@ -216,6 +216,19 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       return { state: { ...s, stored: { ...s.stored, [a.app]: next } } };
     }
 
+    case 'attach.add': {
+      const text = String(a.text ?? '').slice(0, 20_000);
+      if (!text.trim()) throw new Error('nothing to attach');
+      const att = { id: `att-${Date.now().toString(36)}-${(s.attachments?.length ?? 0)}`, label: String(a.label ?? 'From the glass').slice(0, 120), text, from: String(a.from ?? ''), at: Date.now() };
+      return { state: { ...s, attachments: [...(s.attachments ?? []), att].slice(-8) } };
+    }
+
+    case 'attach.remove':
+      return { state: { ...s, attachments: (s.attachments ?? []).filter((x) => x.id !== a.id) } };
+
+    case 'attach.clear':
+      return { state: s.attachments?.length ? { ...s, attachments: [] } : s };
+
     case 'stored.reset': {
       if (!s.stored?.[a.app]) return { state: s };
       if (Array.isArray(a.keys)) {

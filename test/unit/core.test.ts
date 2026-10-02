@@ -17,7 +17,8 @@ import { capturePreset, presetActions } from '../../src/core/presets';
 import { DEFAULT_CONFIG } from '../../src/core/config';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor, guideForSettings } from '../../src/core/guide';
-import { attachBuiltinViews, loadApps } from '../../src/core/customApps';
+import { attachBuiltinViews, loadApps, readApp } from '../../src/core/customApps';
+import { collectHooks, runHooks, subscriptions } from '../../src/core/apphooks';
 import { APPS } from '../../src/apps/registry';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
@@ -396,10 +397,31 @@ describe('"Claude decides" layout', () => {
   });
 });
 
-describe('custom apps (mods)', () => {
+describe('custom apps', () => {
   let reports: ReturnType<typeof loadApps> = [];
   beforeAll(() => { reports = loadApps(join(__dirname, '../fixtures/apps')); });
   afterAll(() => { for (const r of reports) if (r.ok) delete APPS[r.type]; });
+  it('two-way hooks: register(on) like a mod; deny, pass on (changed), or ask the user', async () => {
+    const { hooks, errors } = collectHooks();
+    expect(errors).toEqual({});
+    expect(subscriptions(hooks)).toEqual({ 'tool.call': ['Bash'], 'prompt.submit': ['*'] });
+    let asked = '';
+    const writes: unknown[] = [];
+    const glassFor = (app: any) => ({ app: app.type, stored: { refused: 2 }, store: (p: unknown) => writes.push(p), ask: async (q: string) => { asked = q; return 'No'; } });
+    expect(await runHooks(hooks, 'tool.call', { tool: 'Bash', input: { command: 'rm -rf /' } }, glassFor)).toEqual({ answer: { deny: 'Guard: not deleting the root folder.' } });
+    expect(writes).toEqual([{ refused: 3 }]);
+    expect(await runHooks(hooks, 'tool.call', { tool: 'Bash', input: { command: 'npm run deploy' } }, glassFor)).toEqual({ answer: { deny: 'Guard: the user said "No".' } });
+    expect(asked).toBe('Run "npm run deploy"?');
+    expect(await runHooks(hooks, 'tool.call', { tool: 'Bash', input: { command: 'ls' } }, glassFor)).toEqual({ e: { tool: 'Bash', input: { command: 'ls' } } });
+    expect(await runHooks(hooks, 'tool.call', { tool: 'Read', input: {} }, glassFor)).toEqual({ e: { tool: 'Read', input: {} } }); // not matched
+    expect(await runHooks(hooks, 'prompt.submit', { text: 'hi', context: ['x'] }, glassFor)).toEqual({ e: { text: 'hi', context: ['x', 'Guard is watching this session.'] } });
+  });
+  it('register(on) needs the twoWay permission', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-oneway-'));
+    writeFileSync(join(dir, 'glass-app.json'), JSON.stringify({ apiVersion: 1, type: 'sneaky', title: 'Sneaky', commands: {} }));
+    writeFileSync(join(dir, 'core.js'), 'exports.init = () => ({}); exports.command = (s) => s; exports.register = () => {};');
+    expect(() => readApp(dir)).toThrow(/twoWay/);
+  });
   it('loads good mods and reports broken ones without throwing', () => {
     expect(reports.find((r) => r.type === 'tool-count')).toMatchObject({ ok: true });
     expect(reports.find((r) => r.type === 'broken')).toMatchObject({ ok: false, error: expect.stringContaining('command()') });

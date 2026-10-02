@@ -491,6 +491,12 @@ export function App() {
             {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
           </span>
           {config.interruptButton === true && presence === 'working' && <StopButton />}
+          {(state.attachments ?? []).map((a) => (
+            <span key={a.id} className="attach-chip" title={`Goes with your next prompt, as context Claude reads:\n\n${a.text.slice(0, 600)}`}>
+              <i aria-hidden />{a.label}
+              <button aria-label={`Don't attach ${a.label}`} onClick={() => void dispatch({ type: 'attach.remove', id: a.id })}>×</button>
+            </span>
+          ))}
         </div>
         {s.modMissing && !s.endedAt && (
           <span className="mod-missing" title="The Claude Glass mod isn't running in this Claude session, so the glass doesn't fill itself. It needs Claude Code 2.1.287 or newer with mods allowed; start a new session once that's fixed.">
@@ -503,6 +509,7 @@ export function App() {
             <button key={p.index} className={p.index === v ? 'on' : ''} onClick={() => setView(p.index)} title={`Desktop ${p.index + 1}`} />
           ))}
         </nav>
+        {config.askBox === true && !s.endedAt && <AskBox />}
         {config.contextGauge !== false && <ContextGauge usage={s.usage} />}
         <Version />
       </header>
@@ -622,6 +629,17 @@ function ContextGauge({ usage }: { usage?: SessionUsage }) {
       </svg>
       {pct}%
     </span>
+  );
+}
+
+/** Ask Claude from the glass (askBox, two-way): sent as your prompt, once Claude is free. */
+function AskBox() {
+  const [text, setText] = useState('');
+  const [sent, setSent] = useState(false);
+  return (
+    <form className="ask-box" onSubmit={(e) => { e.preventDefault(); if (!text.trim()) return; window.glass.submitPrompt(text); setText(''); setSent(true); setTimeout(() => setSent(false), 2500); }}>
+      <input value={text} onChange={(e) => setText(e.target.value)} placeholder={sent ? 'Sent to Claude' : 'Ask Claude…'} aria-label="Ask Claude (sent as your prompt)" />
+    </form>
   );
 }
 

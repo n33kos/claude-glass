@@ -29,6 +29,14 @@ export interface SessionInfo {
   usage?: SessionUsage; // the context window, cost and plan limits, as Claude Code measures them
 }
 
+export interface Attachment {
+  id: string;
+  label: string; // what the chip says ("server.ts, lines 38–45")
+  text: string; // what Claude reads
+  from: string; // the app it came from
+  at: number;
+}
+
 export interface SessionUsage {
   context?: { tokens: number; window: number; percent: number };
   cost?: { usd: number };
@@ -99,6 +107,7 @@ export interface GlobalConfig {
   turnProgress: boolean; // a thin white bar along the bottom while Claude works on a turn
   contextGauge: boolean; // how full Claude's context window is, in the top bar
   interruptButton: boolean; // two-way: a Stop button in the top bar while Claude works (ends the turn)
+  askBox: boolean; // two-way: an "Ask Claude" field in the top bar, sent as the user's prompt
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
@@ -123,6 +132,9 @@ export interface GlassState {
   stored?: Record<string, Record<string, unknown>>;
   settings: SessionSettings;
   ui: { viewingDesktop: number };
+  // Things the user attached from the glass for their next prompt (point and ask): the mod adds
+  // them as context Claude reads with it, then they're gone.
+  attachments?: Attachment[];
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
   // Windows docked at an edge or corner (shown to users as "dock"; stored as "tucked"): out of the
@@ -158,6 +170,9 @@ export type Action =
   | { type: 'stored.set'; app: string; values: Record<string, unknown> } // write an app's persistent values (undefined resets one)
   | { type: 'stored.load'; app: string; values: Record<string, unknown> } // values another glass saved (project/global files)
   | { type: 'stored.reset'; app: string; keys?: string[] } // back to the defaults: those keys, or every one
+  | { type: 'attach.add'; label: string; text: string; from: string } // the glass's own window only
+  | { type: 'attach.remove'; id: string }
+  | { type: 'attach.clear' }
   | { type: 'window.tuck'; id: string; edge: Dock; index?: number } // dock it; index: position in the dock (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
@@ -167,7 +182,7 @@ export type Action =
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
-  op: 'ping' | 'event' | 'dispatch' | 'action.request' | 'action.wait' | 'action.close' | 'watch' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'stored' | 'config' | 'preset' | 'quit';
+  op: 'ping' | 'event' | 'dispatch' | 'action.request' | 'action.wait' | 'action.close' | 'watch' | 'hook' | 'ask' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'stored' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

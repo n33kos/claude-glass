@@ -25,7 +25,7 @@ export interface AppManifest {
   internal?: string[];
   viewCommands?: string[];
   autoOpen?: boolean;
-  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean };
+  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean; sharedSignIn?: boolean; twoWay?: boolean };
   settings?: Record<string, unknown>;
   stored?: Record<string, unknown>; // persistent values: { key: { scope, default } }
 }
@@ -72,6 +72,8 @@ export function readApp(appDir: string): AppDef {
   if (typeof core?.init !== 'function' || typeof core?.command !== 'function') throw new Error('core.js must export init() and command()');
   if (core.onHook !== undefined) throw new Error('onHook was replaced by onEvent(state, event): see docs/apps.md');
   if (core.onEvent !== undefined && typeof core.onEvent !== 'function') throw new Error('onEvent must be a function');
+  if (core.register !== undefined && typeof core.register !== 'function') throw new Error('register must be a function');
+  if (core.register && !permissions.twoWay) throw new Error('register(on) answers back into the Claude session: it needs "permissions": { "twoWay": true }');
 
   // Icon: an image file (named in the manifest, or icon.svg/icon.png in the folder), else a glyph.
   const IMG = /\.(svg|png|jpe?g|webp)$/i;
@@ -96,6 +98,7 @@ export function readApp(appDir: string): AppDef {
     init: core.init,
     command: core.command,
     onEvent: core.onEvent,
+    register: core.register,
     guide,
     settings,
     stored,

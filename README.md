@@ -159,7 +159,12 @@ overflow spills onto the next desktop.
   answer first decides; "Ask here instead" falls back to Claude Code's own prompt. Nothing but the
   glass's own window can answer (not the CLI, not Claude). Turn it off in Settings → Apps →
   Action. An experiment there, off by default, does the same for Claude's own questions
-  (AskUserQuestion): options as buttons, or your own words.
+  (AskUserQuestion): options as buttons, or your own words. Sessions that start with a glass open
+  also give Claude a `glass` ask tool, for questions that are easier answered looking at the glass
+  ("which of these mockups?").
+- **Point and ask**: "Ask about this" on a change in Changes attaches it to your next prompt (a
+  chip in the top bar; × takes it off); Claude reads it with what you say. Opt-in extras in
+  Settings: a Stop button (`interruptButton`) and an Ask Claude field (`askBox`) in the top bar.
 
   ![Claude asked a question: the top bar, a read-only card, and amber light](docs/media/waiting.png)
 
@@ -220,6 +225,7 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `followEdits`, `followPlans`, `followWeb`, `followImages`, `followAgents` | **off** / light / front / both / focus | when an edit, plan, search or page, image, or subagent comes in: light its window, bring it to the front, both, or both and show desktop 1. Only windows on screen move |
 | `followTests` | off / **light** / front / both / focus | the same when a test run fails (lit red) |
 | `interruptButton` | true / **false** | two-way: a Stop button in the top bar while Claude works, which ends the turn (like Esc) |
+| `askBox` | true / **false** | two-way: an Ask Claude field in the top bar; what you type is sent as your prompt (once Claude is free) |
 | `contextGauge` | **true** / false | how full Claude's context window is, in the top bar (hover: tokens, cost, plan limits; amber near full) |
 | `turnProgress` | **true** / false | a thin white bar along the bottom while Claude works: it sweeps, brightens on each model request, and fills by tasks done when Claude works through a list |
 | `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |

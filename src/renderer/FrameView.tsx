@@ -70,6 +70,11 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
     else if (service === 'open-link' && typeof args.url === 'string') window.glass.openLink(args.url);
     else if (service === 'reveal' && app.type === 'image' && Array.isArray(args.paths)) window.glass.revealFile(args.paths.filter((p): p is string => typeof p === 'string'));
     else if (service === 'show-change' && app.type === 'files' && typeof args.path === 'string') showChange(args.path);
+    // Point and ask: something from this view goes with the user's next prompt. It reaches Claude,
+    // so only built-in apps and two-way ones may offer it (and the user sees it as a chip).
+    else if (service === 'attach' && typeof args.text === 'string' && (app.builtin || app.permissions.twoWay)) {
+      void dispatch({ type: 'attach.add', label: String(args.label ?? app.title), text: args.text, from: app.type });
+    }
   }
 
   /** Files → Changes: select the file in the Changes window that has it (the live one, else the newest) and bring it into view. */

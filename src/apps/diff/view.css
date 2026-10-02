@@ -22,6 +22,9 @@
 .d-nav button { width: 24px; height: 22px; border-radius: var(--radius-sm); background: var(--surface-hover); font-size: var(--text-size-xl); line-height: 20px; }
 .d-nav button:disabled { opacity: .3; }
 .d-when { font-size: var(--text-size-xs); color: var(--text-3); white-space: nowrap; }
+/* Point and ask: this change goes with the next prompt. */
+.d-attach { flex: none; height: 24px; padding: 0 10px; border-radius: var(--radius-pill); font-size: var(--text-size-xs); color: var(--text-2); background: var(--surface-hover); cursor: pointer; white-space: nowrap; }
+.d-attach:hover { color: var(--accent-text); background: var(--accent-soft); }
 .d-note { margin: var(--space-3) var(--space-4) 0; color: var(--text-2); }
 .d-hunks { flex: 1; overflow: auto; padding: var(--space-3) 0 var(--space-5); }
 .d-hunk { width: 100%; border-collapse: collapse; font: var(--text-size-sm)/1.55 var(--font-mono); margin-bottom: var(--space-3); }

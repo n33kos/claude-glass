@@ -465,6 +465,15 @@ try {
     await page.locator('[data-window="changes"]').screenshot({ path: join(shots, '08g-changes-this-turn.png') });
     check(files === 1 && (await d.locator('.d-files li').innerText()).includes('server.ts'), `Changes: "This turn" lists only the latest turn's files (${files})`);
     await d.locator('.d-scope button', { hasText: 'All' }).click();
+    // Point and ask: "Ask about this" puts the change on the next prompt, as a chip in the top bar.
+    await d.locator('.d-attach').click();
+    await sleep(300);
+    const chip = page.locator('.attach-chip');
+    check((await chip.count()) === 1 && (await chip.innerText()).includes('server.ts'), 'Ask about this attaches the change: a chip in the top bar');
+    await page.locator('header.topbar').screenshot({ path: join(shots, '08k-attached.png') });
+    await chip.locator('button').click();
+    await sleep(200);
+    check((await page.locator('.attach-chip').count()) === 0, 'the chip\'s × takes it off again');
     check((await appFrame(page, 'terminal').locator('.t-turn').count()) >= 2, 'the terminal marks where each turn starts');
   }
 

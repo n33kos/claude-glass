@@ -331,6 +331,64 @@ describe('approvals through the glass (the Action app)', () => {
   });
 });
 
+describe('two-way apps and point-and-ask, through the CLI the mod uses', () => {
+  const HS = 'hooks-session';
+  let g: GlassCore;
+  const glassCli = (args: string[], input = '') => run(join(root, 'bin/claude-glass'), [...args, '--session', HS], input);
+  const out = async (args: string[], input = '') => JSON.parse((await glassCli(args, input)).stdout);
+  beforeAll(async () => {
+    cpSync(join(root, 'test/fixtures/apps/guard'), join(home, 'apps', 'guard'), { recursive: true });
+    g = new GlassCore(HS, '/tmp/hooks-proj');
+    await g.listen();
+  });
+  afterAll(async () => { await g.close(); rmSync(join(home, 'apps', 'guard'), { recursive: true, force: true }); });
+
+  it('the glass tells the mod what to forward, in its reply to each event batch', async () => {
+    expect(await out(['event'], JSON.stringify({ e: 'turn.start', turnId: 'h1', text: 'go' }) + '\n')).toEqual({ hooks: { 'tool.call': ['Bash'], 'prompt.submit': ['*'] } });
+  });
+
+  it('a forwarded tool call: refused, passed on, or held for the user\'s answer in the glass', async () => {
+    expect(await out(['hook', 'tool.call'], JSON.stringify({ tool: 'Bash', input: { command: 'rm -rf /' } }))).toEqual({ answer: { deny: 'Guard: not deleting the root folder.' } });
+    expect(g.state.stored?.guard).toEqual({ refused: 1 });
+    expect(await out(['hook', 'tool.call'], JSON.stringify({ tool: 'Bash', input: { command: 'ls' } }))).toEqual({ e: { tool: 'Bash', input: { command: 'ls' } } });
+    // The app asks the user: an Action card; the answer from the glass window settles the call.
+    const held = out(['hook', 'tool.call'], JSON.stringify({ tool: 'Bash', input: { command: 'npm run deploy' } }));
+    let card: any;
+    for (let i = 0; i < 40 && !card; i++) { await wait(50); card = (g.state.appState.action as any)?.requests?.find((r: any) => r.status === 'pending'); }
+    expect(card).toMatchObject({ kind: 'question', tool: 'guard', summary: 'Run "npm run deploy"?' });
+    g.dispatch({ type: 'app.command', id: 'action', command: 'answer', args: { id: card.id, answers: { 'Run "npm run deploy"?': 'Yes, deploy' } } }, 'ui');
+    expect(await held).toEqual({ e: { tool: 'Bash', input: { command: 'npm run deploy' } } });
+  });
+
+  it('point and ask: what the user attached joins the next prompt as context, once; only the glass window can attach', async () => {
+    expect(() => g.dispatch({ type: 'attach.add', label: 'x', text: 'y', from: 'diff' })).toThrow(/only the glass's own window/);
+    g.dispatch({ type: 'attach.add', label: 'server.ts · change 1/2', text: '@@ -1 +1 @@\n-a\n+b', from: 'diff' }, 'ui');
+    const r = await out(['hook', 'prompt.submit'], JSON.stringify({ text: 'why this?', context: [] }));
+    expect(r.e.text).toBe('why this?');
+    expect(r.e.context).toEqual(["From the user's Claude Glass (server.ts · change 1/2):\n@@ -1 +1 @@\n-a\n+b", 'Guard is watching this session.']);
+    expect(g.state.attachments).toEqual([]);
+    expect((await out(['hook', 'prompt.submit'], JSON.stringify({ text: 'again', context: [] }))).e.context).toEqual(['Guard is watching this session.']);
+  });
+
+  it('Claude asks through the glass: an Action card, then the user\'s answer', async () => {
+    const asked = out(['ask'], JSON.stringify({ question: 'Which mockup?', options: [{ label: 'Left' }, { label: 'Right', description: 'the dark one' }] }));
+    let card: any;
+    for (let i = 0; i < 40 && !card; i++) { await wait(50); card = (g.state.appState.action as any)?.requests?.find((r: any) => r.status === 'pending' && r.tool === 'Claude'); }
+    expect(card.questions[0].options).toEqual([{ label: 'Left' }, { label: 'Right', description: 'the dark one' }]);
+    g.dispatch({ type: 'app.command', id: 'action', command: 'answer', args: { id: card.id, answers: { 'Which mockup?': 'Right' } } }, 'ui');
+    expect(await asked).toEqual({ answer: 'Right' });
+  });
+
+  it('the Ask box: only when on; the mod collects the prompt with watch', async () => {
+    g.submitPrompt('ignored: off');
+    expect(await out(['watch', '--ms', '50'])).toEqual([]);
+    g.config.askBox = true;
+    g.submitPrompt('  what changed?  ');
+    expect(await out(['watch', '--ms', '50'])).toEqual([{ kind: 'prompt', text: 'what changed?', at: expect.any(Number) }]);
+    g.config.askBox = false;
+  });
+});
+
 describe('the Stop button (controls the mod collects)', () => {
   const watchCli = (ms: string) => run(join(root, 'bin/claude-glass'), ['watch', '--session', SID, '--ms', ms], '');
   it('only with interruptButton on and Claude working; the mod collects it with claude-glass watch', async () => {

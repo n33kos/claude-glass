@@ -210,6 +210,7 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Thin progress bar along the bottom while Claude works" on={config.turnProgress !== false} onChange={(v) => setConfig('turnProgress', v)} />
       <Toggle label="How full Claude's context is, in the top bar" on={config.contextGauge !== false} onChange={(v) => setConfig('contextGauge', v)} />
       <Toggle label="A Stop button in the top bar while Claude works (it ends the turn: answers back into Claude Code)" on={config.interruptButton === true} onChange={(v) => setConfig('interruptButton', v)} />
+      <Toggle label="An Ask Claude field in the top bar (what you type is sent as your prompt: answers back into Claude Code)" on={config.askBox === true} onChange={(v) => setConfig('askBox', v)} />
 
       <h4>Windows &amp; desktops</h4>
       <Toggle label="Nested view: one screen, the focused window largest and the others smaller around it" on={config.nestedView} onChange={(v) => setConfig('nestedView', v)} />

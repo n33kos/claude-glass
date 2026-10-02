@@ -18,6 +18,10 @@ let guide: string | null = null
 let toolReminders = true
 let queue: Ev[] = []
 let sending = false
+// The tool calls two-way apps hook ({ 'tool.call': ['Bash'] }, '*' = any), from the glass's
+// replies to event batches; those calls go through `claude-glass hook` before they run.
+let subs: Record<string, string[]> = {}
+const hooked = (tool: string) => (subs['tool.call'] ?? []).some((t) => t === '*' || t === tool)
 
 const bin = ($: any) => `${$.plugin.root}/bin/claude-glass`
 
@@ -40,7 +44,8 @@ async function flush($: any) {
       queue = []
       if (!sock || !(await $.fs.exists(sock))) continue // no glass: off means off
       const stdin = batch.map((x) => JSON.stringify(x)).join('\n') + '\n'
-      await $.process.run([bin($), 'event', '--session', cid], { stdin, timeoutMs: 5000 }).catch(() => {})
+      const r = await $.process.run([bin($), 'event', '--session', cid], { stdin, timeoutMs: 5000 }).catch(() => null)
+      try { const out = JSON.parse(String(r?.stdout ?? '').trim() || 'null'); if (out?.hooks) subs = out.hooks } catch {}
     }
   } finally {
     sending = false
@@ -50,23 +55,46 @@ async function flush($: any) {
 // Controls from the glass (the Stop button, when the user turned it on). A background loop runs
 // `claude-glass watch`, which waits on the socket for one, so the glass never pushes anything.
 let turnId = '' // the main loop's running turn
+let openAtStart = false // a glass was open when the session started (then Claude gets the ask tool)
+
+const ASK_TOOL = {
+  name: 'ask',
+  description: 'Ask the user a question in their Claude Glass (the window showing your work) and wait for the answer. ' +
+    'Use it when the choice is easier to make looking at the glass: say which windows to compare (mockups, diagrams, diffs) and give 2-6 short options; ' +
+    'the user may also answer in their own words. Only works while the glass is open. For other questions, ask as usual.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      question: { type: 'string', description: 'The question, ending in a question mark' },
+      options: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, description: { type: 'string' } }, required: ['label'] }, description: '2-6 choices' },
+    },
+    required: ['question'],
+  },
+}
 let configFile = '' // the glass's config.json, to see whether the Stop button is on
 let watching = 0 // the loop's generation: a reload starts a new one, and the old one stops
 
-async function stopButtonOn($: any): Promise<boolean> {
-  try { return configFile ? JSON.parse(await $.fs.read(configFile)).interruptButton === true : false } catch { return false }
+/** Whether the user turned on a control (the Stop button, the Ask box): only then is there anything to collect. */
+async function controlsOn($: any): Promise<boolean> {
+  try {
+    const c = configFile ? JSON.parse(await $.fs.read(configFile)) : {}
+    return c.interruptButton === true || c.askBox === true
+  } catch { return false }
 }
 
 async function watchControls($: any, gen: number) {
   if (gen !== watching) return
-  // Nothing to collect without a glass, or with the button off: look again in a while.
-  if (!cid || !sock || !(await $.fs.exists(sock)) || !(await stopButtonOn($))) {
+  // Nothing to collect without a glass, or with the controls off: look again in a while.
+  if (!cid || !sock || !(await $.fs.exists(sock)) || !(await controlsOn($))) {
     $.clock.after(15_000, () => { void watchControls($, gen) })
     return
   }
   const controls = await ask($, ['watch', '--ms', '20000'], undefined, 30_000)
   for (const c of Array.isArray(controls) ? controls : []) {
     if (c?.kind === 'interrupt' && turnId) await $.turn.abort({ turnId }).catch(() => {})
+    // Asked from the glass: the user's own prompt, sent once Claude is free (not awaited, so a
+    // Stop can still come through meanwhile).
+    if (c?.kind === 'prompt' && typeof c.text === 'string') void $.prompt.submit({ text: c.text, asUser: true }).catch(() => {})
   }
   $.clock.after(100, () => { void watchControls($, gen) })
 }
@@ -80,10 +108,16 @@ async function sessionStart($: any, source: string) {
     guide = typeof info.guide === 'string' ? info.guide : null
     toolReminders = info.toolReminders !== false
     configFile = typeof info.config === 'string' ? info.config : configFile
+    subs = info.hooks && typeof info.hooks === 'object' ? info.hooks : {}
+    openAtStart = info.open === true
   } catch {
     // Not built yet (the first CLI command builds it), or something broke: the session goes on.
   }
 }
+
+// The longest a CLI call may take: $.process.run refuses more than ten minutes (a call that waits on
+// the user, an app's question or Claude's, gives up then).
+const LONGEST = 10 * 60_000
 
 /** One CLI call that answers in JSON (the approval commands); null when it couldn't. */
 async function ask($: any, args: string[], stdin?: string, timeoutMs = 5000): Promise<any> {
@@ -197,6 +231,8 @@ export function register(on: any) {
       cwd = String(e.cwd ?? (await $.session.cwd()))
       await sessionStart($, 'reload')
     }
+    // Claude can ask through the glass: only in sessions that start with one open (no glass, no extra tool).
+    if (openAtStart) await $.tool.register(ASK_TOOL).catch(() => {})
     void watchControls($, ++watching)
     return next(e)
   })
@@ -206,6 +242,18 @@ export function register(on: any) {
     const r = await next(e)
     if (!guide || !sock || !(await $.fs.exists(sock))) return r
     return { ...r, blocks: [...r.blocks, { name: 'claudeGlass', text: guide }] }
+  })
+
+  // A prompt goes through the glass while one is open: what the user attached there joins it as
+  // context Claude reads, and two-way apps that hook prompts may change it or keep it back.
+  on('prompt.submit', async ($: any, e: any, next: any) => {
+    if (!sock || !(await $.fs.exists(sock))) return next(e)
+    const r = await ask($, ['hook', 'prompt.submit'], JSON.stringify({ text: e.text, context: e.context ?? [] }), LONGEST)
+    if (r?.answer?.drop !== undefined) return { drop: String(r.answer.drop) }
+    if (!r?.e) return next(e)
+    const text = typeof r.e.text === 'string' ? r.e.text : e.text
+    const context = Array.isArray(r.e.context) ? r.e.context.map(String) : e.context
+    return next({ ...e, text, ...(context && context.length ? { context } : {}) })
   })
 
   on('turn.start', async ($: any, e: any, next: any) => {
@@ -249,10 +297,19 @@ export function register(on: any) {
     const { tool, tool_use_id: id, agentId, ...input } = e
     const at = Date.now()
     send($, { e: 'tool.start', id, tool, input, agentId, cwd })
+    const glassOpen = !!sock && (await $.fs.exists(sock))
+    // Two-way apps that hook this tool may refuse it or answer it themselves.
+    const app = glassOpen && hooked(tool) ? (await ask($, ['hook', 'tool.call'], JSON.stringify({ tool, input, agentId }), LONGEST))?.answer : null
     // The questions experiment: the glass may answer Claude's question (else Claude Code's dialog).
-    const answered = tool === 'AskUserQuestion' && !agentId && sock && (await $.fs.exists(sock))
-      ? await answerQuestions($, input, next.signal) : null
-    const r = answered ? { result: answered } : await next(e)
+    const answered = !app && tool === 'AskUserQuestion' && !agentId && glassOpen ? await answerQuestions($, input, next.signal) : null
+    // Claude's own ask tool: the question as an Action card, the user's answer as the result.
+    const asked = tool === `mcp__${$.plugin.name}__${ASK_TOOL.name}`
+      ? await ask($, ['ask'], JSON.stringify({ question: input.question, options: input.options ?? [] }), LONGEST) : null
+    const r = asked ? (asked.answer !== undefined ? { result: `The user answered: ${asked.answer}` } : { deny: `Couldn't ask in the glass: ${asked.error ?? 'no answer'}` })
+      : app?.deny !== undefined ? { deny: String(app.deny) }
+      : app && 'result' in app ? { result: app.result }
+      : answered ? { result: answered }
+      : await next(e)
     const error = errorOf(r)
     send($, { e: 'tool.end', id, tool, input, result: error ? undefined : slim(r?.result), error, durationMs: Date.now() - at, agentId, cwd })
     if (tool === 'Bash' && !error && toolReminders && !agentId && sock && FILE_IO.test(String(input.command ?? ''))

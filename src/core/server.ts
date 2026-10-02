@@ -4,7 +4,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
-import { appInfo, clip, coerceSetting, settingValues, storedValues } from '../apps/types';
+import { appInfo, clip, coerceSetting, settingValues, storedValues, type AppDef, type AppHookEvent, type AppHookGlass } from '../apps/types';
 import type { ActionState } from '../apps/action';
 import { summarizeTool } from '../apps/terminal';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
@@ -13,6 +13,7 @@ import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, preset
 import { applyEvent, type EventContext, type GlassEvent } from './events';
 import { loadApps, type AppReport } from './customApps';
 import { StoredFiles } from './stored';
+import { APP_HOOK_EVENTS, collectHooks, runHooks, subscriptions, whileAsking, type AppHook } from './apphooks';
 import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
@@ -33,6 +34,9 @@ export class GlassCore {
     mkdirSync(sessionDir(sessionId), { recursive: true });
     this.config = loadConfig();
     this.apps = loadApps();
+    // Two-way apps' hooks on the session (custom apps that ask for them, loaded above).
+    ({ hooks: this.appHooks, errors: this.hookErrors } = collectHooks(this.config.disabledApps ?? []));
+    this.apps = this.apps.map((r) => (this.hookErrors[r.type] ? { ...r, ok: false, error: this.hookErrors[r.type] } : r));
     const saved = loadState(sessionId);
     this.state = saved ?? initialState({ id: sessionId, cwd });
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
@@ -80,6 +84,7 @@ export class GlassCore {
    * anything.
    */
   dispatch(action: Action, from: 'ui' | 'socket' = 'socket'): unknown {
+    if (from !== 'ui' && action.type === 'attach.add') throw new Error('only the glass\'s own window can attach things to the next prompt');
     if (from !== 'ui' && action.type === 'app.command') {
       const app = APPS[this.state.instances[action.id]?.type ?? ''];
       if (app?.permissions?.twoWay && appInfo(app).viewCommands.includes(action.command)) {
@@ -122,11 +127,12 @@ export class GlassCore {
    * the front), answered from the glass's UI. Off (the app turned off, or approvals off): the mod
    * leaves it to Claude Code's own prompt.
    */
-  actionRequest(req: { kind?: unknown; tool?: unknown; input?: unknown; canAlways?: unknown }): { id: string; holdMs: number; summary: string } | { off: string } {
+  actionRequest(req: { kind?: unknown; tool?: unknown; input?: unknown; canAlways?: unknown; force?: boolean }): { id: string; holdMs: number; summary: string } | { off: string } {
     const settings = this.actionSettings();
     if (!settings || this.config.disabledApps?.includes('action')) return { off: 'the Action app is turned off' };
     const question = req.kind === 'question';
-    if (question ? !settings.questions : !settings.approvals) return { off: question ? 'questions from the glass are off' : 'approvals from the glass are off' };
+    // (force: an app's own question, or Claude asking through the glass; the settings are about Claude Code's prompts)
+    if (!req.force && (question ? !settings.questions : !settings.approvals)) return { off: question ? 'questions from the glass are off' : 'approvals from the glass are off' };
     const tool = String(req.tool ?? (question ? 'AskUserQuestion' : '?'));
     const id = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     let s = this.state;
@@ -190,11 +196,64 @@ export class GlassCore {
     }
   }
 
+  // ---- Two-way apps' hooks (src/core/apphooks.ts) and attachments -----------------------------
+  appHooks: AppHook[] = [];
+  hookErrors: Record<string, string> = {};
+
+  /** What the mod should forward: the events two-way apps hook, and prompt.submit while something's attached. */
+  subscriptions(): Record<string, string[]> {
+    const subs = subscriptions(this.appHooks);
+    if (this.state.attachments?.length) subs['prompt.submit'] = ['*'];
+    return subs;
+  }
+
+  /** The handle a two-way app's hook gets on the glass. */
+  private glassFor(app: AppDef): AppHookGlass {
+    return {
+      app: app.type,
+      stored: storedValues(app, this.state.stored?.[app.type]),
+      store: (patch) => this.dispatch({ type: 'stored.set', app: app.type, values: patch }),
+      ask: (question, options = []) => whileAsking(this.askUser(app.type, question, options)),
+    };
+  }
+
+  /** A question from an app (or Claude's glass tool), as an Action card; the user's answer. */
+  async askUser(from: string, question: string, options: (string | { label: string; description?: string })[], timeoutMs = 9.5 * 60_000): Promise<string> {
+    // (just under the ten minutes the mod's CLI call may take, so it hears "no answer" rather than a timeout)
+    const req = this.actionRequest({ kind: 'question', tool: from, input: { questions: [{ question, multiSelect: false, options: options.map((o) => (typeof o === 'string' ? { label: o } : o)) }] }, force: true });
+    if ('off' in req) throw new Error(req.off);
+    const until = Date.now() + timeoutMs;
+    while (Date.now() < until) {
+      const r = await this.actionWait(req.id, 25_000) as { status: string; answers?: Record<string, string> };
+      if (r.status === 'answered') return Object.values(r.answers ?? {})[0] ?? '';
+      if (r.status === 'gone') throw new Error('the question was dismissed');
+    }
+    this.actionClose(req.id, 'timeout', undefined);
+    throw new Error('no answer');
+  }
+
+  /**
+   * An event the mod forwards (`claude-glass hook <event>`): attachments join a prompt's context,
+   * then the apps' hooks run. `{ e }` to pass it on (maybe changed), `{ answer }` to answer it.
+   */
+  async hook(event: string, e: Record<string, unknown>): Promise<unknown> {
+    if (!APP_HOOK_EVENTS.includes(event as AppHookEvent)) throw new Error(`can't hook "${event}"`);
+    let ev = { ...e };
+    if (event === 'prompt.submit' && this.state.attachments?.length) {
+      const atts = this.state.attachments;
+      const context = [...(Array.isArray(ev.context) ? ev.context.map(String) : []),
+        ...atts.map((a) => `From the user's Claude Glass (${a.label}):\n${a.text}`)];
+      ev = { ...ev, context };
+      this.dispatch({ type: 'attach.clear' });
+    }
+    return runHooks(this.appHooks, event as AppHookEvent, ev, (app) => this.glassFor(app));
+  }
+
   // ---- Controls: the glass asking the mod to do something (interrupt) -------------------------
   // Not glass state: a short queue the mod collects with `claude-glass watch`, a CLI call that
   // waits on the socket until there's something (or a while passes). Only the glass's own
   // window adds to it (main's IPC), never the socket.
-  private controls: { kind: 'interrupt'; at: number }[] = [];
+  private controls: ({ kind: 'interrupt'; at: number } | { kind: 'prompt'; text: string; at: number })[] = [];
   private watchers = new Set<() => void>();
 
   /** The user pressed Stop in the glass (with the interrupt button on). */
@@ -204,9 +263,18 @@ export class GlassCore {
     for (const fn of [...this.watchers]) fn();
   }
 
+  /** The user asked Claude something from the glass (askBox): the mod submits it as their prompt. */
+  submitPrompt(text: string): void {
+    const t = String(text ?? '').trim().slice(0, 10_000);
+    if (this.config.askBox !== true || !t) return;
+    this.controls.push({ kind: 'prompt', text: t, at: Date.now() });
+    for (const fn of [...this.watchers]) fn();
+  }
+
   /** The mod's wait for controls: whatever is queued (dropping stale ones), or [] after ms. */
   watchControls(ms: number): Promise<unknown[]> {
-    const take = () => { const fresh = this.controls.filter((c) => Date.now() - c.at < 15_000); this.controls = []; return fresh; };
+    // A Stop goes stale fast; a prompt waits (the mod submits it once Claude is idle).
+    const take = () => { const fresh = this.controls.filter((c) => c.kind === 'prompt' || Date.now() - c.at < 15_000); this.controls = []; return fresh; };
     if (this.controls.length) return Promise.resolve(take());
     return new Promise((resolve) => {
       const done = () => { clearTimeout(t); this.watchers.delete(done); resolve(take()); };
@@ -381,11 +449,11 @@ export class GlassCore {
     try {
       switch (env.op) {
         case 'ping': return { ok: true, result: { session: this.sessionId, pid: process.pid } };
-        case 'event': this.events(Array.isArray(env.events) ? env.events : [env.event]); return { ok: true, result: null };
+        // (the reply tells the mod which events to forward, so that costs it no call of its own)
+        case 'event': this.events(Array.isArray(env.events) ? env.events : [env.event]); return { ok: true, result: { hooks: this.subscriptions() } };
         case 'dispatch': return { ok: true, result: this.dispatch(env.action as Action, 'socket') };
         case 'action.request': return { ok: true, result: this.actionRequest((env.request ?? {}) as Record<string, unknown>) };
-        case 'action.close': this.actionClose(String(env.id), env.by, env.choice, env.answers); return { ok: true, result: null };
-        case 'view': return { ok: true, result: this.view() };
+        case 'action.close': this.actionClose(String(env.id), env.by, env.choice, env.answers); return { ok: true, result: null };        case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
         case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
         case 'apps': return { ok: true, result: this.apps };
@@ -438,9 +506,13 @@ export class GlassCore {
         try { env = JSON.parse(line); } catch (e: any) { sock.end(JSON.stringify({ ok: false, error: `bad request: ${e.message}` }) + '\n'); return; }
         // Ops that answer later (the connection stays open): an approval's answer, the mod's controls.
         const later = env?.op === 'action.wait' ? this.actionWait(String(env.id), Number(env.ms ?? 1000))
-          : env?.op === 'watch' ? this.watchControls(Number(env.ms ?? 20_000)) : null;
+          : env?.op === 'watch' ? this.watchControls(Number(env.ms ?? 20_000))
+          : env?.op === 'hook' ? this.hook(String(env.event), (env.e ?? {}) as Record<string, unknown>)
+          // Claude asks the user through the glass (the mod's tool): an Action card, then the answer.
+          : env?.op === 'ask' ? this.askUser('Claude', String(env.question ?? ''), Array.isArray(env.options) ? env.options : []).then((answer) => ({ answer })) : null;
         if (later) {
-          void later.then((result) => { if (!sock.destroyed) sock.end(JSON.stringify({ ok: true, result }) + '\n'); });
+          void later.then((result) => ({ ok: true, result }), (e) => ({ ok: false, error: e?.message ?? String(e) }))
+            .then((reply) => { if (!sock.destroyed) sock.end(JSON.stringify(reply) + '\n'); });
           return;
         }
         sock.end(JSON.stringify(this.handle(env)) + '\n');

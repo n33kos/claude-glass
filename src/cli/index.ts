@@ -6,7 +6,7 @@ import { loadConfig, SETTINGS_HELP } from '../core/config';
 import { appsDir, configPath, filesDir, runtimeDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { healthReport } from '../core/health';
 import { isLive, loadState } from '../core/server';
-import type { Action, Envelope } from '../core/types';
+import type { Action, Envelope, Reply } from '../core/types';
 import { request } from './client';
 import { GUIDE, guideFor } from '../core/guide';
 import { launchGlass } from './launch';
@@ -403,6 +403,17 @@ async function main(argv: string[]) {
       } else throw new Error('usage: claude-glass action request | wait <id> [--ms N] | close <id> [--by terminal|timeout|interrupted] [--choice C]');
       return;
     }
+    case 'ask': {
+      // The glass mod's tool: Claude asks the user through the glass. The question and options as
+      // JSON on stdin; prints { answer } once the user answers on the Action card, or { error }.
+      const sock = socketPath(claudeSessionId(flags));
+      if (!existsSync(sock)) { console.log(JSON.stringify({ error: 'Claude Glass is not open for this session' })); return; }
+      let q: any = {};
+      try { q = JSON.parse(readStdin() || '{}'); } catch {}
+      const r: Reply = await request(sock, { op: 'ask', question: q.question, options: q.options }, 10 * 60_000).catch((e) => ({ ok: false, error: e.message }));
+      console.log(JSON.stringify(r.ok ? r.result : { error: r.error }));
+      return;
+    }
     case 'watch': {
       // The glass mod's wait for controls (the Stop button): blocks on the socket until there's
       // one or --ms passes, then prints them as a JSON array. No glass: [] at once.
@@ -460,7 +471,21 @@ async function main(argv: string[]) {
       const cid = claudeSessionId(flags);
       if (!existsSync(socketPath(cid))) return;
       const events = readStdin().split('\n').filter((l) => l.trim()).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
-      if (events.length) await request(socketPath(cid), { op: 'event', events }, 2000).catch(() => {});
+      const r = events.length ? await request(socketPath(cid), { op: 'event', events }, 2000).catch(() => null) : null;
+      // Which events the mod should forward to the glass's apps (`claude-glass hook`).
+      if (r?.ok) console.log(JSON.stringify(r.result));
+      return;
+    }
+    case 'hook': {
+      // The glass mod forwards a session event to two-way apps' hooks: the event on stdin, the
+      // outcome printed as JSON: { e } (pass it on, maybe changed) or { answer }. No glass, or a
+      // glass that fails: { e } unchanged, so Claude Code goes on as if nothing were hooked.
+      const [event] = rest;
+      const cid = claudeSessionId(flags);
+      let e: unknown = {};
+      try { e = JSON.parse(readStdin() || '{}'); } catch {}
+      const r = existsSync(socketPath(cid)) && event ? await request(socketPath(cid), { op: 'hook', event, e }, 10 * 60_000).catch(() => null) : null;
+      console.log(JSON.stringify(r?.ok ? r.result : { e }));
       return;
     }
     case 'session-start': {
@@ -483,7 +508,8 @@ async function main(argv: string[]) {
         if (source !== 'reload') await request(socketPath(sid), { op: 'event', events: [{ e: 'session.start', source, sessionId: cid, cwd: projectDir }] }, 1000).catch(() => {});
         guide = await request(socketPath(sid), { op: 'guide' }, 1000).then((r) => (r.ok ? String(r.result) : null)).catch(() => null) ?? guideFor(config);
       }
-      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false, config: configPath() }));
+      const hooks = open ? await request(socketPath(sid), { op: 'event', events: [] }, 1000).then((r) => (r.ok ? (r.result as { hooks?: unknown }).hooks : {})).catch(() => ({})) : {};
+      console.log(JSON.stringify({ open, guide, socket: socketPath(cid), toolReminders: config.toolReminders !== false, config: configPath(), hooks }));
       return;
     }
     default:

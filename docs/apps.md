@@ -208,6 +208,45 @@ The user (or Claude) can look at and change them with `claude-glass stored <type
 `claude-glass stored <type> set <key> <json>` and `claude-glass stored <type> reset [key]`;
 Settings → Apps shows how many values an app keeps, with a Reset link.
 
+## Two-way apps
+
+The glass is one-way unless an app says otherwise: with `"permissions": { "twoWay": true }` in
+its manifest (Settings shows it as "answering Claude"), an app may hook the Claude session, like a
+[Claude Code mod](https://code.claude.com/docs/en/plugins/mods/overview)'s `register(on)`.
+The glass mod forwards the events your app hooks, before Claude Code acts on them:
+
+```js
+exports.register = (on) => {
+  // Refuse something, or ask the user in the glass first.
+  on('tool.call', { tool: 'Bash' }, async (glass, e, next) => {
+    if (/\bdeploy\b/.test(e.input.command)) {
+      const answer = await glass.ask(`Run "${e.input.command}"?`, ['Yes, deploy', 'No']);
+      if (answer !== 'Yes, deploy') return { deny: `The user said "${answer}".` };
+    }
+    return next(e);
+  });
+  // Add something Claude reads with every prompt.
+  on('prompt.submit', async (glass, e, next) => next({ ...e, context: [...e.context, 'Deploys need an OK.'] }));
+};
+```
+
+| Event | `e` | A handler returns |
+|---|---|---|
+| `prompt.submit` | `{ text, context }` | `next({ ...e, text })`, `next({ ...e, context })`, or `{ drop: reason }` |
+| `tool.call` | `{ tool, input, agentId? }` | `next(e)`, `{ deny: reason }` (Claude reads it), or `{ result }` (in place of running the tool) |
+
+A matcher (the second argument) filters on the event's fields: a value, a list, or a pattern.
+Handlers run in app order, before Claude Code acts (there's no "after"); one that throws or takes
+over 10 seconds of its own time is skipped. `glass` is your app's handle: `glass.stored` and
+`glass.store(patch)` (its stored values), and `glass.ask(question, options)`, which puts the
+question on an Action card and waits for the user (that wait doesn't count toward the 10 seconds;
+it gives up after nine and a half minutes).
+
+A two-way app's view commands run only from the glass's own window, never from the CLI or the
+socket, so only the user's clicks can answer anything. A two-way view (and a built-in one) can
+also offer **point and ask**: `glass.host('attach', { label, text })` puts `text` on the user's
+next prompt as context Claude reads, shown as a chip in the top bar until then.
+
 ## Permissions
 
 By default a view has no network, no microphone and no storage. An app that needs them says so
@@ -227,6 +266,7 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 | `network` | fetch/WebSocket/scripts/images/frames to exactly these origins (http(s)/ws(s), no wildcards). Servers still apply their own CORS. |
 | `microphone` | `getUserMedia({ audio: true })` (never the camera), for the view and for pages it embeds from its `network` origins (give the inner iframe `allow="microphone"`). macOS will also ask the user once. |
 | `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
+| `twoWay` | hooks on the Claude session (`register(on)`, above), and point and ask from its view |
 | `sharedSignIn` | the sign-in of pages it embeds from its `network` origins follows the user to every glass: their `localStorage` and cookies, saved together in `~/.claude/claude-glass/app-storage.json` (owner-only) and given to a glass whose page is missing either. Only for sites made for many devices signed in at once (a pairing token, like vmux's). Leave it off for sites that rotate refresh tokens or keep sign-in elsewhere (IndexedDB): glasses would log each other out, or restore half a sign-in. Signing out in one glass doesn't reach the shared copy; **Reset data** clears it. |
 
 Pages an app embeds from its `network` origins are third-party inside the glass, so browsers
@@ -238,8 +278,8 @@ Settings has a **Reset data** link for apps with `network` or `storage`: it clea
 storage and the storage and cookies of its declared origins (e.g. to log an embedded page out).
 
 Everything else, for every app, stays denied. Apps with these permissions can talk back to other
-services (a voice app, say): that's allowed as the app's own choice, but it never reaches the
-glass core, which stays one-way.
+services (a voice app, say): that's allowed as the app's own choice. Only `twoWay` reaches back
+into the Claude session, and only through the hooks above; the glass core stays one-way.
 
 ## Turning apps off
 

@@ -26,6 +26,11 @@ export interface AppDef<S = any> {
   /** Optional: see every session event (src/core/events.ts, GlassEvent) and update state (pure). Singletons are created on first change. */
   onEvent?(state: S, event: any, ctx?: AppContext): S;
   stored?: Record<string, StoredSpec>; // persistent values the app keeps, by scope (manifest "stored")
+  /**
+   * Two-way apps only (permissions.twoWay): hooks on the Claude session, like a Claude Code mod's
+   * `register(on)`. The glass mod forwards the events they ask for (src/core/apphooks.ts).
+   */
+  register?(on: AppOn): void;
   autoOpen?: boolean; // open the window the first time onEvent creates the instance
   internal?: string[]; // commands only events/the view use; hidden from Claude's catalog
   viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
@@ -45,6 +50,26 @@ export interface AppDef<S = any> {
  */
 export type StoredScope = 'session' | 'project' | 'global';
 export interface StoredSpec { scope: StoredScope; default: unknown }
+
+/**
+ * Two-way app hooks (`register(on)` in core.js), shaped like a Claude Code mod's. The glass mod
+ * forwards these events; a handler passes the event on (`next(e)`, maybe changed), or answers:
+ *   prompt.submit  e: { text, context: string[] }   next({ ...e, text | context }) or { drop: reason }
+ *   tool.call      e: { tool, input, agentId? }      next(e) or { deny: reason } or { result }
+ * They run before Claude Code acts (there is no "after"). `glass` is the app's handle on the glass.
+ */
+export type AppHookEvent = 'prompt.submit' | 'tool.call';
+export type AppHookNext = (e: any) => Promise<any>;
+export type AppHookHandler = (glass: AppHookGlass, e: any, next: AppHookNext) => any;
+export type AppOn = (event: AppHookEvent, matcherOrHandler: Record<string, unknown> | AppHookHandler, handler?: AppHookHandler) => void;
+
+export interface AppHookGlass {
+  app: string; // the app's type
+  stored: Record<string, unknown>; // its persistent values (defaults filled in)
+  store(patch: Record<string, unknown>): void; // write some
+  /** Ask the user in the glass (an Action card) and wait: the label they picked, or their own words. */
+  ask(question: string, options?: (string | { label: string; description?: string })[]): Promise<string>;
+}
 
 /** What an app's command / onEvent gets beside its state. */
 export interface AppContext {
@@ -217,10 +242,11 @@ export interface AppInfo {
   settings?: Record<string, SettingSpec>;
   stored?: Record<string, StoredSpec>;
   description?: string; // shown in the Apps dialog
+  builtin: boolean; // ships with the glass (a custom app that replaces one is not)
 }
 
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description };
+  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description, builtin: app.source !== 'user' };
 }

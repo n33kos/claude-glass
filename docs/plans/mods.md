@@ -182,22 +182,27 @@ Separate from the Action app's first version; we try it and keep what works.
 
 ## Phase 3 — Two-way apps: the mods interface for app authors
 
-- [ ] An app's `core.js` may export `register(on)` (two-way apps only), mirroring mods:
-      `on(event, matcher, async (glass, e, next) => …)` over the same event names
-      (`tool.call`, `tool.check`, `prompt.submit`, `turn.*`, `session.*`). The glass mod
-      forwards only events some two-way app subscribed to (it fetches the subscription list at
-      `session.start` and when apps change), so other tool calls cost no CLI call
-- [ ] `glass` mirrors a safe subset of `$`: `ask` (a card in the Action app), `state`,
-      `prompt.context(text)`, `prompt.submit(text)`, `turn.abort()`, `toast`
-- [ ] **Claude asks the glass**: a mod tool `mcp__claude-glass__ask` (question, options,
-      optional HTML/image preview) → an Action card → the choice as the result. For "which of
-      these mockups?"
-- [ ] **Point and ask**: select a diff hunk, lines in a file, a diagram node, an image region →
-      "Attach to next prompt"; `prompt.submit` adds it as `context` (Claude reads it, the
-      transcript stays clean). A chip in the top bar shows what's attached
-- [ ] **Ask Claude from the glass**: an input that `$.prompt.submit({ text, asUser: true })`s
-      (waits until idle)
-- [ ] docs/apps.md: the two-way section, bridge v2 messages, a sample two-way app
+- [x] An app's `core.js` may export `register(on)` (two-way apps only; a one-way app that does
+      isn't loaded), mirroring mods: `on(event, matcher?, async (glass, e, next) => …)` over
+      `tool.call` and `prompt.submit` (before Claude Code acts; no "after" across the process
+      boundary). `src/core/apphooks.ts`. The glass tells the mod which tools are hooked in its
+      reply to each event batch, so other tool calls cost no CLI call; the mod forwards with
+      `claude-glass hook <event>`. Checked live: an app refused a command, Claude read why
+- [x] `glass` handle: `stored` / `store(patch)`, `ask(question, options)` (an Action card; the
+      wait doesn't count toward the handler's 10s)
+- [ ] More events and handle methods when an app needs them (`tool.check`, `turn.*`,
+      `prompt.submit` from a handler, `turn.abort`)
+- [x] **Claude asks the glass**: the mod registers `mcp__glass__ask` (question, options) in
+      sessions that start with a glass open → an Action card → "The user answered: …". No
+      preview field: Claude points at windows already on the glass
+- [x] **Point and ask**: "Ask about this" on a change in Changes; `glass.host('attach', …)` for
+      built-in and two-way views. Attachments ride the next `prompt.submit` as `context` (the
+      transcript stays clean), shown as chips in the top bar until then; only the glass window
+      can attach. Checked live: Claude read an attached note
+- [ ] Point and ask from more places: lines in a file, a diagram node, an image region
+- [x] **Ask Claude from the glass** (`askBox`, off by default): a field in the top bar; the mod
+      collects it with `claude-glass watch` and `$.prompt.submit({ text, asUser: true })`s it
+- [x] docs/apps.md: "Two-way apps"; a sample two-way app (`test/fixtures/apps/guard`)
 
 ## Phase 4 — Prompt shaping
 

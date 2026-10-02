@@ -38,7 +38,7 @@ function QuestionRequest({ r, run }: { r: ActionRequest; run: AppViewProps['run'
   const ready = qs.every((q) => value(q));
   return (
     <article className={`ac-req ac-question ${r.status}`} aria-live={pending ? 'assertive' : undefined}>
-      <div className="ac-ask">{pending ? (qs.length > 1 ? `Claude asks ${qs.length} things` : 'Claude asks') : 'Answered'}{!pending && r.answer?.by && r.answer.by !== 'glass' ? ` · ${BY[r.answer.by] ?? r.answer.by}` : ''}</div>
+      <div className="ac-ask">{pending ? `${r.tool === 'AskUserQuestion' ? 'Claude' : r.tool} asks${qs.length > 1 ? ` ${qs.length} things` : ''}` : 'Answered'}{!pending && r.answer?.by && r.answer.by !== 'glass' ? ` · ${BY[r.answer.by] ?? r.answer.by}` : ''}</div>
       {qs.map((q) => (
         <div key={q.question} className="ac-q">
           {q.header && <span className="ac-chip">{q.header}</span>}

@@ -23,6 +23,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   turnProgress: true,
   contextGauge: true,
   interruptButton: false,
+  askBox: false,
   statePalettes: DEFAULT_PALETTES,
   defaultLayout: 'grid',
   windowOpacity: 0.78,
@@ -92,6 +93,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
     case 'turnProgress':
     case 'contextGauge':
     case 'interruptButton':
+    case 'askBox':
     case 'toolReminders': return value === true || value === 'true';
     case 'followEdits':
     case 'followPlans':
@@ -149,6 +151,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   turnProgress: 'true|false: a thin white bar along the bottom while Claude works on a turn',
   contextGauge: 'true|false: how full Claude\'s context window is, in the top bar (hover: tokens, cost, plan limits)',
   interruptButton: 'true|false: two-way: a Stop button in the top bar while Claude works, which ends the turn (change only if asked)',
+  askBox: 'true|false: two-way: an "Ask Claude" field in the top bar; what the user types there is sent as their prompt (change only if asked)',
   launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
   launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',
   launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',

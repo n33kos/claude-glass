@@ -38,7 +38,12 @@ function Hunks({ rev }: { rev: Revision }) {
   );
 }
 
-export default function DiffView({ state, run, width, session }: AppViewProps<DiffState>) {
+/** The revision as plain text, for attaching to the next prompt (point and ask). */
+function revisionText(path: string, rev: Revision): string {
+  return [`${path} (${rev.source})`, ...rev.hunks.flatMap((h) => [`@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@`, ...h.lines])].join('\n');
+}
+
+export default function DiffView({ state, run, width, session, host }: AppViewProps<DiffState>) {
   // Newest edit first: when a new revision lands, the file list scrolls back to its top entry.
   const filesRef = useRef<HTMLUListElement>(null);
   const newest = state.files[0] ? `${state.files[0]}:${state.revisions[state.files[0]]?.length}` : '';
@@ -98,6 +103,8 @@ export default function DiffView({ state, run, width, session }: AppViewProps<Di
             <button disabled={idx === revs.length - 1} onClick={() => run('select', { path: file, index: idx + 1 === revs.length - 1 ? -1 : idx + 1 })} aria-label="Next revision">›</button>
           </span>
           <span className="d-when">{rev.source} · {timeAgo(rev.at)}</span>
+          <button className="d-attach" title="Attach this change to your next prompt (Claude reads it with what you say)"
+            onClick={() => host('attach', { label: `${file.split('/').pop()} · change ${idx + 1}/${revs.length}`, text: revisionText(shortPath(file, cwd), rev) })}>Ask about this</button>
         </div>
         {rev.note && <p className="d-note">{rev.note}</p>}
         <Hunks key={`${file}:${idx}:${rev.at}`} rev={rev} />
