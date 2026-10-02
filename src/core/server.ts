@@ -28,6 +28,8 @@ export class GlassCore {
   private listeners = new Set<Listener>();
   private saveTimer: NodeJS.Timeout | null = null;
   private server: net.Server | null = null;
+  private conns = new Set<net.Socket>();
+  private socketIno = 0; // the socket file this glass made (a newer glass may have replaced it)
   onQuit: () => void = () => {};
   apps: AppReport[] = []; // the user's custom apps, loaded or not (and why)
 
@@ -492,7 +494,8 @@ export class GlassCore {
           return { ok: true, result: this.config };
         }
         case 'preset': return { ok: true, result: this.preset(String(env.action ?? 'list'), env.name as string | undefined, env.description as string | undefined) };
-        case 'quit': setTimeout(() => this.onQuit(), 20); return { ok: true, result: null };
+        // The socket goes at once: `close` then `open` must not race this glass's shutdown.
+        case 'quit': setTimeout(() => { this.releaseSocket(); this.onQuit(); }, 20); return { ok: true, result: null };
         default: throw new Error(`unknown op "${(env as any).op}"`);
       }
     } catch (e: any) {
@@ -510,6 +513,8 @@ export class GlassCore {
       unlinkSync(path);
     }
     this.server = net.createServer((sock) => {
+      this.conns.add(sock);
+      sock.on('close', () => this.conns.delete(sock));
       let buf = '';
       sock.setEncoding('utf8');
       sock.on('data', (chunk) => {
@@ -538,6 +543,7 @@ export class GlassCore {
     });
     await new Promise<void>((res, rej) => { this.server!.once('error', rej); this.server!.listen(path, () => res()); });
     try { chmodSync(path, 0o600); } catch {}
+    try { this.socketIno = statSync(path).ino; } catch {}
     this.storedFiles.watch(); // other glasses' writes to shared app values
     return path;
   }
@@ -553,13 +559,21 @@ export class GlassCore {
     if (Date.now() - this.lastPrune > 30 * 60 * 1000) { this.lastPrune = Date.now(); this.pruneFiles(); }
   }
 
+  /** Let go of the socket now, so a new glass can take it; only if it's still this glass's own. */
+  releaseSocket() {
+    const path = socketPath(this.sessionId);
+    try { if (this.socketIno && statSync(path).ino === this.socketIno) unlinkSync(path); } catch {}
+    this.socketIno = 0;
+  }
+
   async close() {
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
     this.save();
     this.storedFiles.close();
-    const path = socketPath(this.sessionId);
+    this.releaseSocket();
+    // Held connections (the mod's waits) would keep the server open: end them.
+    for (const s of this.conns) s.destroy();
     await new Promise<void>((res) => (this.server ? this.server.close(() => res()) : res()));
-    try { unlinkSync(path); } catch {}
   }
 }
 

@@ -485,12 +485,14 @@ export function App() {
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>
-          <span className={`presence presence-${presence}`} title={waiting ? `${rel(waiting.summary)} (answer in Claude Code)` : undefined}>
-            <i />
-            {waiting ? 'Waiting on you' : presence === 'working' ? 'Claude is working' : presence === 'ended' ? 'Session ended' : 'Idle'}
-            {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
-          </span>
-          {config.interruptButton === true && presence === 'working' && <StopButton />}
+          {config.interruptButton === true && presence === 'working' ? <StopPresence /> : (
+            <span className={`presence presence-${presence}`} title={waiting ? `${rel(waiting.summary)} (answer in Claude Code)` : undefined}>
+              <i />
+              {waiting ? 'Waiting on you' : presence === 'working' ? 'Claude is working' : presence === 'ended' ? 'Session ended' : 'Idle'}
+              {waiting && <span className="presence-detail">{waiting.kind === 'permission' ? 'Permission' : 'Question'}: {rel(waiting.summary)}</span>}
+            </span>
+          )}
+          {config.askBox === true && !s.endedAt && <AskBox />}
           {(state.attachments ?? []).map((a) => (
             <span key={a.id} className="attach-chip" title={`Goes with your next prompt, as context Claude reads:\n\n${a.text.slice(0, 600)}`}>
               <i aria-hidden />{a.label}
@@ -509,7 +511,6 @@ export function App() {
             <button key={p.index} className={p.index === v ? 'on' : ''} onClick={() => setView(p.index)} title={`Desktop ${p.index + 1}`} />
           ))}
         </nav>
-        {config.askBox === true && !s.endedAt && <AskBox />}
         {config.contextGauge !== false && <ContextGauge usage={s.usage} />}
         <Version />
       </header>
@@ -643,13 +644,14 @@ function AskBox() {
   );
 }
 
-/** Stop (interruptButton, two-way): ends Claude's turn, like Esc in Claude Code. */
-function StopButton() {
+/** Working, with Stop on (interruptButton, two-way): hovering the pill turns its dot into a stop
+ *  square; a click ends Claude's turn, like Esc in Claude Code. */
+function StopPresence() {
   const [sent, setSent] = useState(false);
   return (
-    <button className="stop-turn" disabled={sent} title="Stop Claude's turn (like Esc in Claude Code)"
+    <button className="presence presence-working stoppable" disabled={sent} title="Stop Claude (like Esc in Claude Code)"
       onClick={() => { setSent(true); window.glass.interrupt(); setTimeout(() => setSent(false), 4000); }}>
-      <i />{sent ? 'Stopping…' : 'Stop'}
+      <i />{sent ? 'Stopping…' : 'Claude is working'}
     </button>
   );
 }

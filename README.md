@@ -165,7 +165,8 @@ overflow spills onto the next desktop.
 - **Point and ask**: "Ask about this" on a change in Changes, Ask on a terminal entry, or a
   selection in a markdown window (the plan) attaches it to your next prompt (a chip in the top
   bar; × takes it off); Claude reads it with what you say. Opt-in extras in
-  Settings: a Stop button (`interruptButton`) and an Ask Claude field (`askBox`) in the top bar.
+  Settings: Stop (`interruptButton`: the "Claude is working" pill turns into a stop button on
+  hover) and an Ask Claude field (`askBox`) beside it in the top bar.
 
   ![Claude asked a question: the top bar, a read-only card, and amber light](docs/media/waiting.png)
 
@@ -225,7 +226,7 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `signalDone` | **true** / false | a green bloom when a long turn is done |
 | `followEdits`, `followPlans`, `followWeb`, `followImages`, `followAgents` | **off** / light / front / both / focus | when an edit, plan, search or page, image, or subagent comes in: light its window, bring it to the front, both, or both and show desktop 1. Only windows on screen move |
 | `followTests` | off / **light** / front / both / focus | the same when a test run fails (lit red) |
-| `interruptButton` | true / **false** | two-way: a Stop button in the top bar while Claude works, which ends the turn (like Esc) |
+| `interruptButton` | true / **false** | two-way: while Claude works, the status pill stops the turn when clicked (like Esc); hovering shows a red stop square |
 | `viewContext` | true / **false** | each prompt tells Claude what's on the glass now (so it ranks windows from what's really there; costs tokens) |
 | `askBox` | true / **false** | two-way: an Ask Claude field in the top bar; what you type is sent as your prompt (once Claude is free) |
 | `contextGauge` | **true** / false | how full Claude's context window is, in the top bar (hover: tokens, cost, plan limits; amber near full) |
