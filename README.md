@@ -225,6 +225,7 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `followEdits`, `followPlans`, `followWeb`, `followImages`, `followAgents` | **off** / light / front / both / focus | when an edit, plan, search or page, image, or subagent comes in: light its window, bring it to the front, both, or both and show desktop 1. Only windows on screen move |
 | `followTests` | off / **light** / front / both / focus | the same when a test run fails (lit red) |
 | `interruptButton` | true / **false** | two-way: a Stop button in the top bar while Claude works, which ends the turn (like Esc) |
+| `viewContext` | true / **false** | each prompt tells Claude what's on the glass now (so it ranks windows from what's really there; costs tokens) |
 | `askBox` | true / **false** | two-way: an Ask Claude field in the top bar; what you type is sent as your prompt (once Claude is free) |
 | `contextGauge` | **true** / false | how full Claude's context window is, in the top bar (hover: tokens, cost, plan limits; amber near full) |
 | `turnProgress` | **true** / false | a thin white bar along the bottom while Claude works: it sweeps, brightens on each model request, and fills by tasks done when Claude works through a list |
@@ -326,10 +327,17 @@ reply as it streams), `tool.start`/`tool.end` (the terminal and, per tool, the C
 Plan, Images, the Browser, Tasks, Agents, Tests, Files), `permission` and AskUserQuestion ("waiting
 on you"), `turn.complete`, `agent.end`, `session.start`/`session.end`. At each session start it runs
 `claude-glass session-start`, which opens the glass (if `autoStart`), and it gives Claude the guide
-with the first message of each conversation. It also reminds Claude to read and edit with its own
-tools when a Bash command did file I/O (`toolReminders`). Events go out in order, a batch per CLI
-call. Auto-created windows open once; if you close one, it stays closed. Apps with `onEvent` see
-every event too.
+with the first message of each conversation; when your settings change the guide, the next prompt
+carries the new one. It also reminds Claude to read and edit with its own tools when a Bash command
+did file I/O (`toolReminders`). Events go out in order, a batch per CLI call. Auto-created windows
+open once; if you close one, it stays closed. Apps with `onEvent` see every event too.
+
+**The glass → the session** (opt-in, two-way): every prompt passes through the glass while one is
+open (`claude-glass hook prompt.submit`: what you attached, the guide when it changed, two-way
+apps' hooks); the tool calls two-way apps hook do too (`claude-glass hook tool.call`). Permission
+prompts and questions wait on `claude-glass action wait`, and the Stop button and the Ask box on
+`claude-glass watch`: CLI calls that block on the socket until there's an answer. Nothing else
+runs; nothing on the socket can approve anything (only the glass's own window).
 
 **State.** A glass is one `GlassState`: the session (activity, what it's waiting on), the ordered
 window list, per-desktop layouts, window instances, each app's own state slice, docks, and

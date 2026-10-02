@@ -360,6 +360,24 @@ describe('two-way apps and point-and-ask, through the CLI the mod uses', () => {
     expect(await held).toEqual({ e: { tool: 'Bash', input: { command: 'npm run deploy' } } });
   });
 
+  it('the guide follows the settings: it rides the next prompt once after a change, and not otherwise', async () => {
+    const prompt = async () => (await out(['hook', 'prompt.submit'], JSON.stringify({ text: 'hi', context: [] }))).e.context as string[];
+    const first = await prompt(); // never given yet (no session start here): it comes now
+    expect(first[0]).toMatch(/^Claude Glass: the user's glass is open\. This is the current guide/);
+    expect(await prompt()).toEqual(['Guard is watching this session.']);
+    g.handle({ op: 'config', key: 'followEdits', value: 'both' });
+    const changed = await prompt();
+    expect(changed[0]).toMatch(/^Claude Glass: the user changed how their glass works/);
+    expect(changed[0]).toContain('- an edit (Changes): brought to the front and lit');
+    expect(await prompt()).toEqual(['Guard is watching this session.']);
+    g.handle({ op: 'config', key: 'followEdits', value: 'off' });
+    await prompt(); // (the change back rides along too)
+    // viewContext: what's on the glass, with every prompt.
+    g.handle({ op: 'config', key: 'viewContext', value: true });
+    expect((await prompt())[0]).toMatch(/^What's on the user's glass right now:\nClaude Glass "hooks-proj"/);
+    g.handle({ op: 'config', key: 'viewContext', value: false });
+  });
+
   it('point and ask: what the user attached joins the next prompt as context, once; only the glass window can attach', async () => {
     expect(() => g.dispatch({ type: 'attach.add', label: 'x', text: 'y', from: 'diff' })).toThrow(/only the glass's own window/);
     g.dispatch({ type: 'attach.add', label: 'server.ts · change 1/2', text: '@@ -1 +1 @@\n-a\n+b', from: 'diff' }, 'ui');

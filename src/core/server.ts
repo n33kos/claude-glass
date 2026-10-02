@@ -13,6 +13,7 @@ import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, preset
 import { applyEvent, type EventContext, type GlassEvent } from './events';
 import { loadApps, type AppReport } from './customApps';
 import { StoredFiles } from './stored';
+import { formatView } from './viewtext';
 import { APP_HOOK_EVENTS, collectHooks, runHooks, subscriptions, whileAsking, type AppHook } from './apphooks';
 import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
@@ -196,6 +197,10 @@ export class GlassCore {
     }
   }
 
+  // ---- The guide Claude was last given (session start, `open`, or with a prompt) ---------------
+  private guideGiven: string | null = null;
+  private guide(): string { return guideFor({ ...this.config, windowMode: this.state.settings.windowMode }); }
+
   // ---- Two-way apps' hooks (src/core/apphooks.ts) and attachments -----------------------------
   appHooks: AppHook[] = [];
   hookErrors: Record<string, string> = {};
@@ -239,12 +244,24 @@ export class GlassCore {
   async hook(event: string, e: Record<string, unknown>): Promise<unknown> {
     if (!APP_HOOK_EVENTS.includes(event as AppHookEvent)) throw new Error(`can't hook "${event}"`);
     let ev = { ...e };
-    if (event === 'prompt.submit' && this.state.attachments?.length) {
-      const atts = this.state.attachments;
-      const context = [...(Array.isArray(ev.context) ? ev.context.map(String) : []),
-        ...atts.map((a) => `From the user's Claude Glass (${a.label}):\n${a.text}`)];
+    if (event === 'prompt.submit') {
+      const context = Array.isArray(ev.context) ? ev.context.map(String) : [];
+      // The guide follows the settings: when what Claude was told no longer matches (a setting
+      // changed, or the glass opened mid-session), the current guide rides this prompt. Unchanged,
+      // nothing is added, so the prompt cache stays warm.
+      const guide = this.guide();
+      if (guide !== this.guideGiven) {
+        context.push(`Claude Glass: ${this.guideGiven ? 'the user changed how their glass works' : 'the user\'s glass is open'}. This is the current guide (it replaces any earlier one):\n\n${guide}`);
+        this.guideGiven = guide;
+      }
+      // What the user attached for this prompt (point and ask), once.
+      if (this.state.attachments?.length) {
+        context.push(...this.state.attachments.map((a) => `From the user's Claude Glass (${a.label}):\n${a.text}`));
+        this.dispatch({ type: 'attach.clear' });
+      }
+      // viewContext: what's on the glass now, so Claude ranks windows from what's really there.
+      if (this.config.viewContext === true) context.push(`What's on the user's glass right now:\n${formatView(this.view())}`);
       ev = { ...ev, context };
-      this.dispatch({ type: 'attach.clear' });
     }
     return runHooks(this.appHooks, event as AppHookEvent, ev, (app) => this.glassFor(app));
   }
@@ -455,7 +472,7 @@ export class GlassCore {
         case 'action.request': return { ok: true, result: this.actionRequest((env.request ?? {}) as Record<string, unknown>) };
         case 'action.close': this.actionClose(String(env.id), env.by, env.choice, env.answers); return { ok: true, result: null };        case 'view': return { ok: true, result: this.view() };
         case 'catalog': return { ok: true, result: this.catalog() };
-        case 'guide': return { ok: true, result: guideFor({ ...this.config, windowMode: this.state.settings.windowMode }) };
+        case 'guide': return { ok: true, result: (this.guideGiven = this.guide()) };
         case 'apps': return { ok: true, result: this.apps };
         case 'stored': {
           // An app's persistent values, defaults filled in (`claude-glass stored <type>`).

@@ -206,10 +206,14 @@ Separate from the Action app's first version; we try it and keep what works.
 
 ## Phase 4 — Prompt shaping
 
-- [ ] The guide as a system prompt section is done in Phase 0. Here: make it follow settings
-      without a restart, changing only when the guide's inputs change (the prompt cache)
-- [ ] Optional per-turn context: the current `view` summary in `prompt.submit` context, so
-      Claude re-ranks from what's really on screen (setting; it costs tokens)
+- [x] The guide follows the settings without a restart. This build can't add a system prompt
+      section (`prompt.section` only rewrites Claude Code's own), so: the glass remembers the
+      guide it last gave (session start, `open`), and when the current one differs (a setting
+      changed, or the glass opened mid-session) the next prompt carries it as context, once.
+      Unchanged, nothing is added, so the prompt cache stays warm
+- [x] `viewContext` (off by default): each prompt carries what's on the glass now (the
+      `claude-glass view` text, `src/core/viewtext.ts`); it costs tokens
+- [ ] When `prompt.compose` reaches this account's build: the guide as a system section instead
 
 ## Not now
 

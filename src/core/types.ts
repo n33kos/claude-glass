@@ -108,6 +108,7 @@ export interface GlobalConfig {
   contextGauge: boolean; // how full Claude's context window is, in the top bar
   interruptButton: boolean; // two-way: a Stop button in the top bar while Claude works (ends the turn)
   askBox: boolean; // two-way: an "Ask Claude" field in the top bar, sent as the user's prompt
+  viewContext: boolean; // each prompt carries what's on the glass now (costs tokens; Claude ranks windows from it)
   animateBackground: boolean; // preset wallpapers drift slowly
   wheelDesktops: boolean; // vertical scroll outside any window switches desktops
   disabledApps: string[]; // app types the user turned off: hidden, and their commands refused
