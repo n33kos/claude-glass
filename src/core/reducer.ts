@@ -3,7 +3,7 @@ import { APPS, getApp } from '../apps/registry';
 import { SHARED_MAX_BYTES, STORED_MAX_BYTES, StoreWrite, storedValues, type AppContext, type AppDef, type SharedEntry } from '../apps/types';
 import { parseColors } from './colors';
 import { DOCKS, isCorner, isDock, isLayout } from './layout';
-import type { Action, Dock, GlassState, InstanceMeta, SessionInfo } from './types';
+import type { Action, Dock, FreeRect, GlassState, InstanceMeta, SessionInfo } from './types';
 
 export function initialState(session: Pick<SessionInfo, 'id' | 'cwd'> & Partial<SessionInfo>): GlassState {
   const base: GlassState = {
@@ -59,6 +59,25 @@ function untuck(s: GlassState, id: string): GlassState {
   return { ...s, tucked, tuckKeep: (s.tuckKeep ?? []).filter((e) => e in tucked), tuckFloat: (s.tuckFloat ?? []).filter((e) => e in tucked) };
 }
 
+/** Take a window out of the free windows and the backdrop (no-op if it's in neither). */
+function unfree(s: GlassState, id: string): GlassState {
+  if (!s.free?.[id] && s.backdrop !== id) return s;
+  const { [id]: _gone, ...free } = s.free ?? {};
+  const { backdrop: _b, ...rest } = s;
+  return { ...(s.backdrop === id ? rest : s), free, freeOrder: (s.freeOrder ?? []).filter((x) => x !== id) };
+}
+
+/** A free window's place, checked: fractions of the glass, at least 8% each way, kept on it. */
+function freeRect(r: unknown): FreeRect {
+  const o = (r ?? {}) as Record<string, unknown>;
+  const n = (k: string) => { const v = Number(o[k]); if (!Number.isFinite(v)) throw new Error(`a free window's place needs x, y, w and h (fractions of the glass)`); return v; };
+  const w = Math.min(1, Math.max(0.08, n('w'))), h = Math.min(1, Math.max(0.08, n('h')));
+  // Keep a corner of it on the glass, so it can always be grabbed again.
+  const x = Math.min(1 - 0.05, Math.max(-w + 0.05, n('x'))), y = Math.min(1 - 0.05, Math.max(0, n('y')));
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
+  return { x: r3(x), y: r3(y), w: r3(w), h: r3(h) };
+}
+
 export const tuckedEdge = (s: GlassState, id: string): Dock | undefined => DOCKS.find((e) => s.tucked?.[e]?.includes(id));
 
 const needDock = (d: unknown) => { if (!isDock(d)) throw new Error(`dock must be one of ${DOCKS.join(', ')}`); };
@@ -74,6 +93,11 @@ export function reduce(s: GlassState, a: Action): ReduceResult {
   if (over.length) {
     r.state = { ...r.state, order: r.state.order.filter((id) => !over.includes(id)), overlays: [...over, ...(r.state.overlays ?? []).filter((id) => !over.includes(id))] };
   }
+  // A free window or the backdrop stays where it is (opening it again doesn't tile it).
+  const st = r.state;
+  if (st.order.some((id) => st.free?.[id] || st.backdrop === id)) {
+    r.state = { ...st, order: st.order.filter((id) => !st.free?.[id] && st.backdrop !== id) };
+  }
   return r;
 }
 
@@ -83,12 +107,51 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
   switch (a.type) {
     case 'window.open':
       requireInstance(s, a.id);
-      if (tuckedEdge(s, a.id)) return { state: s }; // already on screen, in its edge panel
+      if (tuckedEdge(s, a.id) || s.backdrop === a.id) return { state: s }; // already on screen
+      if (s.free?.[a.id]) return { state: { ...s, freeOrder: [...(s.freeOrder ?? []).filter((x) => x !== a.id), a.id] } }; // to the top
       return { state: { ...s, order: openAtZero(s.order, a.id) } };
+
+    case 'window.free': {
+      requireInstance(s, a.id);
+      if (isOverlay(s, a.id)) throw new Error(`"${a.id}" is an overlay: it covers the whole glass already`);
+      // Where it goes: as asked, where it already is, or a cascade from the middle.
+      const n = Object.keys(s.free ?? {}).length;
+      const rect = freeRect(a.rect ?? s.free?.[a.id] ?? { x: 0.25 + (n % 5) * 0.03, y: 0.15 + (n % 5) * 0.04, w: 0.5, h: 0.6 });
+      const t = unfree(untuck(s, a.id), a.id);
+      return { state: { ...t, order: t.order.filter((x) => x !== a.id), free: { ...t.free, [a.id]: rect }, freeOrder: [...(t.freeOrder ?? []), a.id] } };
+    }
+
+    case 'window.place': {
+      requireInstance(s, a.id);
+      if (!s.free?.[a.id]) throw new Error(`"${a.id}" isn't a free window (window free <id> first)`);
+      return { state: { ...s, free: { ...s.free, [a.id]: freeRect(a.rect) }, freeOrder: [...(s.freeOrder ?? []).filter((x) => x !== a.id), a.id] } };
+    }
+
+    case 'window.raise': {
+      if (!s.free?.[a.id] || s.freeOrder?.[s.freeOrder.length - 1] === a.id) return { state: s };
+      return { state: { ...s, freeOrder: [...(s.freeOrder ?? []).filter((x) => x !== a.id), a.id] } };
+    }
+
+    case 'window.backdrop': {
+      // Back into the layout (first slot), or this window fills the glass behind everything.
+      if (a.id == null) {
+        if (!s.backdrop || !s.instances[s.backdrop]) return { state: s.backdrop ? (({ backdrop: _b, ...rest }) => rest as GlassState)(s) : s };
+        const id = s.backdrop;
+        const { backdrop: _b, ...rest } = s;
+        return { state: { ...(rest as GlassState), order: openAtZero(s.order, id) } };
+      }
+      requireInstance(s, a.id);
+      if (isOverlay(s, a.id)) throw new Error(`"${a.id}" is an overlay: it covers the whole glass already`);
+      const t = unfree(untuck(s, a.id), a.id);
+      // The one it replaces goes back into the layout.
+      const prev = t.backdrop && t.backdrop !== a.id && t.instances[t.backdrop] ? t.backdrop : null;
+      const order = t.order.filter((x) => x !== a.id);
+      return { state: { ...t, backdrop: a.id, order: prev ? [...order, prev] : order } };
+    }
 
     case 'window.close': {
       requireInstance(s, a.id);
-      const t = untuck(s, a.id);
+      const t = unfree(untuck(s, a.id), a.id);
       return { state: { ...t, order: t.order.filter((x) => x !== a.id), ...(t.overlays ? { overlays: t.overlays.filter((x) => x !== a.id) } : {}) } };
     }
 
@@ -96,7 +159,7 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       requireInstance(s, a.id);
       needDock(a.edge);
       if (isOverlay(s, a.id)) throw new Error(`"${a.id}" is an overlay: it covers the whole glass, it can't be docked`);
-      const t = untuck(s, a.id);
+      const t = untuck(unfree(s, a.id), a.id);
       const list = [...(t.tucked?.[a.edge] ?? [])];
       list.splice(a.index == null ? list.length : clampIndex(a.index, list.length), 0, a.id);
       // Reordering within a kept-open sidebar must not close it (untuck may have emptied it).
@@ -143,8 +206,9 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     }
 
     case 'window.untuck': {
+      // Back into the layout, from a dock, the free windows or the backdrop.
       requireInstance(s, a.id);
-      const t = untuck(s, a.id);
+      const t = unfree(untuck(s, a.id), a.id);
       if (a.index == null) return { state: { ...t, order: openAtZero(t.order, a.id) } };
       const rest = t.order.filter((x) => x !== a.id);
       const i = clampIndex(a.index, rest.length);
@@ -155,7 +219,7 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
       requireInstance(s, a.id);
       // Hooks write to these on every event: they can be closed, not deleted.
       if (a.id === 'terminal' || a.id === 'conversation') throw new Error(`"${a.id}" can be closed but not deleted`);
-      const t0 = untuck(s, a.id);
+      const t0 = unfree(untuck(s, a.id), a.id);
       const t = t0.signal?.target === a.id ? (({ signal: _s, ...rest }) => rest as GlassState)(t0) : t0; // a signal at a deleted window goes with it
       const { [a.id]: _i, ...instances } = t.instances;
       const { [a.id]: _a, ...appState } = t.appState;
@@ -165,6 +229,8 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
 
     case 'window.move': {
       requireInstance(s, a.id);
+      // A free window isn't in the ranking: bringing it forward raises it instead.
+      if (s.free?.[a.id]) return reduceRaw(s, { type: 'window.raise', id: a.id });
       const rest = s.order.filter((x) => x !== a.id);
       const i = clampIndex(a.index, rest.length);
       return { state: { ...s, order: [...rest.slice(0, i), a.id, ...rest.slice(i)] } };

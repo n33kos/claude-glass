@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { computeDesktops, cornerHeight, cornerSides, desktopsFor, DOCKS, EDGES, edgeSize, effectiveLayout, isCorner, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
-import type { Corner, Dock, Edge, InstanceMeta, LayoutName, SessionUsage, Waiting } from '../core/types';
+import type { Action, Corner, Dock, Edge, FreeRect, InstanceMeta, LayoutName, SessionUsage, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon, iconSrc } from './AppIcon';
@@ -523,6 +523,7 @@ export function App() {
         && <QuestionCard waiting={waiting} />}
 
       <main className={`stage${drag || dockDrag ? ' dragging-any' : ''}`} ref={stageRef}>
+        <Backdrop W={size.W} H={size.H} />
         <div className="strip" style={{ transform: `translateX(${-v * size.W}px)` }}>
           {/* Stable DOM order (by id): windows are placed by transform, so a reorder never moves
               a node, and app frames never reload. */}
@@ -589,6 +590,7 @@ export function App() {
         })}
         <EdgePanels W={size.W} H={size.H} peek={peek} setPeek={setPeek} onWindowDragStart={onDragStart}
           drag={drag ?? (dockDrag ? { id: dockDrag.id, px: dockDrag.px, py: dockDrag.py, ox: 0, oy: 0, tuck: dockDrag.tuck, slot: dockDrag.slot ?? null } : null)} />
+        <FreeWindows W={size.W} H={size.H} />
         <Overlays W={size.W} H={size.H} stageRef={stageRef} />
       </main>
 
@@ -705,6 +707,77 @@ function QuestionCard({ waiting }: { waiting: Waiting }) {
   );
 }
 
+/** The window filling the whole glass behind everything (window.backdrop): the layout sits on it. */
+function Backdrop({ W, H }: { W: number; H: number }) {
+  const { state, config } = useSnapshot();
+  const id = state.backdrop;
+  const meta = id ? state.instances[id] : undefined;
+  if (!id || !meta) return null;
+  return (
+    <div className="backdrop-layer">
+      <WindowFrame meta={meta} style={{ width: W, height: H }} dragging={false} dropTarget={false} placement="backdrop"
+        opacity={meta.opacity ?? state.settings.windowOpacity ?? config.windowOpacity}>
+        <AppBody id={id} meta={meta} w={W} h={H} />
+      </WindowFrame>
+    </div>
+  );
+}
+
+/**
+ * Free windows (window.free): wherever the user put them, over the tiled layout and under the
+ * docks. Drag one by its title bar, resize it from its corner; a press anywhere on it raises it.
+ * While it moves the place is local; letting go saves it (window.place).
+ */
+function FreeWindows({ W, H }: { W: number; H: number }) {
+  const { state, config } = useSnapshot();
+  const [live, setLive] = useState<{ id: string; rect: FreeRect } | null>(null);
+  const ids = (state.freeOrder ?? []).filter((id) => state.instances[id] && state.free?.[id]);
+  if (!ids.length) return null;
+  /** Follow the pointer from a press: move (title bar) or resize (corner), in fractions of the glass. */
+  const track = (id: string, e: React.PointerEvent, mode: 'move' | 'size') => {
+    const start = state.free![id];
+    const x0 = e.clientX, y0 = e.clientY;
+    let rect = start;
+    document.body.classList.add('frames-off'); // app frames under the pointer would swallow it
+    const onMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - x0) / W, dy = (ev.clientY - y0) / H;
+      rect = mode === 'move'
+        ? { ...start, x: Math.min(0.95, Math.max(-start.w + 0.05, start.x + dx)), y: Math.min(0.95, Math.max(0, start.y + dy)) }
+        : { ...start, w: Math.max(0.08, start.w + dx), h: Math.max(0.08, start.h + dy) };
+      setLive({ id, rect });
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.classList.remove('frames-off');
+      if (rect !== start) void dispatch({ type: 'window.place', id, rect }).finally(() => setLive(null));
+      else setLive(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+  return (
+    <div className="free-layer">
+      {ids.map((id, z) => {
+        const meta = state.instances[id];
+        const r = live?.id === id ? live.rect : state.free![id];
+        const w = r.w * W, h = r.h * H;
+        return (
+          <div key={id} className={`free-slot${live?.id === id ? ' moving' : ''}`} style={{ zIndex: z + 1 }}
+            onPointerDownCapture={() => { if (z !== ids.length - 1) void dispatch({ type: 'window.raise', id }); }}>
+            <WindowFrame meta={meta} style={{ width: w, height: h, transform: `translate(${r.x * W}px, ${r.y * H}px)` }} dragging={live?.id === id}
+              dropTarget={false} placement="free" opacity={meta.opacity ?? state.settings.windowOpacity ?? config.windowOpacity}
+              onDragStart={(e) => track(id, e, 'move')}>
+              <AppBody id={id} meta={meta} w={w} h={h} />
+              <div className="free-resize" title="Drag to resize" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); track(id, e, 'size'); }} />
+            </WindowFrame>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Overlay apps' windows: each over the whole glass, above every window and dock, transparent and
  * click-through but where its view asks (FrameView). They get where the windows are, measured from
@@ -786,36 +859,44 @@ function WindowFrame(props: {
   meta: InstanceMeta; style: React.CSSProperties; dragging: boolean; dropTarget: boolean; opacity: number;
   page?: DesktopPage; onDragStart?: (e: React.PointerEvent) => void; children: React.ReactNode; tucked?: Dock;
   onTileClick?: () => void; // carousel side tile: a click brings it to the middle instead of selecting
+  placement?: 'free' | 'backdrop'; // a free window, or the one filling the background
 }) {
-  const { meta, page, tucked } = props;
+  const { meta, page, tucked, placement } = props;
   const [menu, setMenu] = useState(false);
   const app = apps[meta.type];
   const { state, config } = useSnapshot();
   const history = state.settings.windowMode === 'history';
   const selected = useSelected() === meta.id;
   // Sidebar windows stay live: they aren't part of scrolling through desktops.
-  const shielded = config.selectToInteract !== false && !selected && !tucked;
+  // Free windows and the background stay live too: the user put them there to use them.
+  const shielded = config.selectToInteract !== false && !selected && !tucked && !placement;
+  const place = (a: Action) => { void dispatch(a); setMenu(false); };
   return (
     <section
-      className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}${selected && config.selectToInteract !== false ? ' selected' : ''}`}
+      className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}${selected && config.selectToInteract !== false ? ' selected' : ''}${placement ? ` ${placement}` : ''}`}
       style={{ ...props.style, ['--glass' as any]: props.opacity }}
       data-window={meta.id}
     >
       <div className="titlebar" onPointerDown={(e) => { if (!props.onDragStart || (e.target as HTMLElement).closest('button')) return; e.preventDefault(); props.onDragStart(e); }}>
         <div className="lights">
           <button className="light close" title="Close window" aria-label="Close window" onClick={() => dispatch({ type: 'window.close', id: meta.id })} />
-          {!history && !tucked && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
-          {page && page.layout !== 'nested' && <button className="light layout" title="Desktop layout" aria-label="Change desktop layout" onClick={() => setMenu((m) => !m)} />}
+          {!history && !tucked && !placement && <button className="light front" title="Move to first slot" aria-label="Move to first slot" onClick={() => dispatch({ type: 'window.move', id: meta.id, index: 0 })} />}
+          <button className="light layout" title={page && page.layout !== 'nested' ? 'Layout and placement' : 'Placement'} aria-label="Layout and placement" onClick={() => setMenu((m) => !m)} />
         </div>
         <span className="wtitle" title={`${meta.title} · id: ${meta.id}`}><em><AppIcon type={meta.type} /></em>{meta.title}</span>
-        {menu && page && (
+        {menu && (
           <div className="layout-menu" onMouseLeave={() => setMenu(false)}>
-            {LAYOUT_NAMES.map((l) => (
+            {page && page.layout !== 'nested' && LAYOUT_NAMES.map((l) => (
               <button key={l} className={l === page.layout ? 'on' : ''} onClick={() => { dispatch({ type: 'desktop.layout', desktop: page.index, layout: l }); setMenu(false); }}>
                 <LayoutGlyph name={l} />
                 {LAYOUTS[l].label}
               </button>
             ))}
+            {/* Where this window lives: the layout, free anywhere, or filling the background. */}
+            {page && page.layout !== 'nested' && <hr />}
+            {placement !== 'free' && <button onClick={() => place({ type: 'window.free', id: meta.id })}><PlaceGlyph kind="free" />Free window</button>}
+            {placement !== 'backdrop' && <button onClick={() => place({ type: 'window.backdrop', id: meta.id })}><PlaceGlyph kind="backdrop" />Fill the background</button>}
+            {(placement || tucked) && <button onClick={() => place({ type: 'window.untuck', id: meta.id })}><PlaceGlyph kind="tile" />Back into the layout</button>}
           </div>
         )}
       </div>
@@ -824,6 +905,17 @@ function WindowFrame(props: {
         ? <div className="body-shield" title="Bring to the middle" onPointerDown={props.onTileClick} />
         : shielded && <div className="body-shield" title="Click to use this window" onPointerDown={() => selectWindow(meta.id)} />}
     </section>
+  );
+}
+
+/** The placement options' glyphs, drawn like the layout ones. */
+function PlaceGlyph({ kind }: { kind: 'free' | 'backdrop' | 'tile' }) {
+  return (
+    <svg viewBox="0 0 30 20" width="30" height="20" aria-hidden>
+      {kind === 'free' && <><rect x="2" y="3" width="15" height="10" rx="2" opacity=".45" /><rect x="11" y="7" width="16" height="11" rx="2" /></>}
+      {kind === 'backdrop' && <><rect x="1" y="1" width="28" height="18" rx="2" opacity=".45" /><rect x="6" y="5" width="18" height="10" rx="2" /></>}
+      {kind === 'tile' && <><rect x="1" y="1" width="13" height="18" rx="2" /><rect x="16" y="1" width="13" height="8" rx="2" /><rect x="16" y="11" width="13" height="8" rx="2" /></>}
+    </svg>
   );
 }
 

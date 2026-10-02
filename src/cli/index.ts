@@ -274,7 +274,7 @@ async function main(argv: string[]) {
     case 'window': {
       const sid = sessionId(flags);
       const [sub, id, arg] = rest;
-      if (!id) throw new Error('usage: claude-glass window open|close|move|dock|undock|delete|opacity <id> [arg]');
+      if (!id) throw new Error('usage: claude-glass window open|close|move|dock|undock|free|place|tile|background|delete|opacity <id> [arg]');
       if (sub === 'open') await dispatch(sid, { type: 'window.open', id });
       else if (sub === 'close') await dispatch(sid, { type: 'window.close', id });
       else if (sub === 'move') await dispatch(sid, { type: 'window.move', id, index: Number(arg ?? 0) });
@@ -282,7 +282,15 @@ async function main(argv: string[]) {
       else if (sub === 'rename') await dispatch(sid, { type: 'instance.rename', id, title: String(arg ?? id) });
       // Dock at an edge or corner (the older "pin"/"unpin" and "tuck"/"untuck" still work).
       else if (sub === 'dock' || sub === 'pin' || sub === 'tuck') await dispatch(sid, { type: 'window.tuck', id, edge: String(arg ?? 'right') as any });
-      else if (sub === 'undock' || sub === 'unpin' || sub === 'untuck') await dispatch(sid, { type: 'window.untuck', id });
+      else if (sub === 'undock' || sub === 'unpin' || sub === 'untuck' || sub === 'tile') await dispatch(sid, { type: 'window.untuck', id });
+      // Free windows: anywhere on the glass (fractions: --x --y --w --h), and the background.
+      else if (sub === 'free' || sub === 'place') {
+        const has = ['x', 'y', 'w', 'h'].every((k) => flags[k] !== undefined);
+        const rect = has ? { x: Number(flags.x), y: Number(flags.y), w: Number(flags.w), h: Number(flags.h) } : undefined;
+        if (sub === 'place' && !rect) throw new Error('usage: claude-glass window place <id> --x X --y Y --w W --h H (fractions of the glass)');
+        await dispatch(sid, sub === 'free' ? { type: 'window.free', id, rect } : { type: 'window.place', id, rect: rect! });
+      }
+      else if (sub === 'background') await dispatch(sid, { type: 'window.backdrop', id: id === 'off' ? null : id });
       else if (sub === 'delete') await dispatch(sid, { type: 'instance.delete', id });
       else throw new Error(`unknown window command "${sub}"`);
       out({ ok: true }, 'ok');

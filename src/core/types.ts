@@ -29,6 +29,9 @@ export interface SessionInfo {
   usage?: SessionUsage; // the context window, cost and plan limits, as Claude Code measures them
 }
 
+/** A free window's place: fractions of the glass (0..1), so it holds when the glass is resized. */
+export interface FreeRect { x: number; y: number; w: number; h: number }
+
 export interface Attachment {
   id: string;
   label: string; // what the chip says ("server.ts, lines 38–45")
@@ -142,6 +145,12 @@ export interface GlassState {
   // Open windows of overlay apps (display: 'overlay'): out of the layout, each over the whole glass,
   // the first on top.
   overlays?: string[];
+  // Free windows: out of the layout, wherever the user put them (fractions of the glass, so they
+  // keep their place when it's resized), over the tiled windows; freeOrder is bottom to top.
+  free?: Record<string, FreeRect>;
+  freeOrder?: string[];
+  // The window filling the whole glass behind everything else (the layout and free windows on top).
+  backdrop?: string;
   // Instances the hooks auto-opened once; never auto-reopened after the user closes them.
   autoOpened: string[];
   // Windows docked at an edge or corner (shown to users as "dock"; stored as "tucked"): out of the
@@ -185,6 +194,10 @@ export type Action =
   | { type: 'shared.refresh' }
   | { type: 'window.tuck'; id: string; edge: Dock; index?: number } // dock it; index: position in the dock (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
+  | { type: 'window.free'; id: string; rect?: FreeRect } // out of the layout or a dock, wherever it's put
+  | { type: 'window.place'; id: string; rect: FreeRect } // move/resize a free window (and raise it)
+  | { type: 'window.raise'; id: string } // a free window to the top
+  | { type: 'window.backdrop'; id: string | null } // fill the glass behind everything (null: back into the layout)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely
   | { type: 'tuck.keep'; edge: Dock; keep: boolean }
   | { type: 'tuck.float'; edge: Dock; float: boolean }

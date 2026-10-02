@@ -16,6 +16,8 @@ export function formatView(v: any): string {
     const size = sb.height ? `${sb.size}×${sb.height}px` : `${sb.size}px`;
     lines.push(`Docked ${dock} (${sb.open ? `kept open${sb.float ? ' over the layout' : ''}, ${size}` : 'hidden until hovered'}): ${names}`);
   }
+  if (v.free?.length) lines.push(`Free windows (where the user put them, over the layout; last on top): ${v.free.map((f: any) => `${f.id} (${f.type}) ${pos(f.rect)}`).join(', ')}`);
+  if (v.backdrop) lines.push(`Background (fills the glass behind everything): ${v.backdrop.id} (${v.backdrop.type})`);
   if (v.overlays?.length) lines.push(`Overlays (over the whole glass, click-through): ${v.overlays.map((o: any) => `${o.id} (${o.type})`).join(', ')}`);
   if (v.closed.length) lines.push(`Closed: ${v.closed.map((c: any) => `${c.id} (${c.type})`).join(', ')}`);
   return lines.join('\n');

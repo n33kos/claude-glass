@@ -122,6 +122,12 @@ overflow spills onto the next desktop.
   fits beside it. Docked windows stay put on every desktop, which suits things you interact with.
 
   ![The terminal docked at the right edge, kept open beside the desktop](docs/media/sidebar.png)
+- **Free windows and the background**: a window's layout menu (its third light) can make it a
+  *free window*, which you drag anywhere by its title bar and resize from its corner. Free windows
+  sit over the layout on every desktop and keep their place when the glass is resized; a click
+  brings one to the top. *Fill the background* puts a window behind everything, filling the
+  glass, with the layout over it. *Back into the layout* returns either. Not the main way to work,
+  but there when you want it.
 - **Nested view** (Settings): one screen instead of desktops. *Spiral*: the newest window is big
   and each older one takes half of what's left. *Carousel*: the focused window sits in the middle
   and its neighbors line up as small tiles either side; scroll, swipe or click a tile to move
@@ -191,6 +197,8 @@ claude-glass app <id> <command> [--text T | --file F] [--key value]
 claude-glass window open|close|delete <id>
 claude-glass window move <id> <index>      0 = the first slot, to bring something to your attention
 claude-glass window dock <id> <place> | undock <id>   place: left|right|top|bottom|top-left|top-right|bottom-right|bottom-left
+claude-glass window free <id> [--x --y --w --h]       a free window, anywhere (fractions of the glass); place <id> moves it
+claude-glass window background <id> | background off  fill the glass behind everything; tile <id> puts any window back in the layout
 claude-glass layout <desktop#> full|split|main-left|main-left-nest|columns|grid
 claude-glass catalog                       every app and its commands
 claude-glass settings [set <key> <value>]  (Claude changes settings only when you ask)

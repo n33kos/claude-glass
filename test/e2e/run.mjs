@@ -716,7 +716,12 @@ try {
     await cli(env, 'settings', 'set', 'nestedView', 'true');
     await sleep(700);
     await page.screenshot({ path: join(shots, '11-nested-view.png') });
-    check((await page.locator('.light.layout').count()) === 0 && (await page.locator('.pager button').count()) === 1, 'nested view: one page, layout buttons hidden');
+    // The window menu keeps only placement (free window, background): no desktop layouts here.
+    await page.locator('.stage .strip .light.layout').first().click();
+    const menuItems = await page.locator('.layout-menu button').allTextContents();
+    await page.locator('.stage .strip .light.layout').first().click();
+    check(menuItems.join('|') === 'Free window|Fill the background' && (await page.locator('.pager button').count()) === 1,
+      `nested view: one page, no desktop layouts in the window menu (${menuItems.join('|')})`);
     // Carousel: the focused window in the middle, neighbors as smaller tiles either side (3 rows);
     // with nothing newer, the middle window stretches left; clicking a tile brings it to the middle.
     const made = [];

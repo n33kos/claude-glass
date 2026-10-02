@@ -861,6 +861,34 @@ describe('edge sidebars', () => {
       expect(s.overlays).toEqual([]);
     } finally { delete APPS['ov-test']; }
   });
+  it('free windows sit wherever they\'re put, over the layout; one window can fill the background', () => {
+    let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'bottom' }).state;
+    s = reduce(s, { type: 'window.free', id: 'terminal' }).state; // out of its dock
+    expect(s.tucked?.bottom ?? []).toEqual([]);
+    expect(s.free?.terminal).toEqual({ x: 0.25, y: 0.15, w: 0.5, h: 0.6 });
+    s = reduce(s, { type: 'window.free', id: 'conversation', rect: { x: 0.6, y: 0.1, w: 0.3, h: 0.4 } }).state;
+    expect(s.order).not.toContain('conversation');
+    expect(s.freeOrder).toEqual(['terminal', 'conversation']);
+    s = reduce(s, { type: 'window.place', id: 'terminal', rect: { x: 2, y: -1, w: 0.01, h: 3 } }).state; // kept on the glass, raised
+    expect(s.free?.terminal).toEqual({ x: 0.95, y: 0, w: 0.08, h: 1 });
+    expect(s.freeOrder).toEqual(['conversation', 'terminal']);
+    s = reduce(s, { type: 'window.move', id: 'conversation', index: 0 }).state; // bringing it forward raises it
+    expect([s.freeOrder, s.order.includes('conversation')]).toEqual([['terminal', 'conversation'], false]);
+    s = reduce(s, { type: 'window.open', id: 'conversation' }).state;
+    expect(s.order).not.toContain('conversation');
+    s = reduce(s, { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    expect(() => reduce(s, { type: 'window.place', id: 'notes', rect: { x: 0, y: 0, w: 1, h: 1 } })).toThrow(/isn't a free window/);
+    // The background: out of the free windows; a new one sends the old one back into the layout.
+    s = reduce(s, { type: 'window.backdrop', id: 'conversation' }).state;
+    expect([s.backdrop, s.free?.conversation, s.order.includes('conversation')]).toEqual(['conversation', undefined, false]);
+    s = reduce(s, { type: 'window.backdrop', id: 'terminal' }).state;
+    expect([s.backdrop, s.order.includes('conversation')]).toEqual(['terminal', true]);
+    s = reduce(s, { type: 'window.backdrop', id: null }).state;
+    expect([s.backdrop, s.order[0]]).toEqual([undefined, 'terminal']);
+    s = reduce(s, { type: 'window.free', id: 'terminal' }).state;
+    s = reduce(s, { type: 'window.untuck', id: 'terminal' }).state; // back into the layout
+    expect([s.free?.terminal, s.order[0]]).toEqual([undefined, 'terminal']);
+  });
   it('a dock floats over the layout: kept open, until released or emptied', () => {
     let s = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'bottom' }).state;
     expect(() => reduce(s, { type: 'tuck.float', edge: 'left', float: true })).toThrow(/nothing is docked/);

@@ -225,6 +225,20 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .layout-menu button.on { background: var(--surface-selected); }
 .layout-menu svg rect { fill: var(--border-strong); }
 .layout-menu button.on svg rect { fill: var(--accent); }
+.layout-menu hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-1) var(--space-2); }
+/* The background window fills the glass behind the layout; the layout's empty space lets the
+   pointer through to it. */
+.backdrop-layer { position: absolute; inset: 0; z-index: 0; }
+.window.backdrop { border-radius: 0; box-shadow: none; }
+.strip { pointer-events: none; }
+.strip > * { pointer-events: auto; }
+/* Free windows: over the layout, under the docks; each slot stacks by its order. */
+.free-layer { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+.free-slot { position: absolute; inset: 0; pointer-events: none; }
+.free-slot .window { pointer-events: auto; }
+.free-slot.moving .window { transition: none; }
+.free-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 3;
+  background: linear-gradient(135deg, transparent 50%, var(--border-strong) 50%, var(--border-strong) 58%, transparent 58%, transparent 70%, var(--border-strong) 70%, var(--border-strong) 78%, transparent 78%); }
 
 /* ---- launcher (class names still say "dock") ------------------------------------ */
 /* Deliberately not the macOS dock: a dark, squarer bar, no magnify, and a bar (not a dot) under

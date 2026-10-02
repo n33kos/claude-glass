@@ -414,7 +414,11 @@ export class GlassCore {
         ...(isCorner(e) ? { height: s.tuckHeight?.[e] ?? cornerHeight(e, 860) } : {}), windows: s.tucked![e]!,
       }])),
       ...(s.overlays?.length ? { overlays: s.overlays.filter((id) => s.instances[id]).map(meta) } : {}),
-      closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !s.overlays?.includes(id) && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
+      // Free windows (bottom to top), where the user put them (fractions of the glass), and the backdrop.
+      ...(s.freeOrder?.length ? { free: s.freeOrder.filter((id) => s.instances[id] && s.free?.[id]).map((id) => ({ ...meta(id), rect: s.free![id] })) } : {}),
+      ...(s.backdrop && s.instances[s.backdrop] ? { backdrop: meta(s.backdrop) } : {}),
+      closed: Object.keys(s.instances).filter((id) => !s.order.includes(id) && !s.overlays?.includes(id) && !s.free?.[id] && s.backdrop !== id
+        && !Object.values(s.tucked ?? {}).some((l) => l?.includes(id))).map(meta),
     };
   }
 
