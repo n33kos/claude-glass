@@ -20,6 +20,8 @@ export const tasks: AppDef<TasksState> = {
     clear: { usage: 'clear', help: 'Empty the list' },
   },
   init: () => ({ items: [], updatedAt: 0 }),
+  // Public state (apps that read "tasks"): the list and where each task stands.
+  share: (s) => ({ items: s.items.map((t) => ({ subject: t.subject, status: t.status, ...(t.activeForm ? { activeForm: t.activeForm } : {}) })) }),
   command(s, cmd, _a: Args) {
     if (cmd === 'clear') return tasks.init();
     return unknownCommand('tasks', cmd);

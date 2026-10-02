@@ -25,6 +25,11 @@ export const files: AppDef<FilesState> = {
     clear: { usage: 'clear', help: 'Forget the session so far' },
   },
   init: () => ({ files: {} }),
+  // Public state (apps that read "files"): the files Claude touched, most recent first.
+  share: (s) => ({
+    files: Object.entries(s.files).sort(([, a], [, b]) => b.last - a.last).slice(0, 200)
+      .map(([path, f]) => ({ path, reads: f.reads, edits: f.edits, last: f.last })),
+  }),
   command(s, cmd, a: Args) {
     if (cmd === 'view') {
       if (a.mode !== 'list' && a.mode !== 'tree') throw new Error('files: view --mode list|tree');

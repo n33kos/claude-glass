@@ -462,6 +462,18 @@ describe('custom apps', () => {
     expect(s.shared?.['tool-count']).toBeUndefined();
     expect(() => parsePermissions({ reads: ['Not A Type'] })).toThrow(/not an app type/);
   });
+  it('built-ins share basics, cached only when some app reads them', () => {
+    const s = apply(fresh(), ...fixtures);
+    expect(s.shared?.terminal).toBeUndefined(); // nobody reads terminal: never computed
+    expect(s.shared?.changes).toBeUndefined();
+    const term = APPS.terminal.share!(s.appState.terminal) as any;
+    expect(term.recent.length).toBeGreaterThan(0);
+    expect(term.recent[0]).toEqual({ tool: expect.any(String), summary: expect.any(String), status: expect.any(String), at: expect.any(Number), ...(term.recent[0].durationMs != null ? { durationMs: expect.any(Number) } : {}) });
+    expect(JSON.stringify(term)).not.toContain('"output"'); // one line each, no output
+    const diff = APPS.diff.share!(s.appState.changes) as any;
+    expect(diff.files[0]).toMatchObject({ path: expect.any(String), changes: expect.any(Number), thisTurn: expect.any(Boolean) });
+    expect((APPS.tasks.share!(s.appState.tasks) as any).items[0]).toMatchObject({ subject: expect.any(String), status: expect.any(String) });
+  });
   it('a stored write from an event does not create a window that has nothing to show', () => {
     // tool-count is a singleton that auto-creates on its first change; here only the count changes.
     const s = apply(fresh(), { e: 'tool.start', tool: 'Read', id: 'r', input: {} });

@@ -113,6 +113,11 @@ export const terminal: AppDef<TerminalState> = {
     clear: { usage: 'clear', help: 'Clear the terminal' },
   },
   init: () => ({ entries: [], hidden: [] }),
+  // Public state (apps that read "terminal"): the last tool calls, one line each (no output).
+  share: (s) => ({
+    recent: s.entries.filter((e) => e.kind === 'tool').slice(-25)
+      .map((e) => ({ tool: e.tool, summary: e.summary, status: e.status, at: e.at, ...(e.durationMs != null ? { durationMs: e.durationMs } : {}) })),
+  }),
   command(s, cmd, a: Args) {
     switch (cmd) {
       case 'tool.start':

@@ -95,6 +95,14 @@ export const tests: AppDef<TestsState> = {
     clear: { usage: 'clear', help: 'Forget past runs' },
   },
   init: () => ({ runs: [] }),
+  // Public state (apps that read "tests"): the latest run's counts and failures, and one in progress.
+  share: (s) => {
+    const r = s.runs[s.runs.length - 1];
+    return {
+      last: r ? { command: r.command, runner: r.runner, passed: r.passed, failed: r.failed, skipped: r.skipped, ok: r.ok, failures: r.failures.slice(0, 20), at: r.at } : null,
+      running: s.running ? { command: s.running.command, at: s.running.at } : null,
+    };
+  },
   command(s, cmd, a: Args) {
     if (cmd === 'clear') return { ...tests.init(), view: s.view };
     if (cmd === 'view') {

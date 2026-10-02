@@ -34,6 +34,14 @@ export const diff: AppDef<DiffState> = {
     clear: { usage: 'clear', help: 'Remove all diffs' },
   },
   init: () => ({ files: [], revisions: {}, selected: null, cursor: {} }),
+  // Public state (apps that read "diff"): which files changed, how often, and which in the latest turn.
+  share: (s) => ({
+    selected: s.selected,
+    files: s.files.slice(0, 50).map((path) => {
+      const revs = s.revisions[path] ?? [];
+      return { path, changes: revs.length, lastAt: revs[revs.length - 1]?.at ?? 0, thisTurn: !!s.turn && revs.some((r) => r.turnId === s.turn) };
+    }),
+  }),
   command(s, cmd, a: Args) {
     switch (cmd) {
       case 'add': {

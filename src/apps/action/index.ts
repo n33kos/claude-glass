@@ -51,7 +51,7 @@ export const action: AppDef<ActionState> = {
   title: 'Action',
   icon: '◉',
   singleton: true,
-  description: "Approvals from the glass: when Claude Code asks permission (or, as an experiment, Claude asks a question), answer here or in the terminal. Two-way; fills itself.",
+  description: "Approvals from the glass: when Claude Code asks permission or Claude asks a question, answer here or in the terminal. Two-way; fills itself.",
   commands: {
     clear: { usage: 'clear', help: 'Forget answered requests' },
   },
@@ -62,7 +62,7 @@ export const action: AppDef<ActionState> = {
     approvals: { type: 'bool', label: 'Answer permission prompts from the glass (and the terminal, whichever is first)', default: true },
     keepAnswered: { type: 'bool', label: 'Keep answered requests listed', default: false },
     holdMinutes: { type: 'number', label: 'Minutes to wait before falling back to Claude Code\'s own prompt', default: 10, min: 1, max: 60 },
-    questions: { type: 'bool', label: 'Experiment: answer Claude\'s questions from the glass too (the terminal shows a short version)', default: false },
+    questions: { type: 'bool', label: 'Answer Claude\'s questions in the glass while it\'s open (the terminal shows a short version)', default: true },
   },
   init: () => ({ requests: [] }),
   command(s, cmd, a: Args) {

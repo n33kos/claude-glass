@@ -177,6 +177,7 @@ export type Action =
   | { type: 'attach.add'; label: string; text: string; from: string } // the glass's own window only
   | { type: 'attach.remove'; id: string }
   | { type: 'attach.clear' }
+  | { type: 'shared.refresh' }
   | { type: 'window.tuck'; id: string; edge: Dock; index?: number } // dock it; index: position in the dock (default last)
   | { type: 'window.untuck'; id: string; index?: number } // index: slot in the layout (default 0)
   | { type: 'instance.delete'; id: string } // remove a window and its state entirely

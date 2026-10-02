@@ -184,14 +184,14 @@ async function approve($: any, e: any, signal: AbortSignal | undefined): Promise
 }
 
 /**
- * The questions experiment: Claude's AskUserQuestion, answered through the glass (and the band,
+ * Claude's questions (AskUserQuestion), answered through the glass (and the band,
  * for one question with one choice to make). The tool's result, or null for Claude Code's dialog.
  */
 async function answerQuestions($: any, input: any, signal: AbortSignal | undefined): Promise<any> {
   const questions = Array.isArray(input?.questions) ? input.questions : []
   if (!questions.length) return null
   const req = await ask($, ['action', 'request'], JSON.stringify({ kind: 'question', tool: 'AskUserQuestion', input }))
-  if (!req?.id) return null // the experiment is off, or no glass
+  if (!req?.id) return null // turned off, or no glass
   const one = questions.length === 1 && !questions[0].multiSelect ? questions[0] : null
   const options = one && Array.isArray(one.options) && one.options.length <= 4 ? one.options.map((o: any) => String(o?.label ?? '')) : []
   const outcome = await settle($, req, { id: req.id, kind: 'question', summary: String(questions[0].question ?? ''), canAlways: false, options, choice: null }, signal)
@@ -301,7 +301,7 @@ export function register(on: any) {
     const glassOpen = await glassUp($)
     // Two-way apps that hook this tool may refuse it or answer it themselves.
     const app = glassOpen && hooked(tool) ? (await ask($, ['hook', 'tool.call'], JSON.stringify({ tool, input, agentId }), LONGEST))?.answer : null
-    // The questions experiment: the glass may answer Claude's question (else Claude Code's dialog).
+    // Claude's questions: the glass may answer Claude's question (else Claude Code's dialog).
     const answered = !app && tool === 'AskUserQuestion' && !agentId && glassOpen ? await answerQuestions($, input, next.signal) : null
     // Claude's own ask tool: the question as an Action card, the user's answer as the result.
     const asked = tool === `mcp__${$.plugin.name}__${ASK_TOOL.name}`

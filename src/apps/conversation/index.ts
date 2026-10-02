@@ -26,6 +26,8 @@ export const conversation: AppDef<ConversationState> = {
     clear: { usage: 'clear', help: 'Clear the conversation view' },
   },
   init: () => ({ messages: [] }),
+  // Public state (apps that read "conversation"): the last few messages, trimmed.
+  share: (s) => ({ messages: s.messages.slice(-12).map((m) => ({ role: m.role, text: messageText(m).slice(0, 2000), done: m.done, at: m.at })) }),
   command(s, cmd, a: Args) {
     switch (cmd) {
       case 'user':

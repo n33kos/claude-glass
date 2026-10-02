@@ -45,6 +45,8 @@ export class GlassCore {
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
     // Reopened glass: fresh start time is not interesting, but "ended" must be cleared.
     this.state = reduce(this.state, { type: 'session.update', patch: { endedAt: undefined, activity: 'idle' } }).state;
+    // Public state, cached only for the types the loaded apps read.
+    this.state = reduce(this.state, { type: 'shared.refresh' }).state;
     // A brand-new glass starts from the default preset, if the user picked one.
     if (!saved && this.config.defaultPreset) {
       try { this.applyPreset(loadPreset(this.config.defaultPreset)); } catch {}

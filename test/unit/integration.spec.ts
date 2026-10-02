@@ -299,12 +299,13 @@ describe('approvals through the glass (the Action app)', () => {
     expect(core.state.order).not.toContain('action');
   });
 
-  it('questions (the experiment): off by default; on, the glass answers with an answer per question', async () => {
+  it('questions: on by default (off when turned off); the glass answers with an answer per question', async () => {
     const qreq = (input: object) => run(join(root, 'bin/claude-glass'), ['action', 'request', '--session', SID], JSON.stringify({ kind: 'question', tool: 'AskUserQuestion', input }));
     const input = { questions: [
       { question: 'Ship it now?', header: 'Deploy', multiSelect: false, options: [{ label: 'Yes' }, { label: 'Not yet', description: 'keep testing' }] },
       { question: 'Which checks?', header: 'Checks', multiSelect: true, options: [{ label: 'Lint' }, { label: 'Tests' }, { label: 'E2E' }] },
     ] };
+    await cli('settings', 'set', 'app.action.questions', 'false');
     expect(await json(qreq(input))).toEqual({ off: 'questions from the glass are off' });
     await cli('settings', 'set', 'app.action.questions', 'true');
     const req = await json(qreq(input));

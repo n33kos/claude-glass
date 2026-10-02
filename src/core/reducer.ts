@@ -1,8 +1,7 @@
 // The one reducer. UI drags, CLI commands, and hooks all end up here.
 import { APPS, getApp } from '../apps/registry';
-import { SHARED_MAX_BYTES, STORED_MAX_BYTES, StoreWrite, storedValues, type AppContext, type AppDef } from '../apps/types';
+import { SHARED_MAX_BYTES, STORED_MAX_BYTES, StoreWrite, storedValues, type AppContext, type AppDef, type SharedEntry } from '../apps/types';
 import { parseColors } from './colors';
-import { readableShared } from './shared';
 import { DOCKS, isCorner, isDock, isLayout } from './layout';
 import type { Action, Dock, GlassState, InstanceMeta, SessionInfo } from './types';
 
@@ -228,6 +227,17 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     case 'attach.remove':
       return { state: { ...s, attachments: (s.attachments ?? []).filter((x) => x.id !== a.id) } };
 
+    case 'shared.refresh': {
+      // The apps changed (a glass starting, custom apps loading): cache public state for the types
+      // someone reads now, and drop the rest.
+      let state: GlassState = s.shared ? { ...s, shared: {} } : s;
+      for (const inst of Object.values(s.instances)) {
+        const app = APPS[inst.type];
+        if (app?.share && s.appState[inst.id] !== undefined && isRead(inst.type)) state = writeShared(state, app, inst.id);
+      }
+      return { state };
+    }
+
     case 'attach.clear':
       return { state: s.attachments?.length ? { ...s, attachments: [] } : s };
 
@@ -312,8 +322,36 @@ function appContext(s: GlassState, app: AppDef): AppContext {
   return {
     stored: storedValues(app, s.stored?.[app.type]),
     store: <S,>(state: S, patch: Record<string, unknown>) => new StoreWrite(state, patch) as unknown as S,
-    shared: readableShared(s, app.permissions?.reads ?? []),
+    // Read on demand, straight from the other apps' state: nothing is computed unless asked for.
+    get shared() { return sharedNow(s, app.permissions?.reads ?? []); },
   };
+}
+
+/** Whether any loaded app may read this type's public state (else it's never computed). */
+function isRead(type: string): boolean {
+  return Object.values(APPS).some((a) => a.permissions?.reads?.includes(type));
+}
+
+/** Public state computed now from the instances' state (for a core reading it). */
+function sharedNow(s: GlassState, reads: string[]): SharedEntry[] {
+  if (!reads.length) return [];
+  const out: SharedEntry[] = [];
+  for (const inst of Object.values(s.instances)) {
+    const share = reads.includes(inst.type) ? APPS[inst.type]?.share : undefined;
+    if (!share || s.appState[inst.id] === undefined) continue;
+    const data = shareOf(share, s.appState[inst.id]);
+    if (data !== undefined) out.push({ id: inst.id, type: inst.type, title: inst.title, data });
+  }
+  return out;
+}
+
+/** One instance's public state: share(), JSON, within the size limit; else nothing. */
+function shareOf(share: (state: any) => unknown, state: unknown): unknown {
+  try {
+    const out = share(state);
+    const json = out === undefined ? undefined : JSON.stringify(out);
+    return json !== undefined && json.length <= SHARED_MAX_BYTES ? JSON.parse(json) : undefined;
+  } catch { return undefined; } // a broken share() shares nothing
 }
 
 /** A core's answer: new state for the instance, any persistent values it wrote, and its public state. */
@@ -321,18 +359,14 @@ function applyCore(s: GlassState, app: AppDef, id: string, out: unknown, keepSta
   const next = out instanceof StoreWrite ? out.state : out;
   let state = keepState && next !== undefined ? { ...s, appState: { ...s.appState, [id]: next } } : s;
   if (out instanceof StoreWrite) state = writeStored(state, app, out.patch);
-  if (app.share && state.appState[id] !== s.appState[id]) state = writeShared(state, app, id);
+  // Views read the cached copy (state.shared): kept only for types some app reads.
+  if (app.share && state.appState[id] !== s.appState[id] && isRead(app.type)) state = writeShared(state, app, id);
   return state;
 }
 
-/** Recompute an instance's public state (share(), JSON, within the size limit; else nothing). */
+/** Recompute an instance's cached public state. */
 function writeShared(s: GlassState, app: AppDef, id: string): GlassState {
-  let data: unknown;
-  try {
-    const out = app.share!(s.appState[id]);
-    const json = out === undefined ? undefined : JSON.stringify(out);
-    data = json !== undefined && json.length <= SHARED_MAX_BYTES ? JSON.parse(json) : undefined;
-  } catch { data = undefined; } // a broken share() shares nothing
+  const data = shareOf(app.share!, s.appState[id]);
   const { [id]: _old, ...rest } = s.shared ?? {};
   if (data === undefined) return s.shared && id in s.shared ? { ...s, shared: rest } : s;
   return { ...s, shared: { ...rest, [id]: data } };
