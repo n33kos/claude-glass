@@ -14,7 +14,7 @@ import { applyEvent, type EventContext, type GlassEvent } from './events';
 import { loadApps, type AppReport } from './customApps';
 import { StoredFiles } from './stored';
 import { formatView } from './viewtext';
-import { APP_HOOK_EVENTS, collectHooks, runHooks, subscriptions, whileAsking, type AppHook } from './apphooks';
+import { isHookable, collectHooks, runHooks, subscriptions, whileAsking, type AppHook } from './apphooks';
 import { computeDesktops, cornerHeight, desktopsFor, DOCKS, edgeSize, effectiveLayout, isCorner, LAYOUTS, nestedSlots } from './layout';
 import { filesDir, sessionDir, socketPath, statePath } from './paths';
 import { initialState, reduce } from './reducer';
@@ -246,7 +246,7 @@ export class GlassCore {
    * then the apps' hooks run. `{ e }` to pass it on (maybe changed), `{ answer }` to answer it.
    */
   async hook(event: string, e: Record<string, unknown>): Promise<unknown> {
-    if (!APP_HOOK_EVENTS.includes(event as AppHookEvent)) throw new Error(`can't hook "${event}"`);
+    if (!isHookable(event)) throw new Error(`can't hook "${event}"`);
     let ev = { ...e };
     if (event === 'prompt.submit') {
       const context = Array.isArray(ev.context) ? ev.context.map(String) : [];
@@ -267,7 +267,7 @@ export class GlassCore {
       if (this.config.viewContext === true) context.push(`What's on the user's glass right now:\n${formatView(this.view())}`);
       ev = { ...ev, context };
     }
-    return runHooks(this.appHooks, event as AppHookEvent, ev, (app) => this.glassFor(app));
+    return runHooks(this.appHooks, event, ev, (app) => this.glassFor(app));
   }
 
   // ---- Controls: the glass asking the mod to do something (interrupt) -------------------------

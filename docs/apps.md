@@ -255,6 +255,15 @@ exports.register = (on) => {
 |---|---|---|
 | `prompt.submit` | `{ text, context }` | `next({ ...e, text })`, `next({ ...e, context })`, or `{ drop: reason }` |
 | `tool.call` | `{ tool, input, agentId? }` | `next(e)`, `{ deny: reason }` (Claude reads it), or `{ result }` (in place of running the tool) |
+| any other mod event | as Claude Code's mod sees it | `next(e)` (maybe changed), or the event's result |
+
+Those two come in the glass's own shape. Every other event a Claude Code mod can hook is yours too,
+by its name, now and in later Claude Code versions: `turn.complete`, `agent.spawn`,
+`attribution.text`, `classic.Stop`, and so on. The glass mod hooks them all and forwards the ones
+an app subscribed to, untouched; their shapes and results are Claude Code's
+([its types](https://code.claude.com/docs/en/plugins/mods/overview): `claude-code.d.ts`). Not
+hookable: streams (`turn.step`, `process.spawn`), drawing (`ui.render`), `engine.create`,
+telemetry, and the mod's own transport (`process.run`, `fs.exists`): `src/core/hookable.ts`.
 
 A matcher (the second argument) filters on the event's fields: a value, a list, or a pattern.
 Handlers run in app order, before Claude Code acts (there's no "after"); one that throws or takes

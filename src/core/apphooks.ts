@@ -4,8 +4,9 @@
 // the event on (`next(e)`, maybe changed) or answers it (`{ deny }`, `{ result }`, `{ drop }`).
 import { APPS } from '../apps/registry';
 import type { AppDef, AppHookEvent, AppHookGlass, AppHookHandler } from '../apps/types';
+import { isHookable } from './hookable';
 
-export const APP_HOOK_EVENTS: readonly AppHookEvent[] = ['prompt.submit', 'tool.call'];
+export { isHookable };
 const HANDLER_MS = 10_000; // a handler's own time (an ask waits on the user, so it doesn't count)
 
 export interface AppHook { app: string; event: AppHookEvent; matcher: Record<string, unknown>; fn: AppHookHandler }
@@ -19,7 +20,7 @@ export function collectHooks(disabled: readonly string[] = []): { hooks: AppHook
     if (!app.permissions?.twoWay) { errors[app.type] = 'register(on) needs "permissions": { "twoWay": true }'; continue; }
     try {
       app.register((event, a, b) => {
-        if (!APP_HOOK_EVENTS.includes(event)) throw new Error(`can't hook "${event}" (hookable: ${APP_HOOK_EVENTS.join(', ')})`);
+        if (!isHookable(event)) throw new Error(`can't hook "${event}" (see src/core/hookable.ts)`);
         const fn = (typeof a === 'function' ? a : b) as AppHookHandler | undefined;
         if (typeof fn !== 'function') throw new Error(`on("${event}") needs a handler`);
         hooks.push({ app: app.type, event, matcher: typeof a === 'function' ? {} : a, fn });

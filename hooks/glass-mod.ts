@@ -216,7 +216,28 @@ function errorOf(r: any): string | undefined {
   return undefined
 }
 
+// Events the glass forwards from its own hooks below, in its own way.
+const OWN_FORWARD = new Set(['tool.call', 'prompt.submit', 'classic.PermissionRequest'])
+
+/**
+ * Any session event a two-way app hooks (whatever Claude Code calls it; src/core/hookable.ts has
+ * the few that can't be): passed to the glass as Claude Code has it, and the apps' answer is the
+ * event's result. Without a subscription (the glass says which events some app hooks), nothing
+ * leaves the mod: one lookup per event.
+ */
+async function forward($: any, event: string, e: any, next: any) {
+  if (!(subs[event]?.length) || OWN_FORWARD.has(event) || !(await glassUp($))) return next(e)
+  const sent = JSON.stringify(e)
+  const r = await ask($, ['hook', event], sent, LONGEST)
+  if (r && 'answer' in r) return r.answer
+  // Passed on: as changed by an app, else the event as it came (with whatever JSON can't carry).
+  return next(r?.e && JSON.stringify(r.e) !== sent ? r.e : e)
+}
+
 export function register(on: any) {
+  // Two-way apps' hooks on any event, whatever Claude Code names it now or later.
+  on('*', ($: any, e: any, next: any) => forward($, String(next.event), e, next))
+
   // Every start of a conversation: startup, /clear (a new session id), resume, compact.
   on('classic.SessionStart', async ($: any, e: any, next: any) => {
     cid = String(e.session_id ?? '')
@@ -331,8 +352,13 @@ export function register(on: any) {
   on('classic.PermissionRequest', async ($: any, e: any, next: any) => {
     send($, { e: 'permission', tool: e.tool_name, input: e.tool_input })
     if (!(await glassUp($))) return next(e)
-    const decided = await approve($, e, next.signal)
-    return decided ?? next(e)
+    // A two-way app that hooks it decides first; then the Action app's approval.
+    const sent = JSON.stringify(e)
+    const app = subs['classic.PermissionRequest']?.length ? await ask($, ['hook', 'classic.PermissionRequest'], sent, LONGEST) : null
+    if (app && 'answer' in app) return app.answer
+    const ev = app?.e && JSON.stringify(app.e) !== sent ? app.e : e
+    const decided = await approve($, ev, next.signal)
+    return decided ?? next(ev)
   })
 
   // The band above the prompt while an approval is in flight: the same choices as the glass card.

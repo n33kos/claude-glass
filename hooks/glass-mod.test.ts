@@ -75,4 +75,19 @@ describe('the glass mod', () => {
     const r: any = await $.tool.call({ tool: 'Bash', command: 'rm -rf build' } as any)
     expect(r.deny ?? r.text).toContain('Guard said no.') // a deny, however the caller sees it
   })
+
+  test('any other event an app hooks goes to the glass as Claude Code has it; unhooked ones never do', async ($, on) => {
+    const ran = fakeGlass(on, {
+      event: () => ({ hooks: { 'attribution.text': ['*'] } }),
+      hook: (stdin) => ({ answer: { text: `${JSON.parse(stdin).text} (via the glass)` } }),
+    })
+    on('tool.call', async () => ({ result: { stdout: '', stderr: '', interrupted: false } }))
+    on('attribution.text', async (_$: any, e: any) => ({ text: e.text }))
+    on('agent.offer', async (_$: any, e: any) => e)
+    await $.classic.SessionStart({ source: 'startup' })
+    await $.tool.call({ tool: 'Read', file_path: '/tmp/x' } as any) // the glass's reply names the hooked events
+    const r: any = await $.attribution.text({ text: 'Co-Authored-By: Claude' } as any)
+    expect(r.text).toBe('Co-Authored-By: Claude (via the glass)')
+    expect(ran.filter((x) => x.cmd === 'hook').map((x) => x.argv[2])).toEqual(['attribution.text'])
+  })
 })

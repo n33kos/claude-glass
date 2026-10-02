@@ -62,9 +62,11 @@ export interface StoredSpec { scope: StoredScope; default: unknown }
  * forwards these events; a handler passes the event on (`next(e)`, maybe changed), or answers:
  *   prompt.submit  e: { text, context: string[] }   next({ ...e, text | context }) or { drop: reason }
  *   tool.call      e: { tool, input, agentId? }      next(e) or { deny: reason } or { result }
- * They run before Claude Code acts (there is no "after"). `glass` is the app's handle on the glass.
+ * Every other event in src/core/hookable.ts comes as Claude Code's mod sees it; answering it is
+ * returning the event's result. They run before Claude Code acts (there is no "after"). `glass`
+ * is the app's handle on the glass.
  */
-export type AppHookEvent = 'prompt.submit' | 'tool.call';
+export type AppHookEvent = string;
 export type AppHookNext = (e: any) => Promise<any>;
 export type AppHookHandler = (glass: AppHookGlass, e: any, next: AppHookNext) => any;
 export type AppOn = (event: AppHookEvent, matcherOrHandler: Record<string, unknown> | AppHookHandler, handler?: AppHookHandler) => void;

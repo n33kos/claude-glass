@@ -18,7 +18,7 @@ import { DEFAULT_CONFIG } from '../../src/core/config';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor, guideForSettings } from '../../src/core/guide';
 import { attachBuiltinViews, loadApps, readApp } from '../../src/core/customApps';
-import { collectHooks, runHooks, subscriptions } from '../../src/core/apphooks';
+import { collectHooks, isHookable, runHooks, subscriptions } from '../../src/core/apphooks';
 import { APPS } from '../../src/apps/registry';
 import { diffLines } from '../../src/core/linediff';
 import { initialState, reduce } from '../../src/core/reducer';
@@ -416,6 +416,15 @@ describe('custom apps', () => {
     expect(await runHooks(hooks, 'tool.call', { tool: 'Bash', input: { command: 'ls' } }, glassFor)).toEqual({ e: { tool: 'Bash', input: { command: 'ls' } } });
     expect(await runHooks(hooks, 'tool.call', { tool: 'Read', input: {} }, glassFor)).toEqual({ e: { tool: 'Read', input: {} } }); // not matched
     expect(await runHooks(hooks, 'prompt.submit', { text: 'hi', context: ['x'] }, glassFor)).toEqual({ e: { text: 'hi', context: ['x', 'Guard is watching this session.'] } });
+  });
+  it('apps hook any Claude Code event by name, except streams, drawing and the mod\'s transport', async () => {
+    expect(isHookable('attribution.text')).toBe(true);
+    expect(isHookable('classic.Stop')).toBe(true);
+    expect(isHookable('some.futureEvent')).toBe(true); // a name Claude Code adds later
+    for (const e of ['turn.step', 'ui.render', 'process.run', 'engine.create', 'telemetry.log', 'nope']) expect(isHookable(e)).toBe(false);
+    const hooks = [{ app: 'guard', event: 'attribution.text', matcher: {}, fn: async (_g: unknown, e: any) => ({ text: `${e.text}!` }) }];
+    expect(subscriptions(hooks)).toEqual({ 'attribution.text': ['*'] });
+    expect(await runHooks(hooks, 'attribution.text', { text: 'hi' }, () => ({}) as any)).toEqual({ answer: { text: 'hi!' } });
   });
   it('register(on) needs the twoWay permission', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cg-oneway-'));
