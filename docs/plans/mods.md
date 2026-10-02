@@ -74,7 +74,7 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
       (a closed one stays closed; docked ones are lit, not moved; history mode never moves).
       With signals off, light means nothing. The guide lists what's on so Claude doesn't repeat it.
       Settings → Attention
-- [ ] Waiting → the Action app (Phase 2)
+- [x] Waiting → the Action app (Phase 2): a permission prompt brings its card to the front
 - [x] **Turn progress bar** (`turnProgress`, default on): a thin white line along the bottom while
       a turn runs. It sweeps, brightens on each model request (the mod's `step` event), fills by
       tasks done while Claude works through a list, and pauses while it waits on you
@@ -106,7 +106,7 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
       `claude-glass action wait <id> --ms 700` (time inside `$` calls is free), so no server
 - [x] App questions: a two-way app's hook raises one with `glass.ask` (Phase 3), and Claude with
       its glass ask tool
-- [ ] Questions (AskUserQuestion): the experiment below
+- [x] Questions (AskUserQuestion): the experiment below (built; off by default)
 - [x] **Interrupt** (`interruptButton`, off by default): a Stop button in the top bar while
       Claude works. The glass queues a control (only its own window can, over IPC); the mod's
       background loop collects it with `claude-glass watch` (blocks on the socket up to 20s; only

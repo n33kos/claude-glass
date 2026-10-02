@@ -102,9 +102,9 @@ export default function DiffView({ state, run, width, session, host }: AppViewPr
             <span>{idx + 1} / {revs.length}</span>
             <button disabled={idx === revs.length - 1} onClick={() => run('select', { path: file, index: idx + 1 === revs.length - 1 ? -1 : idx + 1 })} aria-label="Next revision">›</button>
           </span>
-          <span className="d-when">{rev.source} · {timeAgo(rev.at)}</span>
+          {wide && <span className="d-when">{rev.source} · {timeAgo(rev.at)}</span>}
           <button className="d-attach" title="Attach this change to your next prompt (Claude reads it with what you say)"
-            onClick={() => host('attach', { label: `${file.split('/').pop()} · change ${idx + 1}/${revs.length}`, text: revisionText(shortPath(file, cwd), rev) })}>Ask about this</button>
+            onClick={() => host('attach', { label: `${file.split('/').pop()} · change ${idx + 1}/${revs.length}`, text: revisionText(shortPath(file, cwd), rev) })}>{wide ? 'Ask about this' : 'Ask'}</button>
         </div>
         {rev.note && <p className="d-note">{rev.note}</p>}
         <Hunks key={`${file}:${idx}:${rev.at}`} rev={rev} />
