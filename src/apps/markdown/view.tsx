@@ -102,9 +102,33 @@ export default function MarkdownView({ state, host, ask }: AppViewProps<Markdown
     return () => el.removeEventListener('click', onClick);
   });
 
+  // Point and ask: select some text, and a pill offers to attach it to the user's next prompt.
+  const [picked, setPicked] = useState<{ text: string; top: number; left: number } | null>(null);
+  useEffect(() => {
+    const el = article.current, box = ref.current;
+    if (!el || !box) return;
+    const onUp = () => setTimeout(() => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim() ?? '';
+      if (!sel || !text || !sel.rangeCount || !el.contains(sel.anchorNode)) return setPicked(null);
+      const r = sel.getRangeAt(0).getBoundingClientRect(), b = box.getBoundingClientRect();
+      setPicked({ text, top: r.bottom - b.top + box.scrollTop + 6, left: Math.max(8, Math.min(r.left - b.left, b.width - 160)) });
+    }, 0);
+    el.addEventListener('mouseup', onUp);
+    return () => el.removeEventListener('mouseup', onUp);
+  });
+  const attach = () => {
+    if (!picked) return;
+    const name = path?.split('/').pop() ?? 'Markdown';
+    host('attach', { label: `${name}: “${picked.text.slice(0, 32)}${picked.text.length > 32 ? '…' : ''}”`, text: `From ${path ?? 'a markdown window'}:\n${picked.text}` });
+    window.getSelection()?.removeAllRanges();
+    setPicked(null);
+  };
+
   if (!state.content && !page) return <div className="md-empty">Nothing here yet.</div>;
   return (
     <div className="markdown" ref={ref}>
+      {picked && <button className="md-ask" style={{ top: picked.top, left: picked.left }} onMouseDown={(e) => e.preventDefault()} onClick={attach}>Ask about this</button>}
       {stack.length > 0 ? (
         <div className="md-nav">
           <button onClick={() => setStack((s) => s.slice(0, -1))} title="Back">‹ Back</button>

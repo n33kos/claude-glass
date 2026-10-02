@@ -15,6 +15,12 @@
 .t-tool { color: var(--text-2); word-break: break-all; }
 .t-tool b { color: var(--accent-text); font-weight: var(--weight-medium); }
 .t-dur { margin-left: auto; color: var(--text-3); font-size: var(--text-size-xs); flex: none; }
+/* Point and ask: shows on a hovered entry. */
+.t-ask { flex: none; margin-left: auto; padding: 0 var(--space-2); border-radius: var(--radius-pill); font: var(--text-size-2xs) var(--font-sans); color: var(--text-3);
+  background: var(--surface-hover); cursor: pointer; visibility: hidden; }
+.t-dur + .t-ask { margin-left: var(--space-2); }
+.t-entry:hover .t-ask { visibility: visible; }
+.t-ask:hover { color: var(--accent-text); }
 .t-out { margin: var(--space-0) 0 var(--space-0) var(--space-6); padding: 0 0 0 10px; border-left: 1px solid var(--border); color: var(--gray-10); white-space: pre-wrap; word-break: break-all; font: inherit; }
 .t-more { margin-left: 30px; color: var(--text-link); font: var(--text-size-xs) var(--font-sans); cursor: pointer; }
 .t-agent { color: var(--violet); padding: 3px 0; }

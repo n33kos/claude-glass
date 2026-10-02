@@ -104,7 +104,8 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
       whichever is answered first wins and the other side is told. "Ask here", a timeout
       (`holdMinutes`), an interrupt, or no glass: Claude Code's own prompt. The wait polls
       `claude-glass action wait <id> --ms 700` (time inside `$` calls is free), so no server
-- [ ] App questions: any two-way app can raise one (Phase 3)
+- [x] App questions: a two-way app's hook raises one with `glass.ask` (Phase 3), and Claude with
+      its glass ask tool
 - [ ] Questions (AskUserQuestion): the experiment below
 - [x] **Interrupt** (`interruptButton`, off by default): a Stop button in the top bar while
       Claude works. The glass queues a control (only its own window can, over IPC); the mod's
@@ -162,7 +163,7 @@ Built (docs/apps.md, "Stored values"):
 - [x] **CLI**: `claude-glass stored <type> [set <key> <json> | reset [key]]`; Settings → Apps
       shows how many values an app keeps, with Reset
 - [x] **Limits**: JSON, 256 KB per app per scope, declared keys only
-- [ ] Two-way handlers (Phase 3) get the same `ctx`
+- [x] Two-way handlers (Phase 3) get them too: `glass.stored` / `glass.store(patch)`
 - [ ] The mod's own mirror in `$.state` (attention settings, subscriptions), only once the mod
       needs something on every event; today it needs nothing beyond the session start
 
@@ -201,7 +202,9 @@ Separate from the Action app's first version; we try it and keep what works.
       built-in and two-way views. Attachments ride the next `prompt.submit` as `context` (the
       transcript stays clean), shown as chips in the top bar until then; only the glass window
       can attach. Checked live: Claude read an attached note
-- [ ] Point and ask from more places: lines in a file, a diagram node, an image region
+- [x] Point and ask from more places: a terminal entry's Ask (the call and its output), selected
+      text in a markdown window (the plan, notes)
+- [ ] Still to come, if wanted: a diagram node, an image region
 - [x] **Ask Claude from the glass** (`askBox`, off by default): a field in the top bar; the mod
       collects it with `claude-glass watch` and `$.prompt.submit({ text, asUser: true })`s it
 - [x] docs/apps.md: "Two-way apps"; a sample two-way app (`test/fixtures/apps/guard`)

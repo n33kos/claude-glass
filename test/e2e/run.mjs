@@ -474,6 +474,31 @@ try {
     await chip.locator('button').click();
     await sleep(200);
     check((await page.locator('.attach-chip').count()) === 0, 'the chip\'s × takes it off again');
+    // From the terminal: a hovered entry's Ask.
+    const t = appFrame(page, 'terminal');
+    const entry = t.locator('.t-entry', { hasText: 'git diff --stat' }).first();
+    await entry.hover();
+    await entry.locator('.t-ask').click();
+    await sleep(300);
+    check((await page.locator('.attach-chip').innerText()).includes('git diff --stat'), 'a terminal entry\'s Ask attaches the call and its output');
+    await page.locator('.attach-chip button').click();
+    await t.locator('.t-scroll').evaluate((el) => { el.scrollTop = el.scrollHeight; }); // (hovering scrolled it up)
+    // From a markdown window: select text, then the pill.
+    const planId = JSON.parse(await cli(env, 'view', '--json')).desktops.flatMap((d) => d.windows).find((w) => w.title === 'Plan')?.id;
+    if (planId) {
+      const md = appFrame(page, planId);
+      await md.locator('article.md p').first().evaluate((p) => {
+        const r = document.createRange(); r.selectNodeContents(p);
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        p.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      });
+      await sleep(300);
+      await page.locator(`[data-window="${planId}"]`).screenshot({ path: join(shots, '08l-markdown-ask.png') });
+      await md.locator('.md-ask').click();
+      await sleep(300);
+      check((await page.locator('.attach-chip').innerText()).includes('PLAN.md'), 'selected text in a markdown window can be attached');
+      await page.locator('.attach-chip button').click();
+    } else check(false, 'the Plan window is on screen for the markdown attach check');
     check((await appFrame(page, 'terminal').locator('.t-turn').count()) >= 2, 'the terminal marks where each turn starts');
   }
 

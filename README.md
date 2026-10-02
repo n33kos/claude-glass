@@ -162,8 +162,9 @@ overflow spills onto the next desktop.
   (AskUserQuestion): options as buttons, or your own words. Sessions that start with a glass open
   also give Claude a `glass` ask tool, for questions that are easier answered looking at the glass
   ("which of these mockups?").
-- **Point and ask**: "Ask about this" on a change in Changes attaches it to your next prompt (a
-  chip in the top bar; × takes it off); Claude reads it with what you say. Opt-in extras in
+- **Point and ask**: "Ask about this" on a change in Changes, Ask on a terminal entry, or a
+  selection in a markdown window (the plan) attaches it to your next prompt (a chip in the top
+  bar; × takes it off); Claude reads it with what you say. Opt-in extras in
   Settings: a Stop button (`interruptButton`) and an Ask Claude field (`askBox`) in the top bar.
 
   ![Claude asked a question: the top bar, a read-only card, and amber light](docs/media/waiting.png)

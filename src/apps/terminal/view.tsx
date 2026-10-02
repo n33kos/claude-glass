@@ -9,7 +9,7 @@ const LockIcon = () => (
   <svg viewBox="0 0 12 12" width="10" height="10" aria-label="awaiting permission"><path fill="currentColor" d="M3.5 5V3.6a2.5 2.5 0 015 0V5h.5a1 1 0 011 1v4a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1zm1.3 0h2.4V3.6a1.2 1.2 0 00-2.4 0z" /></svg>
 );
 
-function Entry({ e, cwd, locked }: { e: TermEntry; cwd: string; locked: boolean }) {
+function Entry({ e, cwd, locked, host }: { e: TermEntry; cwd: string; locked: boolean; host: AppViewProps['host'] }) {
   const rel = (t: string) => (cwd ? t.split(cwd + '/').join('') : t);
   const [open, setOpen] = useState(false);
   const lines = e.output ? e.output.split('\n') : [];
@@ -26,6 +26,10 @@ function Entry({ e, cwd, locked }: { e: TermEntry; cwd: string; locked: boolean 
         <span className={isBash ? 't-bash' : 't-tool'}>{isBash ? e.summary : <><b>{e.tool}</b>{rel(e.summary.slice(e.tool!.length))}</>}</span>
         {locked && <span className="t-await">awaiting permission</span>}
         {e.durationMs != null && e.durationMs > 400 && <span className="t-dur">{(e.durationMs / 1000).toFixed(1)}s</span>}
+        {e.status !== 'running' && (
+          <button className="t-ask" title="Attach this call and its output to your next prompt"
+            onClick={() => host('attach', { label: rel(e.summary).slice(0, 48), text: [rel(e.summary), e.status === 'error' ? '(it failed)' : '', rel(e.output ?? '')].filter(Boolean).join('\n') })}>Ask</button>
+        )}
       </div>
       {shown.length > 0 && (
         <pre className="t-out">{rel(shown.join('\n'))}</pre>
@@ -35,7 +39,7 @@ function Entry({ e, cwd, locked }: { e: TermEntry; cwd: string; locked: boolean 
   );
 }
 
-export default function TerminalView({ state, run, session }: AppViewProps<TerminalState>) {
+export default function TerminalView({ state, run, session, host }: AppViewProps<TerminalState>) {
   const tools = useMemo(() => [...new Set(state.entries.filter((e) => e.tool).map((e) => e.tool!))].sort(), [state.entries]);
   const hidden = new Set(state.hidden);
   const visible = state.entries.filter((e) => !e.tool || !hidden.has(e.tool));
@@ -57,7 +61,7 @@ export default function TerminalView({ state, run, session }: AppViewProps<Termi
       )}
       <div className="t-scroll" ref={ref}>
         {visible.length === 0 && <div className="t-empty">Tool calls show up here as Claude works.</div>}
-        {visible.map((e) => <Entry key={e.id} e={e} cwd={session.cwd} locked={e.id === lockedId} />)}
+        {visible.map((e) => <Entry key={e.id} e={e} cwd={session.cwd} locked={e.id === lockedId} host={host} />)}
       </div>
     </div>
   );
