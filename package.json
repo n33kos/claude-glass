@@ -2,7 +2,7 @@
   "name": "claude-glass",
   "version": "3.1.0",
   "private": true,
-  "description": "Claude's monitor: a per-session visual window for Claude Code sessions",
+  "description": "A visual workspace for Claude Code. Claude lays out windows to show you what it's doing as it works: diffs, plans, terminal, conversation, and anything it wants to draw. Extend it with apps.",
   "main": "dist/main.js",
   "scripts": {
     "build": "node scripts/build.mjs && node scripts/make-app.mjs",

@@ -1,13 +1,16 @@
 # Claude Glass
 
-Claude's monitor. Claude Glass is a desktop window bound to a Claude Code session that works like
-a screen share from Claude to you. As Claude works, the window fills itself: the conversation,
-every tool call it runs, diffs of every file it edits, its plans, the images it looks at, and the
-web pages it reads. When Claude wants to *show* you something, like a chart, a mockup, a
-comparison or a write-up, it puts it on the glass with one command.
+A visual workspace for Claude Code. Claude lays out windows to show you what it's doing as it
+works: diffs, plans, terminal, conversation, and anything it wants to draw. Extend it with apps.
+
+Each glass is bound to a Claude Code session. As Claude works, its windows fill themselves: the
+conversation, every tool call it runs, diffs of every file it edits, its plans, the images it
+looks at and the web pages it reads. Claude arranges them, bringing forward what deserves your
+attention, and when it wants to *show* you something, like a chart, a mockup, a comparison or a
+write-up, it puts it on the glass with one command.
 
 It's built for working with Claude like a coworker, especially by voice, when you can't easily see
-what Claude sees, and it talks back: message Claude from Conversation, run commands through it
+what Claude sees. You can talk back too: message Claude from Conversation, run commands through it
 from Terminal, approve its permission prompts, answer its questions, point at a change and ask,
 or stop it mid-turn.
 
