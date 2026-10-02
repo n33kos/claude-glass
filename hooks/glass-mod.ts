@@ -78,10 +78,13 @@ const ASK_TOOL = {
   },
 }
 let watching = 0 // the loop's generation: a reload starts a new one, and the old one stops
+let startSource = 'startup' // how this conversation started, for a session-start that has to be retried
 
 // While a glass is open there's always something the user may send (Conversation's message box).
 async function watchControls($: any, gen: number) {
   if (gen !== watching) return
+  // The session started before the CLI could answer (a fresh install still building): try again.
+  if (cid && !sock) await sessionStart($, startSource)
   // Nothing to collect without a glass: look again in a while.
   if (!cid || !(await glassUp($))) {
     $.clock.after(15_000, () => { void watchControls($, gen) })
@@ -99,6 +102,7 @@ async function watchControls($: any, gen: number) {
 
 /** Bind the session to its glass (opening it on autoStart) and learn what the hooks need. */
 async function sessionStart($: any, source: string) {
+  startSource = source
   try {
     const r = await $.process.run([bin($), 'session-start', '--session', cid, '--source', source, '--cwd', cwd], { timeoutMs: 30000 })
     const info = JSON.parse(String(r.stdout).trim().split('\n').pop() || '{}')

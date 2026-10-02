@@ -36,11 +36,13 @@ if (newer) {
 
 // The CLI runs from dist/, which a fresh install (plugin marketplace, git clone) doesn't have yet.
 // First use builds it: npm install + npm run build in the plugin folder, once. The glass mod never
-// waits for that: without a build its commands do nothing, so Claude is never blocked.
+// waits for that: without a build its commands do nothing, so Claude is never blocked. A session
+// starting on a fresh install starts the build in the background; the mod tries again later.
 if (!existsSync(join(root, 'dist', 'cli.js'))) {
   const cmd = process.argv[2];
   if (cmd === 'event' || cmd === 'session-start' || cmd === 'action' || cmd === 'watch' || cmd === 'hook' || cmd === 'ask') {
     if (cmd === 'hook') process.stdout.write('{}\n'); // nothing hooked yet: pass it on
+    if (cmd === 'session-start') buildInBackground();
     process.exit(0);
   }
   process.stderr.write('Claude Glass: first run, installing and building (a minute or two, once)…\n');
@@ -52,3 +54,16 @@ if (!existsSync(join(root, 'dist', 'cli.js'))) {
   }
 }
 require('../dist/cli.js');
+
+/** npm install + build, detached, once at a time (a lock file that goes stale after ten minutes). */
+function buildInBackground() {
+  const { openSync, statSync, writeFileSync } = require('node:fs');
+  const { spawn } = require('node:child_process');
+  const lock = join(root, '.building');
+  try { if (Date.now() - statSync(lock).mtimeMs < 10 * 60_000) return; } catch {}
+  try {
+    writeFileSync(lock, String(process.pid));
+    const log = openSync(join(root, '.build.log'), 'w');
+    spawn('sh', ['-c', 'npm install --no-audit --no-fund && npm run build; rm -f .building'], { cwd: root, detached: true, stdio: ['ignore', log, log] }).unref();
+  } catch {}
+}
