@@ -107,8 +107,8 @@ Events, not Claude's memory, drive the signal layer and window order, so they're
 - [x] **Interrupt** (`interruptButton`, off by default): a Stop button in the top bar while
       Claude works. The glass queues a control (only its own window can, over IPC); the mod's
       background loop collects it with `claude-glass watch` (blocks on the socket up to 20s; only
-      runs while the button is on) and calls `$.turn.abort({ turnId })`. Unit + integration
-      tested; a live abort is still to check (the account hit its usage limit)
+      runs while the button is on) and calls `$.turn.abort({ turnId })`. Checked live: a headless
+      session's turn ended `aborted` within a second of Stop, its running command stopped
 - [x] Waiting state comes from exact events (`classic.PermissionRequest`, AskUserQuestion)
 
 ## Persistent app state (`stored`)
