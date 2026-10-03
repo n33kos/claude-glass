@@ -581,7 +581,8 @@ export function App() {
               {older > 0 && <span className="nest-badge bottom" style={{ left: left + size.W - 90 }}>{older} older ↓</span>}
             </>);
           })()}
-          {pages.every((p) => p.windows.length === 0) && !DOCKS.some((e) => state.tucked?.[e]?.length) && (
+          {pages.every((p) => p.windows.length === 0) && !DOCKS.some((e) => state.tucked?.[e]?.length)
+            && !(state.backdrop && state.instances[state.backdrop]) && !state.freeOrder?.some((id) => state.instances[id]) && (
             <div className="empty" style={{ width: size.W }}>
               <p>Nothing on screen. Open an app from the launcher, or ask Claude to show you something.</p>
             </div>
