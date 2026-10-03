@@ -79,14 +79,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* macOS fullscreen hides the traffic lights, so their inset goes too. */
 .fullscreen .topbar { padding-left: var(--space-5); }
 /* Auto-hide: the bar leaves the flow (everything runs to the top edge) and slides down while the
-   pointer is up there (App: .topbar-hot shows it, .topbar-leave just below hides it). It stays a
-   drag region, so the window can be moved by it; the traffic lights hide and show with it. */
+   pointer is up there (App: .topbar-hot shows it, .topbar-leave just below hides it). Shown, it's a
+   drag region, so the window can be moved by it; the traffic lights hide and show with it.
+   Hidden, it must not be: Electron places drag regions by layout, ignoring the transform, so a
+   slid-away bar would still cover the top strip and swallow the pointer that should reveal it. */
 .topbar-autohide .topbar {
-  position: absolute; left: 0; right: 0; top: 0; z-index: 45;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 45; -webkit-app-region: no-drag;
   background: var(--surface-chrome); box-shadow: 0 1px 0 var(--border), var(--shadow-2);
   transform: translateY(calc(-100% - 8px)); transition: transform .2s var(--ease);
 }
-.topbar-autohide.topbar-shown .topbar, .topbar-autohide .topbar:focus-within { transform: none; }
+.topbar-autohide.topbar-shown .topbar { transform: none; -webkit-app-region: drag; }
+.topbar-autohide .topbar:focus-within { transform: none; }
 .topbar-hot { position: absolute; left: 0; right: 0; top: 0; height: 6px; z-index: 46; }
 .topbar-shown .topbar-hot { display: none; }
 .topbar-leave { position: absolute; left: 0; right: 0; top: 40px; height: 14px; z-index: 46; }
