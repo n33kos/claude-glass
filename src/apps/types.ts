@@ -201,7 +201,9 @@ export type SettingSpec =
   | { type: 'enum'; label: string; help?: string; default: string; options: string[] }
   | { type: 'number'; label: string; help?: string; default: number; min?: number; max?: number }
   | { type: 'color'; label: string; help?: string; default: string }
-  | { type: 'text'; label: string; help?: string; default: string };
+  | { type: 'text'; label: string; help?: string; default: string }
+  // A microphone, picked from the machine's audio inputs; the value is the input's name ('' = automatic).
+  | { type: 'audioinput'; label: string; help?: string; default: string };
 
 const SETTING_KEY = /^[a-zA-Z][a-zA-Z0-9]{0,31}$/;
 
@@ -215,7 +217,7 @@ export function parseSettingSpecs(raw: unknown): Record<string, SettingSpec> | u
     if (!s || typeof s.label !== 'string') throw new Error(`settings.${key} needs a label`);
     const spec = { ...s, help: s.help === undefined ? undefined : String(s.help) } as SettingSpec;
     if (spec.type === 'enum' && (!Array.isArray(spec.options) || !spec.options.length)) throw new Error(`settings.${key}: enum needs options`);
-    if (!['bool', 'enum', 'number', 'color', 'text'].includes(spec.type)) throw new Error(`settings.${key}: type must be bool, enum, number, color or text`);
+    if (!['bool', 'enum', 'number', 'color', 'text', 'audioinput'].includes(spec.type)) throw new Error(`settings.${key}: type must be bool, enum, number, color, text or audioinput`);
     coerceSetting(spec, spec.default, key); // the default must be valid too
     out[key] = spec;
   }
@@ -243,7 +245,8 @@ export function coerceSetting(spec: SettingSpec, value: unknown, key = 'setting'
       if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/.test(c)) throw new Error(`${key} must be a hex color`);
       return c;
     }
-    case 'text': return String(value ?? '').slice(0, 500);
+    case 'text':
+    case 'audioinput': return String(value ?? '').slice(0, 500);
   }
 }
 

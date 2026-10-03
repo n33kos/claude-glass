@@ -141,8 +141,13 @@ function lockPermissions() {
   const micOk = (url: string | undefined, types?: string[]) => micApp(url) && !(types ?? []).includes('video');
   ses.setPermissionRequestHandler((_wc, permission, cb, details) =>
     cb(permission === 'media' && micOk(details.requestingUrl, (details as { mediaTypes?: string[] }).mediaTypes)));
-  ses.setPermissionCheckHandler((_wc, permission, origin, details) =>
-    permission === 'media' && micOk((details as { requestingUrl?: string }).requestingUrl ?? origin));
+  // The glass's own page passes the check (not the request: it never records), so the input names
+  // show in an app's audioinput setting; Chromium hides device labels from pages without it.
+  const ownPage = (url: string | undefined) => !!url && url.startsWith('file:') && url.endsWith('/renderer/index.html');
+  ses.setPermissionCheckHandler((_wc, permission, origin, details) => {
+    const url = (details as { requestingUrl?: string }).requestingUrl ?? origin;
+    return permission === 'media' && (micOk(url) || ownPage(url));
+  });
 }
 
 /**

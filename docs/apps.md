@@ -186,11 +186,14 @@ props, and `guide.md` blocks can depend on them.
       "compact":  { "type": "bool", "label": "Compact rows", "default": false },
       "theme":    { "type": "enum", "label": "Theme", "default": "dark", "options": ["dark", "light"] },
       "accent":   { "type": "color", "label": "Accent", "default": "#6c5ce7" },
-      "greeting": { "type": "text", "label": "Greeting", "default": "Hi" }
+      "greeting": { "type": "text", "label": "Greeting", "default": "Hi" },
+      "mic":      { "type": "audioinput", "label": "Microphone", "default": "" }
     }
 
 Keys are letters and digits. Values are validated against the type (and `min`/`max`/`options`);
 they're global (every glass), stored in the glass config under `appSettings.<type>`.
+`audioinput` is a picker of the machine's audio inputs: the value is the chosen input's name (`''`
+for Automatic, your app's own default); match it against `enumerateDevices()` labels in your view.
 
 ### Stored values
 

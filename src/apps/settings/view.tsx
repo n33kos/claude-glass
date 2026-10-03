@@ -348,6 +348,28 @@ function Presets() {
   );
 }
 
+/** The machine's audio inputs by name (kept current as devices come and go); '' is automatic. */
+function AudioInputSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [inputs, setInputs] = useState<string[]>([]);
+  useEffect(() => {
+    const md = navigator.mediaDevices;
+    if (!md) return;
+    const load = () => md.enumerateDevices()
+      .then((ds) => setInputs([...new Set(ds.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications' && d.label).map((d) => d.label))]))
+      .catch(() => setInputs([]));
+    load();
+    md.addEventListener('devicechange', load);
+    return () => md.removeEventListener('devicechange', load);
+  }, []);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Automatic</option>
+      {inputs.map((name) => <option key={name} value={name}>{name}</option>)}
+      {value && !inputs.includes(value) && <option value={value}>{value} (not connected)</option>}
+    </select>
+  );
+}
+
 /** An app's own settings, rendered from its manifest; each change is `app.<type>.<key>`. */
 function AppSettings({ type, specs, stored }: { type: string; specs: Record<string, SettingSpec>; stored?: Record<string, unknown> }) {
   const values = settingValues({ settings: specs }, stored);
@@ -367,6 +389,8 @@ function AppSettings({ type, specs, stored }: { type: string; specs: Record<stri
               <input type="number" className="s-num" value={Number(v)} min={s.min} max={s.max} onChange={(e) => e.target.value !== '' && set(key, Number(e.target.value))} />
             ) : s.type === 'color' ? (
               <input type="color" className="s-color" value={String(v)} onChange={(e) => set(key, e.target.value)} />
+            ) : s.type === 'audioinput' ? (
+              <AudioInputSelect value={String(v)} onChange={(x) => set(key, x)} />
             ) : (
               <input type="text" defaultValue={String(v)} onBlur={(e) => set(key, e.target.value)} />
             )}
