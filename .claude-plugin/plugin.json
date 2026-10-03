@@ -1,7 +1,7 @@
 {
   "name": "glass",
   "description": "A visual workspace for Claude Code. Claude lays out windows to show you what it's doing as it works: diffs, plans, terminal, conversation, and anything it wants to draw. Extend it with apps.",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "author": { "name": "Nicholas Suski" },
   "homepage": "https://github.com/n33kos/claude-glass",
   "repository": "https://github.com/n33kos/claude-glass",
