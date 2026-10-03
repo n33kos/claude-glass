@@ -249,6 +249,7 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `turnProgress` | **true** / false | a thin white bar along the bottom while Claude works: it sweeps, brightens on each model request, and fills by tasks done when Claude works through a list |
 | `dockOpen` | **click** / hover | a hidden dock opens when its tab is clicked, or on hover |
 | `launcherAutoHide` | true / **false** | hide the launcher until the pointer reaches the bottom (was `dockAutoHide`) |
+| `topBarAutoHide` | true / **false** | hide the top bar until the pointer reaches the top, so the glass (a background window too) runs edge to edge |
 | `launcherOrder` | **windows** / fixed | launcher follows window order, or a fixed order by app (was `dockOrder`) |
 | `launcherGroup` | **true** / false | an app's windows share one launcher icon, with a list to pick one |
 | `disabledApps` | app types | turned-off apps are hidden and Claude can't use them |

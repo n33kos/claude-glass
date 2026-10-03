@@ -91,6 +91,7 @@ export interface GlobalConfig {
   defaultLayout: LayoutName | 'claude'; // claude: new desktops fit their window count; Claude picks layouts
   windowOpacity: number;
   launcherAutoHide: boolean; // the launcher (bottom bar) overlays and hides; windows get its space
+  topBarAutoHide: boolean; // the top bar overlays and hides; everything runs to the top edge
   launcherOrder: 'windows' | 'fixed'; // windows: follow tile order, closed apps after; fixed: by app type
   launcherGroup: boolean; // an app's windows share one launcher icon, with a menu to pick one
   dockOpen: 'click' | 'hover'; // a hidden dock slides out when its tab is clicked, or on hover

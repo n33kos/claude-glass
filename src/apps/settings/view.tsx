@@ -246,6 +246,9 @@ export function SettingsView({ glass, config }: ViewProps) {
         </select>
       </label>
 
+      <h4>Top bar</h4>
+      <Toggle label="Auto-hide (shows at the top edge)" on={config.topBarAutoHide === true} onChange={(v) => setConfig('topBarAutoHide', v)} />
+
       <h4>Launcher</h4>
       <Toggle label="Auto-hide (shows at the bottom edge)" on={config.launcherAutoHide} onChange={(v) => setConfig('launcherAutoHide', v)} />
       <Toggle label="Group an app's windows under one icon" on={config.launcherGroup !== false} onChange={(v) => setConfig('launcherGroup', v)} />

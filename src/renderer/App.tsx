@@ -477,7 +477,7 @@ export function App() {
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
     <ThemeContext.Provider value={theme}>
-    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}
+    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${config.topBarAutoHide ? ' topbar-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}
       style={{ ['--signal-gain' as any]: config.signalStrength === 'subtle' ? 0.6 : config.signalStrength === 'strong' ? 1.45 : 1 }}>
       <Wallpaper bg={config.background} animate={config.animateBackground} light={theme === 'light'} colors={lightColors({
         signal: state.settings.backgroundColors, stateColors: config.stateColors !== false,
@@ -485,6 +485,7 @@ export function App() {
       })} />
       <SignalLayer state={state} on={config.signals !== false} done={config.signalDone !== false} />
       {config.turnProgress !== false && <TurnBar state={state} />}
+      {config.topBarAutoHide && <div className="topbar-hot" aria-hidden />}
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>

@@ -29,6 +29,7 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   defaultLayout: 'grid',
   windowOpacity: 0.78,
   launcherAutoHide: false,
+  topBarAutoHide: false,
   launcherOrder: 'windows',
   launcherGroup: true,
   dockOpen: 'click',
@@ -82,6 +83,7 @@ export function coerceConfigValue(key: keyof GlobalConfig, value: unknown): unkn
   switch (key) {
     case 'autoStart':
     case 'launcherAutoHide':
+    case 'topBarAutoHide':
     case 'launcherGroup':
     case 'waitingGlow':
     case 'animateBackground':
@@ -156,6 +158,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   askBox: 'true|false: two-way: an "Ask Claude" field in the header (Conversation always has its own message box); what the user types is sent as their prompt (change only if asked)',
   viewContext: 'true|false: each prompt carries what\'s on the glass now (like claude-glass view), so Claude needn\'t run view; costs tokens (change only if asked)',
   launcherAutoHide: 'true|false: hide the launcher (the bottom bar) until the pointer reaches the bottom edge',
+  topBarAutoHide: 'true|false: hide the top bar until the pointer reaches the top edge, so the glass runs edge to edge',
   launcherOrder: 'windows|fixed: launcher follows window order, or a fixed order by app',
   launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',
   dockOpen: 'click|hover: a hidden dock (edge or corner) slides out when its tab is clicked, or on hover',
