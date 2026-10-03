@@ -43,6 +43,8 @@ export interface AppDef<S = any> {
    * window, transparent and click-through except where its view asks for clicks (glass.hit).
    */
   display?: 'window' | 'overlay';
+  /** 'none': its windows have no glass panel, edge or title bar (that shows on hover): the view's own look is the window. */
+  chrome?: 'window' | 'none';
   internal?: string[]; // commands only events/the view use; hidden from Claude's catalog
   viewCommands?: string[]; // commands the app's view may run (plus any CommandSpec with view: true)
   guide?: string; // instructions for Claude, appended to the glass guide
@@ -274,10 +276,11 @@ export interface AppInfo {
   description?: string; // shown in the Apps dialog
   builtin: boolean; // ships with the glass (a custom app that replaces one is not)
   overlay: boolean; // display: 'overlay' (covers the glass, click-through)
+  bare: boolean; // chrome: 'none' (no glass panel; the title bar shows on hover)
 }
 
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description, builtin: app.source !== 'user', overlay: app.display === 'overlay' };
+  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description, builtin: app.source !== 'user', overlay: app.display === 'overlay', bare: app.chrome === 'none' };
 }

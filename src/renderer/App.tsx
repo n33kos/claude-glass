@@ -892,7 +892,7 @@ function WindowFrame(props: {
   const place = (a: Action) => { void dispatch(a); setMenu(false); };
   return (
     <section
-      className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}${selected && config.selectToInteract !== false ? ' selected' : ''}${placement ? ` ${placement}` : ''}`}
+      className={`window${props.dragging ? ' dragging' : ''}${props.dropTarget ? ' drop-target' : ''}${selected && config.selectToInteract !== false ? ' selected' : ''}${placement ? ` ${placement}` : ''}${app?.bare ? ' bare' : ''}`}
       style={{ ...props.style, ['--glass' as any]: props.opacity }}
       data-window={meta.id}
     >

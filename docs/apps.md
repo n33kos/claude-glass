@@ -53,6 +53,7 @@ my-app/
 | `view: true` / `viewCommands` | commands the view may run too (view-only changes) |
 | `internal` | commands hidden from Claude's catalog (used by your view or `onEvent` only) |
 | `autoOpen` | open the window the first time `onEvent` creates it |
+| `chrome` | `"none"`: no glass panel, edge or title bar, so your view's own look is the window (a parchment, a sticky note). The title bar fades in on hover for its controls. Default `"window"` |
 
 ### `core.js`
 

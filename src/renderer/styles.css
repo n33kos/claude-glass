@@ -251,6 +251,15 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
    pointer through to it. */
 .backdrop-layer { position: absolute; inset: 0; z-index: 0; }
 .window.backdrop { border-radius: 0; box-shadow: none; }
+/* Bare windows (an app's "chrome": "none"): no panel or edge, the view's own look is the window.
+   The title bar floats over the top and shows only on hover (or while dragging), for its controls. */
+.window.bare, .window.bare.selected, .window.bare.drop-target, .window.bare.dragging { background: transparent; box-shadow: none; }
+.window.bare .titlebar {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 4; border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: rgba(var(--glass-rgb), .82); opacity: 0; transition: opacity var(--dur-2);
+}
+.window.bare:hover .titlebar, .window.bare.dragging .titlebar, .window.bare .titlebar:has(.layout-menu) { opacity: 1; }
+.window.bare .body-shield { top: 0; }
 .strip { pointer-events: none; }
 .strip > * { pointer-events: auto; }
 /* Free windows: over the layout, under the docks; each slot stacks by its order. */

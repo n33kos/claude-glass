@@ -26,6 +26,7 @@ export interface AppManifest {
   viewCommands?: string[];
   autoOpen?: boolean;
   display?: 'window' | 'overlay'; // overlay: covers the whole glass, click-through
+  chrome?: 'window' | 'none'; // none: no glass panel or title bar; the view draws its own look
   permissions?: { network?: string[]; microphone?: boolean; storage?: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[] };
   settings?: Record<string, unknown>;
   stored?: Record<string, unknown>; // persistent values: { key: { scope, default } }
@@ -98,6 +99,7 @@ export function readApp(appDir: string): AppDef {
     viewCommands: Array.isArray(m.viewCommands) ? m.viewCommands.map(String) : undefined,
     autoOpen: m.autoOpen === true,
     display: m.display === 'overlay' ? 'overlay' : undefined,
+    chrome: m.chrome === 'none' ? 'none' : undefined,
     init: core.init,
     command: core.command,
     onEvent: core.onEvent,
