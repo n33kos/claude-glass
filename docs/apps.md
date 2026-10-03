@@ -103,8 +103,9 @@ An app that exports the old `onHook` doesn't load: it was replaced by `onEvent`.
 
 A normal web page, loaded in a sandboxed frame inside the window (scripts and forms allowed). Use any framework or none.
 It can load its own files (relative paths) and scripts from cdn.jsdelivr.net,
-cdnjs.cloudflare.com or unpkg.com. It has no network access, no storage, and no access to
-the shell.
+cdnjs.cloudflare.com or unpkg.com. It may also `fetch()` its own folder, and only its own folder:
+sounds to decode for Web Audio (`.ogg`, `.mp3`, `.wav`, `.m4a`, `.flac`), JSON, text. `<audio>` and
+`<video>` play from it too. It has no network access, no storage, and no access to the shell.
 
 ```html
 <link rel="stylesheet" href="glass-app://sdk/glass-app.css">   <!-- the glass's look -->

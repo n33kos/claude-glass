@@ -80,8 +80,9 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'glass-file', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   { scheme: 'glass-html', privileges: { standard: true, secure: true } },
   // corsEnabled: fonts always load with CORS, and app frames are sandboxed (origin "null"); the
-  // SDK's font files answer with an open Access-Control-Allow-Origin (see the handler).
-  { scheme: 'glass-app', privileges: { standard: true, secure: true, corsEnabled: true } },
+  // SDK's font files and apps' own files answer with an open Access-Control-Allow-Origin (see the
+  // handler). supportFetchAPI: a view may fetch() its own folder (sounds for Web Audio, data).
+  { scheme: 'glass-app', privileges: { standard: true, secure: true, corsEnabled: true, supportFetchAPI: true } },
 ]);
 
 const MIME: Record<string, string> = {
@@ -89,6 +90,9 @@ const MIME: Record<string, string> = {
   '.json': 'application/json', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
   '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp',
+  '.ogg': 'audio/ogg', '.opus': 'audio/ogg', '.oga': 'audio/ogg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.weba': 'audio/webm', '.webm': 'video/webm',
+  '.mp4': 'video/mp4', '.txt': 'text/plain; charset=utf-8', '.csv': 'text/csv; charset=utf-8', '.md': 'text/markdown; charset=utf-8',
 };
 
 // Freeform HTML runs in its own opaque origin (sandboxed iframe) with this CSP: inline code and
@@ -104,9 +108,11 @@ const HTML_CSP = [
 
 // App views (built-in and custom) run in sandboxed frames served from glass-app://<type>/...,
 // the SDK from glass-app://sdk/. Scripts from the app itself or the usual CDNs; no network unless
-// the app's manifest asks for specific origins (permissions.network).
-function appCsp(p: AppPermissions): string {
+// the app's manifest asks for specific origins (permissions.network). fetch() may always read the
+// app's own folder: nothing it couldn't already load as a script or image, and no other app's.
+function appCsp(p: AppPermissions, type: string): string {
   const net = p.network.join(' ');
+  const own = /^[a-z][a-z0-9-]*$/.test(type) ? `glass-app://${type}` : '';
   return [
     "default-src 'none'",
     `script-src glass-app: 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com ${net}`,
@@ -115,7 +121,7 @@ function appCsp(p: AppPermissions): string {
     `img-src glass-app: glass-file: data: blob: ${net}`,
     `media-src glass-app: glass-file: data: blob: ${net}`,
     `frame-src glass-html: ${net}`,
-    `connect-src ${net || "'none'"}`,
+    `connect-src ${[own, net].filter(Boolean).join(' ') || "'none'"}`,
   ].join('; ');
 }
 
@@ -267,8 +273,10 @@ async function boot() {
     if (!existsSync(path)) return new Response('not found', { status: 404 });
     const type = MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
     const headers: Record<string, string> = { 'content-type': type };
-    if (url.hostname === 'sdk' && /\.woff2$/.test(path)) headers['access-control-allow-origin'] = '*'; // the bundled fonts, for sandboxed frames
-    if (type.startsWith('text/html')) headers['content-security-policy'] = appCsp(APPS[url.hostname]?.permissions ?? NO_PERMISSIONS);
+    // Sandboxed frames (origin "null") read with CORS: the SDK's bundled fonts, and an app's own
+    // files (each view's CSP lets it connect to its own folder only, so no app reads another's).
+    if (url.hostname === 'sdk' ? /\.woff2$/.test(path) : !type.startsWith('text/html')) headers['access-control-allow-origin'] = '*';
+    if (type.startsWith('text/html')) headers['content-security-policy'] = appCsp(APPS[url.hostname]?.permissions ?? NO_PERMISSIONS, url.hostname);
     return new Response(readFileSync(path), { headers });
   });
 
