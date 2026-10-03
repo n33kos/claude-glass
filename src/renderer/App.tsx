@@ -187,6 +187,14 @@ export function App() {
   const pages = useMemo(() => computeDesktops(state.order, desktopsFor(state.desktops, config.nestedView), config.defaultLayout),
     [state.order, state.desktops, config.defaultLayout, config.nestedView]);
   const [view, setViewRaw] = useState(0);
+  // Top bar auto-hide: shown while the pointer is up there. Thin strips (above app frames, which
+  // swallow the pointer) show it at the top edge and hide it just below it, so the bar itself can
+  // stay a drag region (Electron gives drag regions no pointer events). The traffic lights hide
+  // with it, so nothing sits under them.
+  const [barShown, setBarShown] = useState(false);
+  const barTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const showBar = (on: boolean) => { clearTimeout(barTimer.current); barTimer.current = setTimeout(() => setBarShown(on), on ? 0 : 250); };
+  useEffect(() => { window.glass.windowButtons?.(!config.topBarAutoHide || barShown); }, [config.topBarAutoHide, barShown]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [peek, setPeek] = useState<Dock | null>(null); // dock slid out (hover, or from the launcher)
   // Dragging a launcher icon: along the launcher reorders windows; onto a dock target docks it.
@@ -477,7 +485,7 @@ export function App() {
   const glow = waiting && config.waitingGlow ? ' waiting-glow' : '';
   return (
     <ThemeContext.Provider value={theme}>
-    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${config.topBarAutoHide ? ' topbar-autohide' : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}
+    <div className={`glass${config.launcherAutoHide ? ' dock-autohide' : ''}${config.topBarAutoHide ? ` topbar-autohide${barShown ? ' topbar-shown' : ''}` : ''}${state.tucked?.bottom?.length ? ' has-bottom-pin' : ''}${glow}`}
       style={{ ['--signal-gain' as any]: config.signalStrength === 'subtle' ? 0.6 : config.signalStrength === 'strong' ? 1.45 : 1 }}>
       <Wallpaper bg={config.background} animate={config.animateBackground} light={theme === 'light'} colors={lightColors({
         signal: state.settings.backgroundColors, stateColors: config.stateColors !== false,
@@ -485,7 +493,8 @@ export function App() {
       })} />
       <SignalLayer state={state} on={config.signals !== false} done={config.signalDone !== false} />
       {config.turnProgress !== false && <TurnBar state={state} />}
-      {config.topBarAutoHide && <div className="topbar-hot" aria-hidden />}
+      {config.topBarAutoHide && <div className="topbar-hot" aria-hidden onMouseEnter={() => showBar(true)} />}
+      {config.topBarAutoHide && barShown && <div className="topbar-leave" aria-hidden onMouseEnter={() => showBar(false)} />}
       <header className="topbar">
         <div className="session">
           <span className="project">{s.title}</span>

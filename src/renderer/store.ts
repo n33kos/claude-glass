@@ -12,6 +12,7 @@ declare global {
       setConfig(key: string, value: unknown): Promise<{ ok: boolean; error?: string }>;
       onPatch(fn: (p: any) => void): () => void;
       onFullscreen(fn: (on: boolean) => void): () => void;
+      windowButtons?(show: boolean): void; // macOS traffic lights (topBarAutoHide hides them with the bar)
       readDoc(id: string, path: string): Promise<{ ok: boolean; result?: { path: string; text: string }; error?: string }>;
       getUpdate(): Promise<{ version: string } | null>;
       version?(): Promise<{ version: string; dev: boolean }>;

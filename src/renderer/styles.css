@@ -78,17 +78,18 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .topbar :is(button, input, select, textarea) { -webkit-app-region: no-drag; }
 /* macOS fullscreen hides the traffic lights, so their inset goes too. */
 .fullscreen .topbar { padding-left: var(--space-5); }
-/* Auto-hide: the bar leaves the flow (everything runs to the top edge, the traffic lights float
-   over it) and slides down while the pointer is at the top edge or on the bar. Not a drag region
-   then: Electron gives drag regions no hover, so the bar couldn't tell it was being used. */
+/* Auto-hide: the bar leaves the flow (everything runs to the top edge) and slides down while the
+   pointer is up there (App: .topbar-hot shows it, .topbar-leave just below hides it). It stays a
+   drag region, so the window can be moved by it; the traffic lights hide and show with it. */
 .topbar-autohide .topbar {
-  position: absolute; left: 0; right: 0; top: 0; z-index: 45; -webkit-app-region: no-drag;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 45;
   background: var(--surface-chrome); box-shadow: 0 1px 0 var(--border), var(--shadow-2);
-  transform: translateY(calc(-100% - 8px)); transition: transform .22s var(--ease) .35s;
+  transform: translateY(calc(-100% - 8px)); transition: transform .2s var(--ease);
 }
-.topbar-autohide .topbar-hot:hover ~ .topbar, .topbar-autohide .topbar:is(:hover, :focus-within) { transform: none; transition-delay: 0s; }
-.topbar-hot { position: absolute; left: 84px; right: 0; top: 0; height: 6px; z-index: 44; }
-.fullscreen .topbar-hot { left: 0; }
+.topbar-autohide.topbar-shown .topbar, .topbar-autohide .topbar:focus-within { transform: none; }
+.topbar-hot { position: absolute; left: 0; right: 0; top: 0; height: 6px; z-index: 46; }
+.topbar-shown .topbar-hot { display: none; }
+.topbar-leave { position: absolute; left: 0; right: 0; top: 40px; height: 14px; z-index: 46; }
 .session { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
 .project { font-weight: var(--weight-semibold); font-size: var(--text-size-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Presence (Graphite Mono): a neutral pill. Working: the text lifts to --text-1 and the dot beats

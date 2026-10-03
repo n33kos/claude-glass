@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('glass', {
     ipcRenderer.on('glass:frame', h);
     return () => ipcRenderer.removeListener('glass:frame', h);
   },
+  windowButtons: (show: boolean) => ipcRenderer.send('glass:windowButtons', show),
   onFullscreen: (fn: (on: boolean) => void) => {
     const h = (_e: unknown, on: boolean) => fn(on);
     ipcRenderer.on('glass:fullscreen', h);
