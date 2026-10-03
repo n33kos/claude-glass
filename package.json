@@ -1,6 +1,6 @@
 {
   "name": "claude-glass",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "private": true,
   "description": "A visual workspace for Claude Code. Claude lays out windows to show you what it's doing as it works: diffs, plans, terminal, conversation, and anything it wants to draw. Extend it with apps.",
   "main": "dist/main.js",
