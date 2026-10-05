@@ -138,7 +138,8 @@ the same bridge. Their sources come along when you copy one (`src/`).
 
 ### `guide.md`
 
-Appended to the instructions Claude gets when the glass opens (up to 1,500 characters). Say
+Appended to the instructions Claude gets when the glass opens (up to 3,000 characters, counted
+over the whole file before mode blocks are resolved; anything past that is cut off). Say
 when to use your app and which commands to run. This is how you shape Claude's behavior with
 your app.
 

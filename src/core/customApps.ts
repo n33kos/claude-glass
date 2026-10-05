@@ -12,7 +12,8 @@ import { parsePermissions, parseSettingSpecs, parseStoredSpecs, type AppDef, typ
 import { appsDir } from './paths';
 
 export const APP_API_VERSION = 1;
-const GUIDE_MAX = 1500;
+// Characters of guide.md kept (before mode blocks are resolved); anything past it is cut off.
+const GUIDE_MAX = 3000;
 
 export interface AppManifest {
   apiVersion: number;
