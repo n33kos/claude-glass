@@ -11,6 +11,7 @@ import { request } from './client';
 import { GUIDE, guideFor } from '../core/guide';
 import { launchGlass } from './launch';
 import { formatView } from '../core/viewtext';
+import { linkAppDir, linkedAppDirs, projectAppsDir } from '../core/customApps';
 
 interface Parsed { pos: string[]; flags: Record<string, string | true> }
 
@@ -107,7 +108,8 @@ ${GUIDE.slice(GUIDE.indexOf('  claude-glass view'))}
 
 Presets: preset list | preset save <name> [--description D] | preset apply <name> | preset delete <name> | preset default <name|none> | open --preset <name>
 Other: open | close | status [--all] | state [id] | health | settings [set <key> <value>] | --session ID | --json
-Apps:  apps (list) | apps new <type> | apps copy <type>   (custom apps live in ~/.claude/claude-glass/apps)
+Apps:  apps (list) | apps new <type> [--project] | apps copy <type> | apps link|unlink <folder> | apps reload
+       (custom apps live in ~/.claude/claude-glass/apps; --project and linked folders load only in this project's glasses)
        stored <type> [set <key> <json> | reset [key]]   an app's persistent values`;
 
 async function main(argv: string[]) {
@@ -306,7 +308,28 @@ async function main(argv: string[]) {
     }
     case 'apps': {
       const [sub, type] = rest;
-      const dir = appsDir();
+      // The project the glass is open in (its apps load only there); else this shell's folder.
+      const project = async () => {
+        const v: any = await call(sessionId(flags), { op: 'view' }).catch(() => null);
+        return String(v?.session?.cwd || process.cwd());
+      };
+      const dir = flags.project ? projectAppsDir(await project()) : appsDir();
+      const docs = join(__dirname, '..', 'docs', 'apps.md');
+      if (sub === 'reload') {
+        const reports: any[] = await call(sessionId(flags), { op: 'apps.reload' });
+        const bad = reports.filter((r) => !r.ok);
+        out(reports, [`Reloaded ${reports.filter((r) => r.ok).length} custom and project app(s).`, ...bad.map((r) => `FAILED   ${r.type.padEnd(14)} ${r.error}  (${r.dir})`)].join('\n'));
+        return;
+      }
+      if (sub === 'link' || sub === 'unlink') {
+        if (!type) throw new Error(`usage: claude-glass apps ${sub} <folder of apps>   (a folder holding app folders; loads only in this project's glasses)`);
+        const folder = resolve(type);
+        if (sub === 'link' && !existsSync(folder)) throw new Error(`${folder} doesn't exist`);
+        const cwd = await project();
+        const links = linkAppDir(cwd, folder, sub === 'link');
+        console.log(`${sub === 'link' ? 'Linked' : 'Unlinked'} ${folder} ${sub === 'link' ? 'to' : 'from'} ${cwd}.\nThis project's app folders: ${[projectAppsDir(cwd), ...links].join(', ')}\nRun claude-glass apps reload to load them.`);
+        return;
+      }
       if (sub === 'new' || sub === 'copy') {
         if (!type || !/^[a-z][a-z0-9-]{0,31}$/.test(type)) throw new Error(`usage: claude-glass apps ${sub} <type>   (lowercase letters, digits, dashes)`);
         const dest = join(dir, type);
@@ -318,12 +341,13 @@ async function main(argv: string[]) {
             const p = join(dest, f);
             writeFileSync(p, readFileSync(p, 'utf8').replaceAll('__TYPE__', type).replaceAll('__TITLE__', title));
           }
-          console.log(`Created ${dest}\nEdit it, then restart the glass (claude-glass close && claude-glass open).`);
+          console.log(`Created ${dest}${flags.project ? ' (a project app: it loads only in this project\'s glasses)' : ''}\nThe app format: ${docs}\nEdit it, then load it with claude-glass apps reload.`);
         } else {
           const src = join(__dirname, 'apps', type);
           if (!existsSync(src)) throw new Error(`no built-in app "${type}" (built-ins: ${readdirSync(join(__dirname, 'apps')).join(', ')})`);
           cpSync(src, dest, { recursive: true });
-          console.log(`Copied the built-in "${type}" app to ${dest}. It now overrides the built-in; restart the glass to load it.\nIts view is compiled React (the TypeScript sources are in src/ for reference); replace view.html to write your own.`);
+          if (flags.project) throw new Error('a project app can\'t replace a built-in: copy it without --project, or copy it and rename its type');
+          console.log(`Copied the built-in "${type}" app to ${dest}. It now overrides the built-in; claude-glass apps reload loads it.\nIts view is compiled React (the TypeScript sources are in src/ for reference); replace view.html to write your own.`);
         }
         return;
       }
@@ -331,10 +355,13 @@ async function main(argv: string[]) {
       const cat: any[] | null = await call(sessionId(flags), { op: 'catalog' }).catch(() => null);
       const reports: any[] = await call(sessionId(flags), { op: 'apps' }).catch(() => []);
       const rows = cat
-        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}${a.permissions ? `  [can use: ${[a.permissions.twoWay && 'answering Claude (two-way)', ...a.permissions.network, a.permissions.microphone && 'microphone', a.permissions.storage && 'storage', a.permissions.sharedSignIn && 'shared sign-in'].filter(Boolean).join(', ')}]` : ''}`)
+        ? cat.map((a) => `${a.source === 'user' ? 'custom ' : a.source === 'project' ? 'project' : 'builtin'}  ${a.type.padEnd(14)} ${a.title}${a.permissions ? `  [can use: ${[a.permissions.twoWay && 'answering Claude (two-way)', ...a.permissions.network, a.permissions.microphone && 'microphone', a.permissions.storage && 'storage', a.permissions.sharedSignIn && 'shared sign-in'].filter(Boolean).join(', ')}]` : ''}`)
         : ['(glass not open: showing folders only)', ...(existsSync(dir) ? readdirSync(dir).map((d) => `custom   ${d}`) : [])];
       for (const r of reports) if (!r.ok) rows.push(`FAILED   ${r.type.padEnd(14)} ${r.error}  (${r.dir})`);
-      out({ apps: cat, mods: reports }, [...rows, '', `Custom apps folder: ${dir}`].join('\n'));
+      const cwd = await project();
+      out({ apps: cat, mods: reports }, [...rows, '', `Custom apps folder (every glass): ${appsDir()}`,
+        `This project's app folders (only its glasses): ${[projectAppsDir(cwd), ...linkedAppDirs(cwd)].join(', ')}`,
+        'New: claude-glass apps new <type> [--project] · claude-glass apps link <folder> · claude-glass apps reload'].join('\n'));
       return;
     }
     case 'background': {
@@ -450,7 +477,8 @@ async function main(argv: string[]) {
           `  ${`app.${a.type}.${k}`.padEnd(26)} ${JSON.stringify(s.value).padEnd(8)} ${s.label}${s.type === 'enum' ? ` (${s.options.join('|')})` : s.type === 'number' && s.min != null ? ` (${s.min}..${s.max ?? ''})` : ''}`));
         out({ global: c, apps: Object.fromEntries(cat.filter((a) => a.settings).map((a) => [a.type, a.settings])) }, ['Global settings (claude-glass settings set <key> <value>):', ...rows,
           ...(appRows.length ? ['', 'App settings:', ...appRows] : []),
-          '', 'This session: settings set session.windowMode live|history, session.historyLimit <n> (history windows kept; default 12), session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>'].join('\n'));
+          '', 'This session: settings set session.windowMode live|history, session.historyLimit <n> (history windows kept; default 12), session.autoOpen.<changes|plan|images|web> true|false, session.windowOpacity <0.2..1>,',
+          '  session.apps.<type> true|false|default (this glass\'s own app set, over disabledApps; change only if asked), session.buildApps true|false (invite Claude to build project apps)'].join('\n'));
       }
       return;
     }

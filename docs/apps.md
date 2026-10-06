@@ -1,14 +1,23 @@
 # Writing Claude Glass apps
 
 Every window in Claude Glass is an app, and every app, built-in or yours, uses the same format.
-Drop a folder into `~/.claude/claude-glass/apps/`, restart the glass, and it's there.
+Drop a folder into `~/.claude/claude-glass/apps/`, run `claude-glass apps reload`, and it's there.
 
 ```
 claude-glass apps new my-app      # starter app in ~/.claude/claude-glass/apps/my-app
+claude-glass apps new my-app --project   # one only this project's glasses load
+claude-glass apps link <folder>   # a folder of apps, anywhere, for this project's glasses
 claude-glass apps copy diff       # copy a built-in to modify it (yours overrides it)
 claude-glass apps                 # what's installed, and why a broken app didn't load
-claude-glass close && claude-glass open   # restart the glass to pick up changes
+claude-glass apps reload          # pick up new or changed apps (the window reloads)
 ```
+
+**Project apps.** An app that only makes sense for one project goes in that project's own apps
+folder, `~/.claude/claude-glass/projects/<folder id>/apps/` (`--project` puts it there), or in any
+folder linked to the project (`apps link`, listed in `app-folders.json` beside it). Nothing goes
+in the project itself, so there's nothing to commit or ignore. Only glasses opened in that folder
+load them, and they can't take an installed app's type. With the `buildApps` session setting on,
+Claude is invited to build these itself when nothing built in fits.
 
 An app displays things; its view changes how they're viewed (select, page, filter). Reaching into
 the Claude session (hooks, point and ask) takes the `twoWay` permission (see Two-way apps).
@@ -138,8 +147,9 @@ the same bridge. Their sources come along when you copy one (`src/`).
 
 ### `guide.md`
 
-Appended to the instructions Claude gets when the glass opens (up to 3,000 characters, counted
-over the whole file before mode blocks are resolved; anything past that is cut off). Say
+Appended to the instructions Claude gets when the glass opens, while your app is on in that glass
+(when it's off there, Claude only sees your manifest's `description`). Up to 3,000 characters,
+counted over the whole file before mode blocks are resolved; anything past that is cut off. Say
 when to use your app and which commands to run. This is how you shape Claude's behavior with
 your app.
 
@@ -344,8 +354,11 @@ into the Claude session, and only through the hooks above.
 ## Turning apps off
 
 Settings lists every app with a switch. A turned-off app's windows close, session events leave it alone,
-it disappears from Claude's catalog and instructions, and commands to it fail with a message
-telling Claude not to use it.
+its hooks stop, its `guide.md` leaves Claude's instructions (Claude gets one line naming it, from
+your manifest's `description`), and commands to it fail with a message telling Claude not to use
+it. The switch is for every glass; under it, "This glass" turns the app on or off in one glass
+only (`claude-glass settings set session.apps.<type> true|false|default`), and presets keep that
+choice.
 
 ## Trust
 

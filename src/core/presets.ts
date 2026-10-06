@@ -72,7 +72,9 @@ export function capturePreset(s: GlassState, config: GlobalConfig, name: string,
       ...(s.tuckSplit?.[e]?.length === ids.length ? { split: s.tuckSplit[e] } : {}),
     };
   }
-  const { backgroundColors: _signal, ...session } = s.settings; // Claude's one-off tint isn't part of a frame
+  // Claude's one-off tint isn't part of a frame; the app set always is (empty = every app as set globally).
+  const { backgroundColors: _signal, ...rest } = s.settings;
+  const session = { ...rest, apps: { ...rest.apps } };
   const look = Object.fromEntries(LOOK_KEYS.map((k) => [k, config[k]])) as Partial<GlobalConfig>;
   return { name, description, sidebars, desktops: s.desktops, session, look };
 }
@@ -103,6 +105,12 @@ export function presetActions(s: GlassState, p: Preset, installed: (type: string
     if (sb.open !== false) actions.push({ type: 'tuck.float', edge: e, float: sb.float === true });
   }
   p.desktops?.forEach((layout, desktop) => actions.push({ type: 'desktop.layout', desktop, layout }));
-  for (const [key, value] of Object.entries(p.session ?? {})) actions.push({ type: 'settings.set', key, value });
+  for (const [key, value] of Object.entries(p.session ?? {})) {
+    if (key !== 'apps') { actions.push({ type: 'settings.set', key, value }); continue; }
+    // The preset's app set replaces this glass's (a preset saved without one leaves it alone).
+    const set = (value ?? {}) as Record<string, boolean>;
+    for (const t of Object.keys(s.settings.apps ?? {})) if (!(t in set)) actions.push({ type: 'settings.set', key: `apps.${t}`, value: 'default' });
+    for (const [t, on] of Object.entries(set)) actions.push({ type: 'settings.set', key: `apps.${t}`, value: on });
+  }
   return { actions, skipped };
 }

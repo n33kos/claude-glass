@@ -50,7 +50,7 @@ export interface AppDef<S = any> {
   guide?: string; // instructions for Claude, appended to the glass guide
   settings?: Record<string, SettingSpec>; // the app's own user settings (Settings → Apps, CLI, view props)
   permissions?: AppPermissions;
-  source?: 'builtin' | 'user';
+  source?: 'builtin' | 'user' | 'project'; // project: from the glass's project folder (.claude-glass/apps)
   dir?: string; // app folder: its view.html is served into a sandboxed frame
 }
 
@@ -275,6 +275,7 @@ export interface AppInfo {
   stored?: Record<string, StoredSpec>;
   description?: string; // shown in the Apps dialog
   builtin: boolean; // ships with the glass (a custom app that replaces one is not)
+  project?: boolean; // this project's own app (loads only in its glasses)
   overlay: boolean; // display: 'overlay' (covers the glass, click-through)
   bare: boolean; // chrome: 'none' (no glass panel; the title bar shows on hover)
 }
@@ -282,5 +283,5 @@ export interface AppInfo {
 export function appInfo(app: AppDef): AppInfo {
   const viewCommands = new Set(app.viewCommands ?? []);
   for (const [k, c] of Object.entries(app.commands)) if (c.view) viewCommands.add(k);
-  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description, builtin: app.source !== 'user', overlay: app.display === 'overlay', bare: app.chrome === 'none' };
+  return { type: app.type, title: app.title, icon: app.icon, iconUrl: app.dir && app.iconFile ? `glass-app://${app.type}/${app.iconFile}` : undefined, singleton: app.singleton, frame: !!app.dir, viewCommands: [...viewCommands], permissions: app.permissions ?? NO_PERMISSIONS, settings: app.settings, stored: app.stored, description: app.description, builtin: app.source !== 'user' && app.source !== 'project', project: app.source === 'project' || undefined, overlay: app.display === 'overlay', bare: app.chrome === 'none' };
 }

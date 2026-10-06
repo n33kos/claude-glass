@@ -365,6 +365,16 @@ function reduceRaw(s: GlassState, a: Action): ReduceResult {
     case 'settings.set': {
       const settings = structuredClone(s.settings) as any;
       const path = a.key.split('.');
+      // This glass's app set: apps.<type> on (true), off (false), or back to the global setting.
+      if (path[0] === 'apps') {
+        if (path.length !== 2 || !/^[a-z][a-z0-9-]*$/.test(path[1]) || path[1] === 'settings') throw new Error('usage: apps.<type> true|false|default');
+        if (a.value !== true && a.value !== false && a.value !== undefined && a.value !== 'default') throw new Error(`apps.${path[1]} must be true, false or default`);
+        const apps = { ...settings.apps };
+        if (typeof a.value === 'boolean') apps[path[1]] = a.value; else delete apps[path[1]];
+        settings.apps = Object.keys(apps).length ? apps : undefined;
+        return { state: { ...s, settings } };
+      }
+      if (a.key === 'buildApps' && typeof a.value !== 'boolean') throw new Error('buildApps must be true or false');
       let obj = settings;
       for (const k of path.slice(0, -1)) obj = obj[k] ??= {};
       // Colors reach the renderer's CSS: only validated hex gets in; empty clears the signal.

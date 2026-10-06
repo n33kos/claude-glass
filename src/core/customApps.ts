@@ -4,12 +4,39 @@
 //   core.js         CommonJS, pure: { init(), command(state, cmd, args), onEvent?(state, event) }
 //   view.html       the view, served into a sandboxed frame (optional: no view = blank window)
 //   guide.md        instructions for Claude, appended to the glass guide (optional)
-// Loaded once when the glass starts. A broken app is skipped and reported; nothing else breaks.
+// A project's own apps (same format) load only in glasses opened in that project folder. They live
+// outside the project, so nothing lands in its repo: ~/.claude/claude-glass/projects/<folder id>/apps/,
+// plus any folders linked to the project (`claude-glass apps link <dir>`, kept in app-folders.json
+// beside it).
+// Loaded when the glass starts, and again on `claude-glass apps reload`. A broken app is skipped
+// and reported; nothing else breaks.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { APPS, registerApp } from '../apps/registry';
 import { parsePermissions, parseSettingSpecs, parseStoredSpecs, type AppDef, type CommandSpec } from '../apps/types';
-import { appsDir } from './paths';
+import { folderGlassId } from './binding';
+import { writeJsonAtomic } from './config';
+import { appsDir, glassHome } from './paths';
+
+/** Where a project's own apps go by default (outside the project: nothing to commit or ignore). */
+export const projectAppsDir = (cwd: string) => join(glassHome(), 'projects', folderGlassId(cwd), 'apps');
+const linksPath = (cwd: string) => join(glassHome(), 'projects', folderGlassId(cwd), 'app-folders.json');
+
+/** Other folders of apps linked to a project (absolute paths). */
+export function linkedAppDirs(cwd: string): string[] {
+  try { const v = JSON.parse(readFileSync(linksPath(cwd), 'utf8')); return Array.isArray(v) ? v.filter((d) => typeof d === 'string') : []; } catch { return []; }
+}
+
+/** Link (or unlink) a folder of apps to a project. */
+export function linkAppDir(cwd: string, dir: string, on = true): string[] {
+  const now = linkedAppDirs(cwd).filter((d) => d !== dir);
+  const next = on ? [...now, dir] : now;
+  writeJsonAtomic(linksPath(cwd), next);
+  return next;
+}
+
+/** Every folder a project's apps load from: its own, then the linked ones. */
+export const projectAppDirs = (cwd: string) => [projectAppsDir(cwd), ...linkedAppDirs(cwd)];
 
 export const APP_API_VERSION = 1;
 // Characters of guide.md kept (before mode blocks are resolved); anything past it is cut off.
@@ -33,27 +60,39 @@ export interface AppManifest {
   stored?: Record<string, unknown>; // persistent values: { key: { scope, default } }
 }
 
-export interface AppReport { type: string; dir: string; ok: boolean; error?: string; overrides?: boolean }
+export interface AppReport { type: string; dir: string; ok: boolean; error?: string; overrides?: boolean; project?: boolean }
 
-export function loadApps(dir: string = appsDir()): AppReport[] {
+/** App folders in a folder of apps (each a directory). */
+export function appFolders(dir: string): string[] {
   if (!existsSync(dir)) return [];
+  return readdirSync(dir).sort().filter((name) => { try { return statSync(join(dir, name)).isDirectory(); } catch { return false; } });
+}
+
+/**
+ * Load every app in a folder. The user's apps (`~/.claude/claude-glass/apps`) may replace a
+ * built-in; a project's apps only add new types, so the apps the user relies on everywhere
+ * behave the same in every project.
+ */
+export function loadApps(dir: string = appsDir(), source: 'user' | 'project' = 'user'): AppReport[] {
   const reports: AppReport[] = [];
-  for (const name of readdirSync(dir).sort()) {
+  for (const name of appFolders(dir)) {
     const appDir = join(dir, name);
-    try { if (!statSync(appDir).isDirectory()) continue; } catch { continue; }
+    const project = source === 'project' ? { project: true } : {};
     try {
-      const app = readApp(appDir);
-      const overrides = APPS[app.type]?.source === 'builtin';
+      const app = readApp(appDir, source);
+      const had = APPS[app.type];
+      if (source === 'project' && had && had.source !== 'project') throw new Error(`an app named "${app.type}" is already installed; a project app can't replace it`);
+      const overrides = had?.source === 'builtin';
       registerApp(app);
-      reports.push({ type: app.type, dir: appDir, ok: true, overrides });
+      reports.push({ type: app.type, dir: appDir, ok: true, overrides, ...project });
     } catch (e: any) {
-      reports.push({ type: name, dir: appDir, ok: false, error: e?.message ?? String(e) });
+      reports.push({ type: name, dir: appDir, ok: false, error: e?.message ?? String(e), ...project });
     }
   }
   return reports;
 }
 
-export function readApp(appDir: string): AppDef {
+export function readApp(appDir: string, source: 'user' | 'project' = 'user'): AppDef {
   const m = JSON.parse(readFileSync(join(appDir, 'glass-app.json'), 'utf8')) as AppManifest;
   if (m.apiVersion !== APP_API_VERSION) throw new Error(`apiVersion must be ${APP_API_VERSION}`);
   if (typeof m.type !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(m.type)) throw new Error('type must be lowercase letters, digits, dashes');
@@ -110,7 +149,7 @@ export function readApp(appDir: string): AppDef {
     settings,
     stored,
     permissions,
-    source: 'user',
+    source,
     dir: appDir,
   };
 }

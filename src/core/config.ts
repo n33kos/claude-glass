@@ -163,7 +163,7 @@ export const SETTINGS_HELP: Record<keyof GlobalConfig, string> = {
   launcherGroup: 'true|false: an app\'s windows share one launcher icon, with a menu to pick one',
   dockOpen: 'click|hover: a hidden dock (edge or corner) slides out when its tab is clicked, or on hover',
   wheelDesktops: 'true|false: vertical scroll outside windows switches desktops',
-  disabledApps: 'comma-separated app types the user turned off (change only if asked)',
+  disabledApps: 'comma-separated app types the user turned off for every glass (change only if asked; one glass: session.apps.<type>)',
   autoStart: 'true|false: open a glass when a Claude session starts',
   scope: 'session|folder: one glass per session, or one per project folder',
   defaultPreset: 'a preset name (or none): the frame every new glass starts with (claude-glass preset)',

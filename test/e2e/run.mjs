@@ -372,6 +372,17 @@ try {
   await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07d-settings-apps.png') });
   check((await page.locator('.s-app-bad').count()) === 1 && (await page.locator('.s-app').count()) >= 9, 'settings lists every app, plus the custom one that failed');
   check((await page.locator('.settings').count()) === 1, 'settings opens from the dock');
+  // This glass's own app set: Tasks off here only, then back to the global switch.
+  await page.locator('select[aria-label="Tasks in this glass"]').selectOption('off');
+  await sleep(250);
+  const guideOff = await cli(env, 'open'); // (already open: prints the live guide)
+  check(/Off in this glass[^\n]*\n- Tasks/.test(guideOff) && !guideOff.includes('## Tasks (`tasks`)'), 'an app off in this glass leaves only a catalog line in the guide');
+  await page.locator('select[aria-label="Tasks in this glass"]').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await sleep(150);
+  await page.locator('[data-window="settings"]').screenshot({ path: join(shots, '07g-settings-this-glass.png') });
+  await page.locator('select[aria-label="Tasks in this glass"]').selectOption('default');
+  await sleep(250);
+  check((await cli(env, 'open')).includes('## Tasks (`tasks`)'), 'back to the global switch, its guide returns');
 
   // Close a window via traffic light, reopen from dock
   await page.locator('[data-window="settings"] .light.close').click();

@@ -72,6 +72,8 @@ export interface SessionSettings {
   autoOpen: { changes: boolean; plan: boolean; images: boolean; web?: boolean }; // web: absent = on
   windowOpacity?: number;
   backgroundColors?: string[]; // Claude's signal: this glass's wallpaper light (hex), over the user's
+  apps?: Record<string, boolean>; // this glass's own app set: true = on here, false = off here (else disabledApps decides)
+  buildApps?: boolean; // the guide invites Claude to build apps for this project (project apps, kept outside the repo)
 }
 
 /**
@@ -207,7 +209,7 @@ export type Action =
   | { type: 'signal'; kind: Signal['kind'] | 'clear'; target?: string; value?: number; label?: string };
 
 export interface Envelope {
-  op: 'ping' | 'event' | 'dispatch' | 'action.request' | 'action.wait' | 'action.close' | 'watch' | 'hook' | 'ask' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'stored' | 'config' | 'preset' | 'quit';
+  op: 'ping' | 'event' | 'dispatch' | 'action.request' | 'action.wait' | 'action.close' | 'watch' | 'hook' | 'ask' | 'view' | 'state' | 'catalog' | 'guide' | 'apps' | 'apps.reload' | 'stored' | 'config' | 'preset' | 'quit';
   [k: string]: unknown;
 }
 

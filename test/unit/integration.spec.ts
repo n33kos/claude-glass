@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bindSession, cleanupRuntime, folderGlassId } from '../../src/core/binding';
-import { readApp } from '../../src/core/customApps';
+import { projectAppsDir, readApp } from '../../src/core/customApps';
 import { GlassCore } from '../../src/core/server';
+import { APPS } from '../../src/apps/registry';
 
 const root = join(__dirname, '../..');
 const home = mkdtempSync(join(tmpdir(), 'cc-home-'));
@@ -599,5 +600,53 @@ describe('renamed settings', () => {
     expect(core.config.dockOpen).toBe('hover');
     await expect(cli('settings', 'set', 'dockOpen', 'sometimes')).rejects.toThrow(/click or hover/);
     await cli('settings', 'set', 'dockOpen', 'click');
+  });
+});
+
+describe('app sets and project apps', () => {
+  it('an app off in this glass only: refused, its windows closed, a catalog line instead of its guide', async () => {
+    await cli('new', 'diagram', '--id', 'set-d');
+    await cli('settings', 'set', 'session.apps.diagram', 'false');
+    expect(core.state.settings.apps).toEqual({ diagram: false });
+    expect(core.state.order).not.toContain('set-d');
+    await expect(cli('new', 'diagram')).rejects.toThrow(/turned off/);
+    expect(core.catalog().map((a) => a.type)).not.toContain('diagram');
+    expect(String(core.handle({ op: 'guide' }).result)).toMatch(/Off in this glass[^\n]*\n- Diagram \(`diagram`\)/);
+    expect(core.config.disabledApps).toEqual([]); // every other glass is untouched
+    await cli('settings', 'set', 'session.apps.diagram', 'default');
+    expect(core.state.settings.apps).toBeUndefined();
+    expect(core.catalog().map((a) => a.type)).toContain('diagram');
+  });
+
+  it('project apps live outside the project, load on reload, and only add new types', async () => {
+    const dir = projectAppsDir('/tmp/proj');
+    expect(dir.startsWith(home)).toBe(true);
+    expect(await cli('apps', 'new', 'proj-board', '--project')).toContain(join(dir, 'proj-board'));
+    expect(existsSync('/tmp/proj/.claude-glass')).toBe(false);
+    // a project app can't replace an app the user has everywhere
+    cpSync(join(dir, 'proj-board'), join(dir, 'clash'), { recursive: true });
+    const m = join(dir, 'clash', 'glass-app.json');
+    writeFileSync(m, readFileSync(m, 'utf8').replace('"proj-board"', '"markdown"'));
+    const out = await cli('apps', 'reload');
+    expect(out).toMatch(/FAILED\s+clash\s+an app named "markdown" is already installed/);
+    expect(APPS['proj-board']).toMatchObject({ source: 'project' });
+    expect(APPS.markdown.source).toBe('builtin');
+    expect(core.catalog().find((a) => a.type === 'proj-board')?.source).toBe('project');
+    expect(await cli('new', 'proj-board')).toBe('proj-board');
+
+    // or anywhere: a linked folder of apps
+    const elsewhere = mkdtempSync(join(tmpdir(), 'cg-linked-'));
+    cpSync(join(dir, 'proj-board'), join(elsewhere, 'linked-one'), { recursive: true });
+    const lm = join(elsewhere, 'linked-one', 'glass-app.json');
+    writeFileSync(lm, readFileSync(lm, 'utf8').replace('"proj-board"', '"linked-one"'));
+    expect(await cli('apps', 'link', elsewhere)).toContain('Linked');
+    await cli('apps', 'reload');
+    expect(APPS['linked-one']).toMatchObject({ source: 'project', dir: join(elsewhere, 'linked-one') });
+    expect(await cli('apps')).toMatch(/project\s+linked-one/);
+    await cli('apps', 'unlink', elsewhere);
+    await cli('window', 'delete', 'proj-board');
+    delete APPS['proj-board'];
+    delete APPS['linked-one'];
+    rmSync(dir, { recursive: true });
   });
 });

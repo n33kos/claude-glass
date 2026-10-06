@@ -17,6 +17,7 @@ import { capturePreset, presetActions } from '../../src/core/presets';
 import { DEFAULT_CONFIG } from '../../src/core/config';
 import { computeDesktops, effectiveLayout, nestedSlots } from '../../src/core/layout';
 import { guideFor, guideForSettings } from '../../src/core/guide';
+import { isAppOff } from '../../src/core/appset';
 import { attachBuiltinViews, loadApps, readApp } from '../../src/core/customApps';
 import { collectHooks, isHookable, runHooks, subscriptions } from '../../src/core/apphooks';
 import { APPS } from '../../src/apps/registry';
@@ -382,6 +383,54 @@ describe('browser history', () => {
     expect(s.view).toBe('cdp');
     s = cmd(s, 'web.go', { index: 0 });
     expect(s.view).toBe('web');
+  });
+});
+
+describe('app sets: which apps are on in this glass', () => {
+  it('a glass\'s own setting wins over the global one, either way', () => {
+    expect(isAppOff('tasks', { disabledApps: [] }, undefined)).toBe(false);
+    expect(isAppOff('tasks', { disabledApps: ['tasks'] }, undefined)).toBe(true);
+    expect(isAppOff('tasks', { disabledApps: ['tasks'] }, { apps: { tasks: true } })).toBe(false);
+    expect(isAppOff('tasks', { disabledApps: [] }, { apps: { tasks: false } })).toBe(true);
+    expect(isAppOff('settings', { disabledApps: [] }, { apps: { settings: false } })).toBe(false);
+  });
+  it('settings.set apps.<type>: on, off, back to default; anything else is refused', () => {
+    let s = reduce(fresh(), { type: 'settings.set', key: 'apps.tasks', value: false }).state;
+    s = reduce(s, { type: 'settings.set', key: 'apps.files', value: true }).state;
+    expect(s.settings.apps).toEqual({ tasks: false, files: true });
+    s = reduce(s, { type: 'settings.set', key: 'apps.tasks', value: 'default' }).state;
+    s = reduce(s, { type: 'settings.set', key: 'apps.files', value: undefined }).state;
+    expect(s.settings.apps).toBeUndefined();
+    expect(() => reduce(s, { type: 'settings.set', key: 'apps.tasks', value: 'maybe' })).toThrow(/true, false or default/);
+    expect(() => reduce(s, { type: 'settings.set', key: 'apps', value: {} })).toThrow(/usage/);
+    expect(() => reduce(s, { type: 'settings.set', key: 'buildApps', value: 'yes' })).toThrow(/true or false/);
+  });
+  it('the guide: apps that are on bring their instructions, off ones only a catalog line', () => {
+    attachBuiltinViews(join(__dirname, '../../dist/apps')); // built-ins read their guide.md from the build
+    const on = guideFor({ defaultLayout: 'grid' });
+    expect(on).toContain('## Tasks (`tasks`)');
+    expect(on).not.toContain('Off in this glass');
+    const off = guideFor({ defaultLayout: 'grid' }, { apps: { tasks: false } });
+    expect(off).not.toContain('## Tasks (`tasks`)');
+    expect(off).toMatch(/Off in this glass[^\n]*\n- Tasks \(`tasks`\): /);
+    expect(off.length).toBeLessThan(on.length);
+    // turned off everywhere but on here
+    expect(guideFor({ defaultLayout: 'grid', disabledApps: ['tasks'] }, { apps: { tasks: true } })).toContain('## Tasks (`tasks`)');
+  });
+  it('the workspace nudge only when buildApps is on', () => {
+    expect(guideFor({ defaultLayout: 'grid' })).not.toContain('apps new <type> --project');
+    expect(guideFor({ defaultLayout: 'grid' }, { buildApps: true })).toContain('apps new <type> --project');
+  });
+  it('presets carry the app set, and applying one replaces the glass\'s', () => {
+    let s = reduce(fresh(), { type: 'settings.set', key: 'apps.tasks', value: false }).state;
+    const p = capturePreset(s, DEFAULT_CONFIG, 'quiet', '');
+    expect(p.session?.apps).toEqual({ tasks: false });
+    s = reduce(fresh(), { type: 'settings.set', key: 'apps.files', value: false }).state;
+    for (const a of presetActions(s, p, () => true).actions) s = reduce(s, a).state;
+    expect(s.settings.apps).toEqual({ tasks: false });
+    // a preset saved before app sets leaves the glass's alone
+    for (const a of presetActions(s, { name: 'old', description: '', session: { windowMode: 'live' } }, () => true).actions) s = reduce(s, a).state;
+    expect(s.settings.apps).toEqual({ tasks: false });
   });
 });
 

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { computeDesktops, cornerHeight, cornerSides, desktopsFor, DOCKS, EDGES, edgeSize, effectiveLayout, isCorner, LAYOUT_NAMES, LAYOUTS, nestedSlots, type DesktopPage } from '../core/layout';
 import type { Action, Corner, Dock, Edge, FreeRect, InstanceMeta, LayoutName, SessionUsage, Waiting } from '../core/types';
 import { DEFAULT_PALETTES, lightColors, moodOf } from '../core/colors';
+import { offApps } from '../core/appset';
 import { paintLights, wallpaper, type LightPainter } from './backgrounds';
 import { AppIcon, iconSrc } from './AppIcon';
 import { ThemeContext, useTheme } from './theme';
@@ -995,7 +996,7 @@ function Launcher({ pages, viewing, onReveal, onDragStart, dragging, width }: {
   // "windows": open apps in tile order (left to right = first slot onward), closed apps after.
   const byWindows = (a: InstanceMeta, b: InstanceMeta) =>
     (tile.get(a.id) ?? Infinity) - (tile.get(b.id) ?? Infinity) || fixed(a, b);
-  const off = new Set(config.disabledApps ?? []);
+  const off = offApps(Object.keys(apps), config, state.settings);
   const docked = (id: string) => DOCKS.find((d) => state.tucked?.[d]?.includes(id));
   // The launcher holds what's open (on a desktop or docked); closed windows and apps not started
   // yet live in the Apps dialog, so the bar stays short as apps pile up.
@@ -1112,7 +1113,7 @@ function AppsMenu({ x, onClose, onShown }: { x: number; onClose: () => void; onS
     window.addEventListener('pointerdown', down, true);
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('pointerdown', down, true); };
   }, [onClose]);
-  const off = new Set(config.disabledApps ?? []);
+  const off = offApps(Object.keys(apps), config, state.settings);
   const shown = (id: string) => state.order.includes(id) || DOCKS.some((d) => state.tucked?.[d]?.includes(id));
   const all = Object.values(state.instances).filter((m) => m.type !== 'settings' && !off.has(m.type));
   const list = Object.values(apps).filter((a) => a.type !== 'settings' && !off.has(a.type)).map((a) => {

@@ -237,6 +237,11 @@ async function boot() {
     return;
   }
   core.onQuit = () => shutdown();
+  // `claude-glass apps reload`: the window starts over with the new app list (state lives in core).
+  core.onAppsReloaded = () => {
+    firstPartyCookiesForDeclaredOrigins();
+    if (win && !win.isDestroyed()) win.webContents.reload();
+  };
   startMetrics(sessionDir(sessionId!), () => ({
     windows: Object.keys(core.state.instances).length, open: core.state.order.length,
     streams: streams.size, pages: webFeeds.size, frames: lastFrames.size,

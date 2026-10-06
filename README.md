@@ -252,12 +252,22 @@ the current values. Global settings live in `~/.claude/claude-glass/config.json`
 | `topBarAutoHide` | true / **false** | hide the top bar until the pointer reaches the top, so the glass (a background window too) runs edge to edge |
 | `launcherOrder` | **windows** / fixed | launcher follows window order, or a fixed order by app (was `dockOrder`) |
 | `launcherGroup` | **true** / false | an app's windows share one launcher icon, with a list to pick one |
-| `disabledApps` | app types | turned-off apps are hidden and Claude can't use them |
+| `disabledApps` | app types | turned-off apps are hidden, Claude can't use them, and their instructions stay out of its context (one glass can override: `session.apps.<type>`) |
 | `toolReminders` | **true** / false | remind Claude to read and edit with its own tools (so you see the work) |
 | `app.<type>.<key>` | per app | an app's own settings (e.g. `app.image.gridSize`) |
 
 Per session (`claude-glass settings set session.<key> <value>`): `windowMode` (live / history),
-`historyLimit`, `autoOpen.changes|plan|images|web`, `windowOpacity`.
+`historyLimit`, `autoOpen.changes|plan|images|web`, `windowOpacity`, `apps.<type>` (true / false /
+default) and `buildApps` (true / **false**).
+
+**App sets.** Each glass can have its own set of apps: Settings → Apps has a "This glass" choice
+under every app's switch, over the global one. An app that's off isn't just hidden: its
+instructions leave Claude's context, and Claude gets one catalog line for it instead. Presets keep
+the set, so a "Calcifer" preset can bring the fire demon and a "work" preset leave him out.
+
+**Workspace (`buildApps`).** With it on, the guide invites Claude to build a small project app when
+the project has something of its own that no built-in app shows well (see Custom apps). Off by
+default; turn it on per glass or in a preset.
 
 **Scope.** `session` gives each Claude session its own glass; after `/clear` you start fresh and
 `claude --resume` picks the old one back up. `folder` gives each project folder one glass that
@@ -271,9 +281,16 @@ manifest, a small pure `core.js`, and a `view.html` that runs in a sandboxed fra
 
 ```sh
 claude-glass apps new my-app      # scaffold ~/.claude/claude-glass/apps/my-app
+claude-glass apps new board --project   # an app only this project's glasses load
+claude-glass apps link ~/my/apps  # load a folder of apps (anywhere) in this project's glasses
 claude-glass apps copy markdown   # start from a built-in
+claude-glass apps reload          # pick up new or changed apps without restarting
 claude-glass apps                 # what's installed (and what failed to load, and why)
 ```
+
+**Project apps** belong to one project folder and load only in its glasses. They live outside the
+project (`~/.claude/claude-glass/projects/<folder id>/apps/`), so nothing lands in its repo, plus
+any folders you link to it. They add new app types; they can't replace one you have everywhere.
 
 ```
 ~/.claude/claude-glass/apps/my-app/
@@ -377,6 +394,7 @@ the microphone grant to the app, so updates don't ask again (only an Electron up
 ```
 ~/.claude/claude-glass/config.json                   global settings
 ~/.claude/claude-glass/apps/<type>/                  custom apps
+~/.claude/claude-glass/projects/<folder id>/apps/    a project's own apps (app-folders.json: linked folders)
 ~/.claude/claude-glass/sessions/<id>/state.json      a glass's saved state
 ~/.claude/claude-glass/sessions/<id>/files/          copies of images shown on it
 ~/.claude/claude-glass/sessions/<id>/glass.log       app log

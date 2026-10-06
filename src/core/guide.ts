@@ -4,7 +4,8 @@
 // secondary, tertiary); re-rank when that changes, not per tool call.
 import { APPS } from '../apps/registry';
 import { settingValues, type AppDef } from '../apps/types';
-import type { GlobalConfig } from './types';
+import { isAppOff } from './appset';
+import type { GlobalConfig, SessionSettings } from './types';
 
 export const GUIDE = `# Claude Glass is open for this session
 
@@ -122,20 +123,44 @@ export function guideForSettings(text: string, settings: Record<string, string>)
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-export function guideFor(config: Pick<GlobalConfig, 'defaultLayout'> & Partial<GlobalConfig> & { windowMode?: 'live' | 'history' }): string {
+const BUILD_APPS = `
+
+This glass is a workspace whose UI you can grow. The apps above cover the common operations: use
+them first. When this project has something of its own that none of them shows well and that will
+matter over many turns (a domain object to inspect, a pipeline to tune, choices the user makes
+again and again), build a project app for it: \`claude-glass apps new <type> --project\` (it prints
+where the app format is documented), then \`claude-glass apps reload\`. It loads only in this
+project's glasses and lives outside the repo. Keep it rare and small: a one-off picture is an html
+canvas or a diagram, not an app. Say what you built and why.`;
+
+/**
+ * This glass's guide: the base guide for the user's settings, then each app that's on with its
+ * full instructions. Apps that are off in this glass get one catalog line each (they cost no
+ * more context than that).
+ */
+export function guideFor(
+  config: Pick<GlobalConfig, 'defaultLayout'> & Partial<GlobalConfig> & { windowMode?: 'live' | 'history' },
+  session?: Partial<SessionSettings>,
+): string {
   const settings = { windowMode: config.windowMode ?? 'live', nestedView: String(!!config.nestedView) };
   // Each app's guide also sees its own settings by key (`<!-- when grid=true -->`).
   const own = (a: AppDef) => Object.fromEntries(Object.entries(settingValues(a, config.appSettings?.[a.type])).map(([k, v]) => [k, String(v)]));
-  const apps = Object.values(APPS)
-    .filter((a) => a.guide && !config.disabledApps?.includes(a.type))
+  const all = Object.values(APPS).filter((a) => a.type !== 'settings');
+  const apps = all
+    .filter((a) => a.guide && !isAppOff(a.type, config, session))
     .map((a) => ({ a, text: guideForSettings(a.guide!, { ...own(a), ...settings }) }))
     .filter((g) => g.text);
   const appGuides = apps.length
-    ? '\n\n# Installed apps\n' + apps.map(({ a, text }) => `\n## ${a.title} (\`${a.type}\`)\n${text}`).join('\n')
+    ? '\n\n# Installed apps\n' + apps.map(({ a, text }) => `\n## ${a.title} (\`${a.type}\`)${a.source === 'project' ? ' (this project\'s own app)' : ''}\n${text}`).join('\n')
+    : '';
+  const off = all.filter((a) => isAppOff(a.type, config, session));
+  const offList = off.length
+    ? `\n\nOff in this glass (don't use them; the user turns them on in Settings → Apps):\n${off.map((a) => `- ${a.title} (\`${a.type}\`)${a.description ? `: ${a.description}` : ''}`).join('\n')}`
     : '';
   const layout = config.nestedView ? NESTED_VIEW : config.defaultLayout === 'claude' ? CLAUDE_LAYOUT : '';
   const history = config.windowMode === 'history' ? HISTORY_MODE : '';
-  return GUIDE + layout + history + followGuide(config) + appGuides;
+  const build = session?.buildApps ? BUILD_APPS : '';
+  return GUIDE + layout + history + followGuide(config) + build + appGuides + offList;
 }
 
 const FOLLOW_WHAT: [keyof GlobalConfig, string][] = [

@@ -7,6 +7,7 @@ import { AppIcon } from '../../renderer/AppIcon';
 import { appReports, apps, dispatch, setConfig } from '../../renderer/store';
 import type { ViewProps } from '../../renderer/viewTypes';
 import { FOLLOW_MODES, type FollowMode } from '../../core/types';
+import { isAppOff } from '../../core/appset';
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: React.ReactNode }) {
   return (
@@ -121,6 +122,7 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Open plans automatically" on={s.autoOpen.plan} onChange={(v) => setSession('autoOpen.plan', v)} />
       <Toggle label="Open images Claude reads" on={s.autoOpen.images} onChange={(v) => setSession('autoOpen.images', v)} />
       <Toggle label="Open the browser for web searches and pages" on={s.autoOpen.web !== false} onChange={(v) => setSession('autoOpen.web', v)} />
+      <Toggle label="Workspace: Claude may build apps for this project when nothing built in fits" on={s.buildApps === true} onChange={(v) => setSession('buildApps', v)} />
       <label className="s-row">
         <span>Window opacity for this session {s.windowOpacity != null ? `(${Math.round(s.windowOpacity * 100)}%)` : '(same as all sessions)'}</span>
         <span className="s-inline">
@@ -272,15 +274,25 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Remind Claude to read and edit with its own tools (so you see the work here)" on={config.toolReminders} onChange={(v) => setConfig('toolReminders', v)} />
 
       <h3>Apps</h3>
-      <p className="s-note">Turned-off apps are hidden and Claude can't use them. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>).</p>
+      <p className="s-note">Turned-off apps are hidden, Claude can't use them, and their instructions stay out of Claude's context. The switch is for every glass; "This glass" overrides it here, and presets keep it, so one preset can bring Calcifer and another leave him out. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>); a project's own apps load only in its glasses (<code>--project</code>).</p>
       {Object.values(apps).filter((a) => a.type !== 'settings').map((a) => {
         const custom = appReports.find((r) => r.ok && r.type === a.type);
-        const on = !config.disabledApps.includes(a.type);
+        const everywhere = !config.disabledApps.includes(a.type);
+        const here = s.apps?.[a.type];
+        const on = !isAppOff(a.type, config, s);
         return (
           <Fragment key={a.type}>
-            <Toggle on={on}
+            <Toggle on={everywhere}
               onChange={(v) => setConfig('disabledApps', v ? config.disabledApps.filter((t) => t !== a.type) : [...config.disabledApps, a.type])}
-              label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{custom ? (custom.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
+              label={<span className="s-app"><b><AppIcon type={a.type} /></b> {a.title} <code>{a.type}</code>{a.project ? ' · this project\'s' : custom ? (custom.overrides ? ' · custom, replaces the built-in' : ' · custom') : ''}
+                <span className="s-here" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>In this glass
+                  <select aria-label={`${a.title} in this glass`} className={here === undefined ? '' : 'set'} value={here === undefined ? 'default' : here ? 'on' : 'off'}
+                    onChange={(e) => setSession(`apps.${a.type}`, e.target.value === 'default' ? 'default' : e.target.value === 'on')}>
+                    <option value="default">as everywhere ({everywhere ? 'on' : 'off'})</option>
+                    <option value="on">on</option>
+                    <option value="off">off</option>
+                  </select>
+                </span>
                 {permissionText(a.permissions) && <span className="s-perms">Can use: {permissionText(a.permissions)}
                   {(a.permissions.storage || a.permissions.network.length > 0) && <ResetData type={a.type} />}</span>}</span>} />
             {on && a.settings && <AppSettings type={a.type} specs={a.settings} stored={config.appSettings?.[a.type]} />}
@@ -294,7 +306,7 @@ export function SettingsView({ glass, config }: ViewProps) {
           <span className="s-app-status">{r.error}</span>
         </div>
       ))}
-      <p className="s-note">New or changed custom apps load when the glass restarts.</p>
+      <p className="s-note">New or changed custom apps load with <code>claude-glass apps reload</code>.</p>
       <p className="s-foot">Session {glass.session.id}</p>
     </div>
   );

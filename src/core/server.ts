@@ -9,9 +9,10 @@ import type { ActionState } from '../apps/action';
 import { summarizeTool } from '../apps/terminal';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
+import { isAppOff, offApps } from './appset';
 import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
 import { applyEvent, type EventContext, type GlassEvent } from './events';
-import { loadApps, type AppReport } from './customApps';
+import { loadApps, projectAppDirs, type AppReport } from './customApps';
 import { StoredFiles } from './stored';
 import { formatView } from './viewtext';
 import { isHookable, collectHooks, runHooks, subscriptions, whileAsking, type AppHook } from './apphooks';
@@ -36,13 +37,13 @@ export class GlassCore {
   constructor(readonly sessionId: string, cwd: string) {
     mkdirSync(sessionDir(sessionId), { recursive: true });
     this.config = loadConfig();
-    this.apps = loadApps();
-    // Two-way apps' hooks on the session (custom apps that ask for them, loaded above).
-    ({ hooks: this.appHooks, errors: this.hookErrors } = collectHooks(this.config.disabledApps ?? []));
-    this.apps = this.apps.map((r) => (this.hookErrors[r.type] ? { ...r, ok: false, error: this.hookErrors[r.type] } : r));
     const saved = loadState(sessionId);
     this.state = saved ?? initialState({ id: sessionId, cwd });
     if (cwd && !this.state.session.cwd) this.state = reduce(this.state, { type: 'session.update', patch: { cwd } }).state;
+    // The user's custom apps, then the project's own (trusted folders only).
+    this.apps = [...loadApps(), ...this.loadProjectApps()];
+    // Two-way apps' hooks on the session (custom apps that ask for them, loaded above).
+    this.collectHooks();
     // Reopened glass: fresh start time is not interesting, but "ended" must be cleared.
     this.state = reduce(this.state, { type: 'session.update', patch: { endedAt: undefined, activity: 'idle' } }).state;
     // Public state, cached only for the types the loaded apps read.
@@ -73,13 +74,49 @@ export class GlassCore {
     for (const fn of this.listeners) fn(this.state, this.config);
   }
 
+  /** Whether an app is off in this glass (turned off for every glass, or in this one's own app set). */
+  isOff(type: string): boolean { return isAppOff(type, this.config, this.state.settings); }
+  private off(): Set<string> { return offApps(Object.keys(APPS), this.config, this.state.settings); }
+
+  /** (Re)collect two-way apps' hooks: on start, and whenever the set of apps that are on changes. */
+  private collectHooks() {
+    ({ hooks: this.appHooks, errors: this.hookErrors } = collectHooks([...this.off()]));
+    this.apps = this.apps.map((r) => (this.hookErrors[r.type] ? { ...r, ok: false, error: this.hookErrors[r.type] } : r));
+  }
+
+  /** After the app set changed: close the windows of apps that are now off, and re-collect hooks. */
+  private appsChanged() {
+    const off = this.off();
+    let s = this.state;
+    for (const id of [...s.order]) if (off.has(s.instances[id]?.type)) s = reduce(s, { type: 'window.close', id }).state;
+    this.commit(s);
+    this.collectHooks();
+  }
+
+  // ---- Project apps: only for glasses opened in that project folder (customApps.ts) -----------
+  /** Main reloads the window when the app list changes (`apps reload`). */
+  onAppsReloaded: () => void = () => {};
+
+  private loadProjectApps(): AppReport[] {
+    const cwd = this.state.session.cwd;
+    return cwd ? projectAppDirs(cwd).flatMap((dir) => loadApps(dir, 'project')) : [];
+  }
+
+  /** Read the custom and project apps again: new or changed ones load without restarting the glass. */
+  reloadApps(): AppReport[] {
+    this.apps = [...loadApps(), ...this.loadProjectApps()];
+    this.collectHooks();
+    this.commit(reduce(this.state, { type: 'shared.refresh' }).state);
+    this.onAppsReloaded();
+    for (const fn of this.listeners) fn(this.state, this.config);
+    return this.apps;
+  }
+
   private assertEnabled(action: Action) {
-    const disabled = this.config.disabledApps ?? [];
-    if (!disabled.length) return;
     const type = action.type === 'instance.create' ? action.appType
       : action.type === 'app.command' || action.type === 'window.open' ? this.state.instances[action.id]?.type
       : undefined;
-    if (type && disabled.includes(type)) throw new Error(`the "${type}" app is turned off by the user (in Settings). Don't use it.`);
+    if (type && this.isOff(type)) throw new Error(`the "${type}" app is turned off by the user (in Settings). Don't use it.`);
   }
 
   /**
@@ -112,6 +149,7 @@ export class GlassCore {
     }
     const { state, result } = reduce(this.state, action);
     this.commit(state);
+    if (action.type === 'settings.set' && action.key.startsWith('apps.')) this.appsChanged();
     return result ?? null;
   }
 
@@ -134,7 +172,7 @@ export class GlassCore {
    */
   actionRequest(req: { kind?: unknown; tool?: unknown; input?: unknown; canAlways?: unknown; force?: boolean }): { id: string; holdMs: number; summary: string } | { off: string } {
     const settings = this.actionSettings();
-    if (!settings || this.config.disabledApps?.includes('action')) return { off: 'the Action app is turned off' };
+    if (!settings || this.isOff('action')) return { off: 'the Action app is turned off' };
     const question = req.kind === 'question';
     // (force: an app's own question, or Claude asking through the glass; the settings are about Claude Code's prompts)
     if (!req.force && (question ? !settings.questions : !settings.approvals)) return { off: question ? 'questions from the glass are off' : 'approvals from the glass are off' };
@@ -203,7 +241,7 @@ export class GlassCore {
 
   // ---- The guide Claude was last given (session start, `open`, or with a prompt) ---------------
   private guideGiven: string | null = null;
-  private guide(): string { return guideFor({ ...this.config, windowMode: this.state.settings.windowMode }); }
+  private guide(): string { return guideFor({ ...this.config, windowMode: this.state.settings.windowMode }, this.state.settings); }
 
   // ---- Two-way apps' hooks (src/core/apphooks.ts) and attachments -----------------------------
   appHooks: AppHook[] = [];
@@ -309,7 +347,7 @@ export class GlassCore {
   events(events: unknown[]): void {
     const ctx: EventContext = {
       ingestFile: (p) => this.ingestFile(p),
-      disabled: new Set(this.config.disabledApps ?? []),
+      disabled: this.off(),
       windowMode: this.state.settings.windowMode,
       readText: (p) => { try { return statSync(p).size < 1_000_000 ? readFileSync(p, 'utf8') : null; } catch { return null; } },
       // Lighting a window is the signal layer's: off means the glass only moves windows.
@@ -378,13 +416,7 @@ export class GlassCore {
     const v = coerceConfigValue(key as keyof GlobalConfig, value);
     this.config = { ...this.config, [key]: v };
     saveConfig(this.config);
-    if (key === 'disabledApps') {
-      // Close the windows of apps that were just turned off.
-      const off = new Set(this.config.disabledApps);
-      let s = this.state;
-      for (const id of s.order) if (off.has(s.instances[id]?.type)) s = reduce(s, { type: 'window.close', id }).state;
-      this.commit(s);
-    }
+    if (key === 'disabledApps') this.appsChanged();
     for (const fn of this.listeners) fn(this.state, this.config);
     return this.config;
   }
@@ -423,7 +455,7 @@ export class GlassCore {
   }
 
   catalog() {
-    return Object.values(APPS).filter((a) => !this.config.disabledApps?.includes(a.type)).map((a) => ({
+    return Object.values(APPS).filter((a) => !this.isOff(a.type)).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
       source: a.source,
       ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage || a.permissions.sharedSignIn || a.permissions.twoWay) ? { permissions: a.permissions } : {}),
@@ -462,13 +494,16 @@ export class GlassCore {
       if (!(LOOK_KEYS as readonly string[]).includes(k)) continue;
       try { this.setConfig(k, v); } catch {} // a value from an older version that no longer fits
     }
-    const { actions, skipped } = presetActions(this.state, p, (type) => !!APPS[type] && !this.config.disabledApps?.includes(type));
+    // (the preset's own app set decides which of its windows come back)
+    const set = p.session && 'apps' in p.session ? { apps: p.session.apps } : this.state.settings;
+    const { actions, skipped } = presetActions(this.state, p, (type) => !!APPS[type] && !isAppOff(type, this.config, set));
     let s = this.state;
     for (const a of actions) {
       if (a.type === 'desktop.layout' && this.config.nestedView) continue; // no desktops in the nested view
       try { s = reduce(s, a).state; } catch {}
     }
     this.commit(s);
+    this.appsChanged();
     return { applied: p.name, skipped };
   }
 
@@ -484,6 +519,7 @@ export class GlassCore {
         case 'catalog': return { ok: true, result: this.catalog() };
         case 'guide': return { ok: true, result: (this.guideGiven = this.guide()) };
         case 'apps': return { ok: true, result: this.apps };
+        case 'apps.reload': return { ok: true, result: this.reloadApps() };
         case 'stored': {
           // An app's persistent values, defaults filled in (`claude-glass stored <type>`).
           const app = APPS[String(env.app)];
