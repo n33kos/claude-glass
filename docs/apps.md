@@ -356,7 +356,7 @@ into the Claude session, and only through the hooks above.
 Settings lists every app with a switch. A turned-off app's windows close, session events leave it alone,
 its hooks stop, its `guide.md` leaves Claude's instructions (Claude gets one line naming it, from
 your manifest's `description`), and commands to it fail with a message telling Claude not to use
-it. The switch is for every glass; under it, "This glass" turns the app on or off in one glass
+it. The switch is for every glass; under it, "In this glass" turns the app on or off in one glass
 only (`claude-glass settings set session.apps.<type> true|false|default`), and presets keep that
 choice.
 

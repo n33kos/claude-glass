@@ -274,7 +274,7 @@ export function SettingsView({ glass, config }: ViewProps) {
       <Toggle label="Remind Claude to read and edit with its own tools (so you see the work here)" on={config.toolReminders} onChange={(v) => setConfig('toolReminders', v)} />
 
       <h3>Apps</h3>
-      <p className="s-note">Turned-off apps are hidden, Claude can't use them, and their instructions stay out of Claude's context. The switch is for every glass; "This glass" overrides it here, and presets keep it, so one preset can bring Calcifer and another leave him out. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>); a project's own apps load only in its glasses (<code>--project</code>).</p>
+      <p className="s-note">Turned-off apps are hidden, Claude can't use them, and their instructions stay out of Claude's context. The switch applies to every glass. "In this glass" overrides it for this glass only, and is saved with presets. Custom apps live in <code>~/.claude/claude-glass/apps</code> (<code>claude-glass apps new &lt;name&gt;</code>); a project's own apps load only in its glasses (<code>--project</code>).</p>
       {Object.values(apps).filter((a) => a.type !== 'settings').map((a) => {
         const custom = appReports.find((r) => r.ok && r.type === a.type);
         const everywhere = !config.disabledApps.includes(a.type);

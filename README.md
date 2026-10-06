@@ -260,10 +260,9 @@ Per session (`claude-glass settings set session.<key> <value>`): `windowMode` (l
 `historyLimit`, `autoOpen.changes|plan|images|web`, `windowOpacity`, `apps.<type>` (true / false /
 default) and `buildApps` (true / **false**).
 
-**App sets.** Each glass can have its own set of apps: Settings → Apps has a "This glass" choice
-under every app's switch, over the global one. An app that's off isn't just hidden: its
-instructions leave Claude's context, and Claude gets one catalog line for it instead. Presets keep
-the set, so a "Calcifer" preset can bring the fire demon and a "work" preset leave him out.
+**App sets.** Each glass can turn apps on or off over the global switch: Settings → Apps has an
+"In this glass" choice under every app. Presets save it. An app that's off is hidden, its
+instructions leave Claude's context, and Claude gets one catalog line for it instead.
 
 **Workspace (`buildApps`).** With it on, the guide invites Claude to build a small project app when
 the project has something of its own that no built-in app shows well (see Custom apps). Off by

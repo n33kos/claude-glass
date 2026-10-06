@@ -1,6 +1,6 @@
 // Which apps are on in a glass. The user turns apps off for every glass (`disabledApps`), and each
-// glass can override that (`settings.apps`: true = on here, false = off here), so a preset can carry
-// a glass's own set (Calcifer in one glass, plain work glasses elsewhere). An off app is hidden, its
+// glass can override that (`settings.apps`: true = on here, false = off here), which presets save.
+// An off app is hidden, its
 // commands are refused, its hooks don't run and its guide stays out of Claude's context.
 // Pure: the renderer uses it too.
 import type { GlobalConfig, SessionSettings } from './types';
