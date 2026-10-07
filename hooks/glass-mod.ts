@@ -92,6 +92,7 @@ let previous = '' // the session this one replaced (/clear): its glass carries o
 // While a glass is open there's always something the user may send (Conversation's message box).
 async function watchControls($: any, gen: number) {
   if (gen !== watching) return
+  await syncSession($)
   // The session started before the CLI could answer (a fresh install still building): try again.
   if (cid && !sock) await sessionStart($, startSource)
   // Nothing to collect without a glass: look again in a while.
@@ -124,6 +125,20 @@ async function sessionStart($: any, source: string) {
   } catch {
     // Not built yet (the first CLI command builds it), or something broke: the session goes on.
   }
+}
+
+/**
+ * Follow the session to its current id. /clear gives the session a new one, and the only sure sign
+ * of it is $.session.id(): a classic SessionStart for the clear may not reach the mod, and no
+ * session.start follows one. Checked before anything that talks to the glass.
+ */
+async function syncSession($: any) {
+  let id = ''
+  try { id = String(await $.session.id()) } catch { return }
+  if (!id || id === cid) return
+  previous = cid
+  cid = id
+  await sessionStart($, previous ? 'clear' : 'startup')
 }
 
 // The longest a CLI call may take: $.process.run refuses more than ten minutes (a call that waits on
@@ -251,10 +266,13 @@ export function register(on: any) {
   // Every start of a conversation: startup, /clear (a new session id), resume, compact.
   on('classic.SessionStart', async ($: any, e: any, next: any) => {
     const id = String(e.session_id ?? '')
+    const source = String(e.source ?? 'startup')
+    cwd = String(e.cwd ?? cwd)
+    // A start the sync (syncSession) already followed: nothing new.
+    if (source === 'clear' && id === cid) return next(e)
     previous = cid && id !== cid ? cid : ''
     cid = id
-    cwd = String(e.cwd ?? cwd)
-    if (cid) await sessionStart($, String(e.source ?? 'startup'))
+    if (cid) await sessionStart($, source)
     return next(e)
   })
 
@@ -273,6 +291,7 @@ export function register(on: any) {
 
   // The guide, with the first message of each conversation, while a glass is open.
   on('prompt.context', async ($: any, e: any, next: any) => {
+    await syncSession($)
     const r = await next(e)
     if (!guide || !(await glassUp($))) return r
     return { ...r, blocks: [...r.blocks, { name: 'claudeGlass', text: guide }] }
@@ -281,6 +300,7 @@ export function register(on: any) {
   // A prompt goes through the glass while one is open: what the user attached there joins it as
   // context Claude reads, and two-way apps that hook prompts may change it or keep it back.
   on('prompt.submit', async ($: any, e: any, next: any) => {
+    await syncSession($)
     if (!(await glassUp($))) return next(e)
     const r = await ask($, ['hook', 'prompt.submit'], JSON.stringify({ text: e.text, context: e.context ?? [] }), LONGEST)
     if (r?.answer?.drop !== undefined) return { drop: String(r.answer.drop) }
@@ -291,6 +311,7 @@ export function register(on: any) {
   })
 
   on('turn.start', async ($: any, e: any, next: any) => {
+    await syncSession($)
     turnId = e.turnId
     send($, { e: 'turn.start', turnId: e.turnId, text: e.text })
     return next(e)

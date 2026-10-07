@@ -69,6 +69,26 @@ describe('the glass mod', () => {
     expect(clear[clear.indexOf('--previous') + 1]).toBe(starts[0].argv[starts[0].argv.indexOf('--session') + 1])
   })
 
+  test('a /clear the mod hears nothing about: the next prompt finds the new session id and follows it', async ($, on) => {
+    const ran = fakeGlass(on)
+    let id = 'before-clear'
+    on('session.id', async () => ({ value: id }))
+    on('prompt.context', async (_$: any, e: any) => ({ blocks: e.blocks }))
+    on('session.end', async () => ({ sessionId: 'before-clear' }))
+    await $.classic.SessionStart({ source: 'startup', session_id: 'before-clear' } as any)
+    await $.session.end({ reason: 'clear' } as any)
+    id = 'after-clear' // no classic SessionStart, no session.start: only the id changed
+    const r = await $.prompt.context({ blocks: [] })
+    const starts = ran.filter((x) => x.cmd === 'session-start').map((x) => x.argv)
+    const arg = (argv: readonly string[], flag: string) => argv[argv.indexOf(flag) + 1]
+    expect(starts.map((a) => [arg(a, '--session'), arg(a, '--source')])).toEqual([['before-clear', 'startup'], ['after-clear', 'clear']])
+    expect(arg(starts[1], '--previous')).toBe('before-clear')
+    expect(r.blocks).toEqual([{ name: 'claudeGlass', text: 'THE GUIDE' }]) // the guide comes with the new conversation's first message
+    // A classic SessionStart for the same clear, arriving late, changes nothing.
+    await $.classic.SessionStart({ source: 'clear', session_id: 'after-clear' } as any)
+    expect(ran.filter((x) => x.cmd === 'session-start').length).toBe(2)
+  })
+
   test('a permission prompt answered in the glass becomes the decision', async ($, on) => {
     const ran = fakeGlass(on, {
       action: (_stdin, argv) => (argv[2] === 'request' ? { id: 'r1', holdMs: 60_000, summary: '$ ls' } : argv[2] === 'wait' ? { status: 'answered', choice: 'allow', by: 'glass' } : { ok: true }),
