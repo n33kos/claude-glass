@@ -136,9 +136,10 @@ overflow spills onto the next desktop.
   ![The carousel: scrolling moves the next window into the middle](docs/media/carousel.gif)
 - **History mode** (Settings, per session): every edit, plan, image, search and page opens in its
   own window, newest first, so the glass reads as a timeline (the newest 12 are kept).
-- **Presets**: save a glass's frame (which apps sit in which docks, their sizes and splits,
-  desktop layouts, this glass's settings and the look) under a name and a short description, then
-  apply it to any glass, or make it the frame every new glass starts with. In Settings, or
+- **Presets**: save a glass's frame (the windows in the layout, which apps sit in which docks,
+  their sizes and splits, desktop layouts, this glass's settings and the look) under a name and a
+  short description, then apply it to any glass, or make it the frame every new glass starts with.
+  Applying one closes the windows it doesn't name (one saved by an older version only sets the docks). In Settings, or
   `claude-glass preset save|apply|list|default`, and `claude-glass open --preset <name>`. Claude sees
   the list with descriptions, so "set up the glass for this" can pick one. Presets are JSON files in
   `~/.claude/claude-glass/presets/`, easy to edit or share.
@@ -261,8 +262,8 @@ Per session (`claude-glass settings set session.<key> <value>`): `windowMode` (l
 default) and `buildApps` (true / **false**).
 
 **App sets.** Each glass can turn apps on or off over the global switch: Settings → Apps has an
-"In this glass" choice under every app. Presets save it. An app that's off is hidden, its
-instructions leave Claude's context, and Claude gets one catalog line for it instead.
+"In this glass" choice under every app. Presets save it. An app that's off is hidden (its windows close, docked
+ones too), its instructions leave Claude's context, and Claude gets one catalog line for it instead.
 
 **Workspace (`buildApps`).** With it on, the guide invites Claude to build a small project app when
 the project has something of its own that no built-in app shows well (see Custom apps). Off by

@@ -10,7 +10,7 @@ import { summarizeTool } from '../apps/terminal';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
 import { guideFor } from './guide';
 import { isAppOff, offApps } from './appset';
-import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, presetActions, savePreset, type Preset } from './presets';
+import { capturePreset, deletePreset, listPresets, loadPreset, LOOK_KEYS, onScreen, presetActions, savePreset, type Preset } from './presets';
 import { applyEvent, type EventContext, type GlassEvent } from './events';
 import { loadApps, projectAppDirs, type AppReport } from './customApps';
 import { StoredFiles } from './stored';
@@ -88,7 +88,7 @@ export class GlassCore {
   private appsChanged() {
     const off = this.off();
     let s = this.state;
-    for (const id of [...s.order]) if (off.has(s.instances[id]?.type)) s = reduce(s, { type: 'window.close', id }).state;
+    for (const id of onScreen(s)) if (off.has(s.instances[id]?.type)) s = reduce(s, { type: 'window.close', id }).state;
     this.commit(s);
     this.collectHooks();
   }

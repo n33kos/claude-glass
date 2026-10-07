@@ -730,6 +730,29 @@ describe('presets', () => {
     expect(b.settings.windowMode).toBe('history');
     expect(skipped).toEqual(['vmux (vmux)']);
   });
+  it('switching presets closes what the new one doesn\'t name and opens its windows in tile order', () => {
+    let a = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'left' }).state;
+    a = reduce(a, { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    a = reduce(a, { type: 'instance.create', appType: 'diagram', id: 'flow' }).state;
+    a = reduce(a, { type: 'window.close', id: 'conversation' }).state;
+    const p = capturePreset(a, DEFAULT_CONFIG, 'docs');
+    expect(p.windows?.map((w) => w.id)).toEqual(a.order);
+    // Another glass: conversation in the layout, the terminal docked at the bottom, a free window.
+    let b = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'bottom' }).state;
+    b = reduce(b, { type: 'instance.create', appType: 'html', id: 'page' }).state;
+    b = reduce(b, { type: 'window.free', id: 'page' }).state;
+    for (const act of presetActions(b, p, () => true).actions) b = reduce(b, act).state;
+    expect(b.order).toEqual(a.order); // the preset's windows, in its order (created where missing)
+    expect(b.tucked?.left).toEqual(['terminal']);
+    expect(b.tucked?.bottom ?? []).toEqual([]);
+    expect(b.free?.page).toBeUndefined(); // closed, not just moved
+    expect(b.order).not.toContain('conversation');
+    // A preset saved before presets named their windows leaves the layout's windows alone.
+    let c = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
+    const before = c.order;
+    for (const act of presetActions(c, { name: 'old', description: '', sidebars: {} }, () => true).actions) c = reduce(c, act).state;
+    expect(c.order).toEqual(before);
+  });
   it('carry corner docks with both dimensions', () => {
     let a = reduce(fresh(), { type: 'window.tuck', id: 'terminal', edge: 'top-left' }).state;
     a = reduce(a, { type: 'tuck.size', edge: 'top-left', size: 320, height: 210 }).state;

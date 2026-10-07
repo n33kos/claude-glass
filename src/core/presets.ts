@@ -15,6 +15,9 @@ export interface Preset {
   name: string;
   description: string; // what it's for: shown in Settings, and to Claude when choosing one
   sidebars?: Partial<Record<Dock, { windows: PresetWindow[]; size?: number; height?: number; open?: boolean; float?: boolean; split?: number[] }>>;
+  // The windows in the layout, in tile order. With it, applying the preset closes every window it
+  // doesn't name; a preset saved before it had this leaves the layout's windows where they are.
+  windows?: PresetWindow[];
   desktops?: LayoutName[];
   session?: Partial<SessionSettings>; // this glass's settings (history mode, auto-open...)
   look?: Partial<GlobalConfig>; // view settings, which apply to every glass
@@ -76,7 +79,14 @@ export function capturePreset(s: GlassState, config: GlobalConfig, name: string,
   const { backgroundColors: _signal, ...rest } = s.settings;
   const session = { ...rest, apps: { ...rest.apps } };
   const look = Object.fromEntries(LOOK_KEYS.map((k) => [k, config[k]])) as Partial<GlobalConfig>;
-  return { name, description, sidebars, desktops: s.desktops, session, look };
+  const windows = s.order.filter((id) => s.instances[id] && !s.overlays?.includes(id)).map((id) => ({ id, type: s.instances[id].type, title: s.instances[id].title }));
+  return { name, description, sidebars, windows, desktops: s.desktops, session, look };
+}
+
+/** Every window on screen: in the layout, docked, free, the backdrop, overlays. */
+export function onScreen(s: GlassState): string[] {
+  const ids = [...s.order, ...DOCKS.flatMap((e) => s.tucked?.[e] ?? []), ...(s.freeOrder ?? []), ...(s.backdrop ? [s.backdrop] : []), ...(s.overlays ?? [])];
+  return [...new Set(ids)].filter((id) => s.instances[id]);
 }
 
 /**
@@ -89,7 +99,11 @@ export function presetActions(s: GlassState, p: Preset, installed: (type: string
   const actions: Action[] = [];
   const skipped: string[] = [];
   const keep = new Set(Object.values(p.sidebars ?? {}).flatMap((sb) => sb?.windows.map((w) => w.id) ?? []));
-  for (const e of DOCKS) for (const id of s.tucked?.[e] ?? []) if (!keep.has(id)) actions.push({ type: 'window.untuck', id });
+  if (p.windows) {
+    // The preset names every window: the rest close (overlays aside, which come and go on their own).
+    const named = new Set([...keep, ...p.windows.map((w) => w.id)]);
+    for (const id of onScreen(s)) if (!named.has(id) && !s.overlays?.includes(id)) actions.push({ type: 'window.close', id });
+  } else for (const e of DOCKS) for (const id of s.tucked?.[e] ?? []) if (!keep.has(id)) actions.push({ type: 'window.untuck', id });
   for (const e of DOCKS) {
     const sb = p.sidebars?.[e];
     if (!sb?.windows.length) { if (s.tuckKeep?.includes(e)) actions.push({ type: 'tuck.keep', edge: e, keep: false }); continue; }
@@ -103,6 +117,15 @@ export function presetActions(s: GlassState, p: Preset, installed: (type: string
     if (sb.split?.length === ws.length && ws.length > 1) actions.push({ type: 'tuck.split', edge: e, shares: sb.split });
     actions.push({ type: 'tuck.keep', edge: e, keep: sb.open !== false });
     if (sb.open !== false) actions.push({ type: 'tuck.float', edge: e, float: sb.float === true });
+  }
+  if (p.windows) {
+    // The layout's windows, in tile order: each opened at the front, last first.
+    const ws = p.windows.filter((w) => !keep.has(w.id) && (installed(w.type) ? true : (skipped.push(`${w.id} (${w.type})`), false)));
+    for (const w of ws) {
+      if (!s.instances[w.id]) actions.push({ type: 'instance.create', appType: w.type, id: w.id, title: w.title, open: false });
+      else if (!s.order.includes(w.id) && onScreen(s).includes(w.id)) actions.push({ type: 'window.untuck', id: w.id }); // docked, free or the backdrop
+    }
+    for (const w of [...ws].reverse()) actions.push({ type: 'window.open', id: w.id });
   }
   p.desktops?.forEach((layout, desktop) => actions.push({ type: 'desktop.layout', desktop, layout }));
   for (const [key, value] of Object.entries(p.session ?? {})) {

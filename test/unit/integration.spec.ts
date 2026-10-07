@@ -632,9 +632,12 @@ describe('renamed settings', () => {
 describe('app sets and project apps', () => {
   it('an app off in this glass only: refused, its windows closed, a catalog line instead of its guide', async () => {
     await cli('new', 'diagram', '--id', 'set-d');
+    await cli('new', 'diagram', '--id', 'set-d2');
+    await cli('window', 'tuck', 'set-d2', 'right');
     await cli('settings', 'set', 'session.apps.diagram', 'false');
     expect(core.state.settings.apps).toEqual({ diagram: false });
     expect(core.state.order).not.toContain('set-d');
+    expect(core.state.tucked?.right ?? []).not.toContain('set-d2'); // docked ones close too
     await expect(cli('new', 'diagram')).rejects.toThrow(/turned off/);
     expect(core.catalog().map((a) => a.type)).not.toContain('diagram');
     expect(String(core.handle({ op: 'guide' }).result)).toMatch(/Off in this glass[^\n]*\n- Diagram \(`diagram`\)/);
