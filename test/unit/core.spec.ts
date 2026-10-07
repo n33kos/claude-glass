@@ -747,6 +747,14 @@ describe('presets', () => {
     expect(b.tucked?.bottom ?? []).toEqual([]);
     expect(b.free?.page).toBeUndefined(); // closed, not just moved
     expect(b.order).not.toContain('conversation');
+    // Settings (where presets are made and applied) is never saved in one, and never closed by one.
+    let d = reduce(a, { type: 'instance.create', appType: 'settings', id: 'settings' }).state;
+    expect(d.order).toContain('settings');
+    const q = capturePreset(d, DEFAULT_CONFIG, 'docs2');
+    expect(q.windows?.map((w) => w.id)).toEqual(a.order);
+    let e = reduce(fresh(), { type: 'instance.create', appType: 'settings', id: 'settings' }).state;
+    for (const act of presetActions(e, q, () => true).actions) e = reduce(e, act).state;
+    expect(e.order).toEqual([...a.order, 'settings']); // the preset's windows first, Settings after
     // A preset saved before presets named their windows leaves the layout's windows alone.
     let c = reduce(fresh(), { type: 'instance.create', appType: 'markdown', id: 'notes' }).state;
     const before = c.order;
