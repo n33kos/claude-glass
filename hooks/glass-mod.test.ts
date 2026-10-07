@@ -61,6 +61,7 @@ describe('the glass mod', () => {
     const sent = ran.filter((r) => r.cmd === 'event').flatMap((r) => r.stdin.trim().split('\n').map((l) => JSON.parse(l)))
     expect(ran.filter((r) => r.cmd === 'session-start').map((r) => r.argv[r.argv.indexOf('--source') + 1])).toEqual(['startup', 'clear'])
     expect(sent.some((e) => e.e === 'tool.start' && e.input?.command === 'echo two')).toBe(true)
+    expect(sent.some((e) => e.e === 'session.end')).toBe(false) // the conversation goes on in the same glass
     // The glass learns which session the new one replaced, so it can follow the conversation.
     const starts = ran.filter((r) => r.cmd === 'session-start')
     expect(starts[0].argv.includes('--previous')).toBe(false)

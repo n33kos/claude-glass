@@ -17,7 +17,12 @@ let sock = '' // this session's glass socket (or the link to a folder glass)
 let guide: string | null = null
 let toolReminders = true
 let queue: Ev[] = []
-let sending = false
+let sending = 0 // when the running flush started (0: none)
+// The running flush's generation. A flush runs on the `$` of the hook that started it, which goes
+// with that hook's dispatch (a session.end at /clear, an interrupted turn): a call it had in flight
+// may never settle, so one stuck that long is replaced, and stops when it wakes.
+let flushes = 0
+const STUCK_MS = 20_000
 // The tool calls two-way apps hook ({ 'tool.call': ['Bash'] }, '*' = any), from the glass's
 // replies to event batches; those calls go through `claude-glass hook` before they run.
 let subs: Record<string, string[]> = {}
@@ -42,19 +47,22 @@ function send($: any, ev: Ev) {
 }
 
 async function flush($: any) {
-  if (sending) return
-  sending = true
+  // One flush at a time, unless the running one has been stuck past any timeout it set.
+  if (sending && Date.now() - sending < STUCK_MS) return
+  const gen = ++flushes
+  sending = Date.now()
   try {
-    while (queue.length) {
+    while (queue.length && gen === flushes) {
       const batch = queue
       queue = []
+      sending = Date.now()
       if (!(await glassUp($))) continue // no glass: off means off
       const stdin = batch.map((x) => JSON.stringify(x)).join('\n') + '\n'
       const r = await $.process.run([bin($), 'event', '--session', cid], { stdin, timeoutMs: 5000 }).catch(() => null)
       try { const out = JSON.parse(String(r?.stdout ?? '').trim() || 'null'); if (out?.hooks) subs = out.hooks } catch {}
     }
   } finally {
-    sending = false
+    if (gen === flushes) sending = 0
   }
 }
 
@@ -91,6 +99,7 @@ async function watchControls($: any, gen: number) {
     $.clock.after(15_000, () => { void watchControls($, gen) })
     return
   }
+  void flush($) // anything a stuck flush left queued
   const controls = await ask($, ['watch', '--ms', '20000'], undefined, 30_000)
   for (const c of Array.isArray(controls) ? controls : []) {
     if (c?.kind === 'interrupt' && turnId) await $.turn.abort({ turnId }).catch(() => {})
@@ -395,7 +404,8 @@ export function register(on: any) {
   })
 
   on('session.end', async ($: any, e: any, next: any) => {
-    send($, { e: 'session.end', reason: e.reason })
+    // A /clear goes on in the same glass (its session start follows); any other end is the last word.
+    if (e.reason !== 'clear') send($, { e: 'session.end', reason: e.reason })
     return next(e)
   })
 }
