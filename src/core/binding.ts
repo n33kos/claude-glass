@@ -82,15 +82,38 @@ export function bindSession(sessionId: string, projectDir: string, scope: Global
   // so a dead one's leftover socket is already gone).
   if (isOwnSocket(sessionId)) return sessionId;
   if (scope !== 'folder' || !projectDir) {
-    if (isBound(sessionId)) try { unlinkSync(link); } catch {}
+    // A link to another session's glass is the conversation that glass followed through /clear
+    // (followSession): it stays while that glass is open. A link to a folder glass goes.
+    if (isBound(sessionId)) {
+      const glassId = glassIdFor(sessionId);
+      if (!isFolderGlassId(glassId) && existsSync(link)) return glassId;
+      try { unlinkSync(link); } catch {}
+    }
     return sessionId;
   }
-  const glassId = folderGlassId(projectDir);
+  return linkTo(sessionId, folderGlassId(projectDir));
+}
+
+/** Point a session's socket at a glass (never over a real socket); the glass id. */
+function linkTo(sessionId: string, glassId: string): string {
   if (glassId === sessionId) return glassId;
+  const link = socketPath(sessionId);
   const target = `${glassId}.sock`;
   try { if (readlinkSync(link) === target) return glassId; } catch {}
   mkdirSync(dirname(link), { recursive: true, mode: 0o700 });
   try { unlinkSync(link); } catch {}
   symlinkSync(target, link);
   return glassId;
+}
+
+/**
+ * /clear gives the conversation a new session id. In session scope the glass belongs to the old
+ * one, so the new id follows it there (a link), while it's open. Returns the glass id, or null
+ * when there's no open glass to follow (or the new id has a glass of its own).
+ */
+export function followSession(sessionId: string, previous: string): string | null {
+  if (!previous || previous === sessionId || isFolderGlassId(sessionId) || isOwnSocket(sessionId)) return null;
+  const glassId = glassIdFor(previous);
+  if (isFolderGlassId(glassId) || !existsSync(socketPath(glassId))) return null;
+  return linkTo(sessionId, glassId);
 }

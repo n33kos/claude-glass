@@ -268,8 +268,9 @@ instructions leave Claude's context, and Claude gets one catalog line for it ins
 the project has something of its own that no built-in app shows well (see Custom apps). Off by
 default; turn it on per glass or in a preset.
 
-**Scope.** `session` gives each Claude session its own glass; after `/clear` you start fresh and
-`claude --resume` picks the old one back up. `folder` gives each project folder one glass that
+**Scope.** `session` gives each Claude session its own glass; after `/clear` the open glass
+carries on with the new session (Tasks and Files start over), and `claude --resume` picks an old
+one back up. `folder` gives each project folder one glass that
 every session in it feeds, so `/clear`, restarts and resumes continue in the same window. A folder
 glass's id is `sha256(project dir)[:12]`.
 

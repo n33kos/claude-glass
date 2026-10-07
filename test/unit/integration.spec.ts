@@ -40,8 +40,8 @@ async function event(session: string, ...events: object[]) {
   const r = await run(join(root, 'bin/claude-glass'), ['event', '--session', session], events.map((e) => JSON.stringify(e)).join('\n') + '\n');
   expect(r.status).toBe(0);
 }
-async function sessionStart(session: string, source: string, cwd: string) {
-  const r = await run(join(root, 'bin/claude-glass'), ['session-start', '--session', session, '--source', source, '--cwd', cwd]);
+async function sessionStart(session: string, source: string, cwd: string, previous?: string) {
+  const r = await run(join(root, 'bin/claude-glass'), ['session-start', '--session', session, '--source', source, '--cwd', cwd, ...(previous ? ['--previous', previous] : [])]);
   expect(r.status).toBe(0);
   return JSON.parse(r.stdout);
 }
@@ -225,6 +225,32 @@ describe('folder scope', () => {
     writeFileSync(join(home, 'config.json'), JSON.stringify({ scope: 'session' }));
     expect(await sessionStart('sess-after-clear', 'compact', dir)).toMatchObject({ open: false });
     expect(existsSync(join(runtime, 'sess-after-clear.sock'))).toBe(false);
+  });
+});
+
+describe('session scope across /clear', () => {
+  let glass: GlassCore;
+  beforeAll(async () => { glass = new GlassCore('sess-cleared', '/tmp/cg-clear-proj'); await glass.listen(); });
+  afterAll(async () => { await glass.close(); });
+
+  it('the conversation keeps its glass: the new session id follows it, through every /clear', async () => {
+    let prev = 'sess-cleared';
+    for (const sid of ['sess-cleared-2', 'sess-cleared-3']) {
+      const r = await sessionStart(sid, 'clear', '/tmp/cg-clear-proj', prev);
+      expect(r.open).toBe(true);
+      await event(sid, { e: 'turn.start', turnId: `turn-${sid}`, text: `hello from ${sid}` });
+      prev = sid;
+    }
+    await wait(100);
+    const msgs = (glass.state.appState.conversation as any).messages.map((m: any) => m.parts.join(''));
+    expect(msgs).toEqual(['hello from sess-cleared-2', 'hello from sess-cleared-3']);
+    // A later start of the same session (compact, a reload) keeps the link while the glass is open.
+    expect(await sessionStart('sess-cleared-3', 'compact', '/tmp/cg-clear-proj')).toMatchObject({ open: true });
+  });
+
+  it('with the old glass closed, nothing is followed', async () => {
+    expect(await sessionStart('sess-cleared-x', 'clear', '/tmp/cg-clear-proj', 'sess-never-opened')).toMatchObject({ open: false });
+    expect(existsSync(join(runtime, 'sess-cleared-x.sock'))).toBe(false);
   });
 });
 

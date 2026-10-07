@@ -1,7 +1,7 @@
 // claude-glass CLI. Thin client over the per-session Unix socket.
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
-import { bindSession, cleanupRuntime, glassIdFor, isBound, isOwnSocket } from '../core/binding';
+import { bindSession, cleanupRuntime, followSession, glassIdFor, isBound, isOwnSocket } from '../core/binding';
 import { loadConfig, SETTINGS_HELP } from '../core/config';
 import { appsDir, configPath, filesDir, runtimeDir, sessionDir, sessionsDir, socketPath, statePath, assertSessionId } from '../core/paths';
 import { healthReport } from '../core/health';
@@ -514,7 +514,10 @@ async function main(argv: string[]) {
       const config = loadConfig();
       markModLoaded(cid);
       await cleanupRuntime();
-      const sid = bindSession(cid, projectDir, config.scope);
+      let sid = bindSession(cid, projectDir, config.scope);
+      // After /clear (a new session id): the glass the conversation had stays its glass.
+      const previous = typeof flags.previous === 'string' ? flags.previous : '';
+      if (sid === cid && previous) sid = followSession(cid, previous) ?? sid;
       let open = await isLive(socketPath(sid), 300);
       if (!open && config.autoStart && (source === 'startup' || source === 'resume')) {
         try { await launchGlass(sid, projectDir); open = true; } catch { open = false; }

@@ -79,6 +79,7 @@ const ASK_TOOL = {
 }
 let watching = 0 // the loop's generation: a reload starts a new one, and the old one stops
 let startSource = 'startup' // how this conversation started, for a session-start that has to be retried
+let previous = '' // the session this one replaced (/clear): its glass carries on with this one
 
 // While a glass is open there's always something the user may send (Conversation's message box).
 async function watchControls($: any, gen: number) {
@@ -104,7 +105,7 @@ async function watchControls($: any, gen: number) {
 async function sessionStart($: any, source: string) {
   startSource = source
   try {
-    const r = await $.process.run([bin($), 'session-start', '--session', cid, '--source', source, '--cwd', cwd], { timeoutMs: 30000 })
+    const r = await $.process.run([bin($), 'session-start', '--session', cid, '--source', source, '--cwd', cwd, ...(previous ? ['--previous', previous] : [])], { timeoutMs: 30000 })
     const info = JSON.parse(String(r.stdout).trim().split('\n').pop() || '{}')
     sock = typeof info.socket === 'string' ? info.socket : ''
     guide = typeof info.guide === 'string' ? info.guide : null
@@ -240,7 +241,9 @@ export function register(on: any) {
 
   // Every start of a conversation: startup, /clear (a new session id), resume, compact.
   on('classic.SessionStart', async ($: any, e: any, next: any) => {
-    cid = String(e.session_id ?? '')
+    const id = String(e.session_id ?? '')
+    previous = cid && id !== cid ? cid : ''
+    cid = id
     cwd = String(e.cwd ?? cwd)
     if (cid) await sessionStart($, String(e.source ?? 'startup'))
     return next(e)

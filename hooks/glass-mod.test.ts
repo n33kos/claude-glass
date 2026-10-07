@@ -48,6 +48,26 @@ describe('the glass mod', () => {
     expect(sent.map((e) => `${e.e}:${e.input?.command}`).slice(0, 2)).toEqual(['tool.start:cat src/a.ts', 'tool.end:cat src/a.ts'])
   })
 
+  test('after /clear (the session ends, a new one starts) events keep reaching the glass', async ($, on) => {
+    const ran = fakeGlass(on)
+    on('tool.call', async () => ({ result: { stdout: 'x', stderr: '', interrupted: false } }))
+    on('session.end', async () => ({ sessionId: 'old' }))
+    await $.classic.SessionStart({ source: 'startup' })
+    await $.tool.call({ tool: 'Bash', command: 'echo one' } as any)
+    await $.session.end({ reason: 'clear' } as any)
+    await $.classic.SessionStart({ source: 'clear', session_id: 'after-clear' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'echo two' } as any)
+    await $.tool.call({ tool: 'Bash', command: 'echo three' } as any)
+    const sent = ran.filter((r) => r.cmd === 'event').flatMap((r) => r.stdin.trim().split('\n').map((l) => JSON.parse(l)))
+    expect(ran.filter((r) => r.cmd === 'session-start').map((r) => r.argv[r.argv.indexOf('--source') + 1])).toEqual(['startup', 'clear'])
+    expect(sent.some((e) => e.e === 'tool.start' && e.input?.command === 'echo two')).toBe(true)
+    // The glass learns which session the new one replaced, so it can follow the conversation.
+    const starts = ran.filter((r) => r.cmd === 'session-start')
+    expect(starts[0].argv.includes('--previous')).toBe(false)
+    const clear = starts[1].argv
+    expect(clear[clear.indexOf('--previous') + 1]).toBe(starts[0].argv[starts[0].argv.indexOf('--session') + 1])
+  })
+
   test('a permission prompt answered in the glass becomes the decision', async ($, on) => {
     const ran = fakeGlass(on, {
       action: (_stdin, argv) => (argv[2] === 'request' ? { id: 'r1', holdMs: 60_000, summary: '$ ls' } : argv[2] === 'wait' ? { status: 'answered', choice: 'allow', by: 'glass' } : { ok: true }),
