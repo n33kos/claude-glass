@@ -325,6 +325,10 @@ async function boot() {
   ipcMain.on('glass:windowButtons', (_e, show: boolean) => { if (process.platform === 'darwin') win?.setWindowButtonVisibility(!!show); });
   // Message Claude from the glass (Conversation, or the header with askBox): the mod submits it as the user's prompt.
   ipcMain.on('glass:submitPrompt', (_e, text: string, from: string) => core.submitPrompt(String(text ?? ''), from === 'conversation' ? 'conversation' : 'header'));
+  // An app's view makes the session do something its manifest's permissions.session allows (the core checks).
+  ipcMain.handle('glass:session', (_e, type: string, control: string, args: Record<string, unknown>) => {
+    try { core.sessionControl(String(type), String(control), args && typeof args === 'object' ? args : {}); return { ok: true }; } catch (e: any) { return { ok: false, error: e?.message ?? String(e) }; }
+  });
   ipcMain.on('glass:openLink', (_e, url: string) => {
     if (/^(https?:|mailto:)/i.test(String(url))) void shell.openExternal(String(url));
   });

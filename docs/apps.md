@@ -307,14 +307,48 @@ telemetry, and the mod's own transport (`process.run`, `fs.exists`): `src/core/h
 A matcher (the second argument) filters on the event's fields: a value, a list, or a pattern.
 Handlers run in app order, before Claude Code acts (there's no "after"); one that throws or takes
 over 10 seconds of its own time is skipped. `glass` is your app's handle: `glass.stored` and
-`glass.store(patch)` (its stored values), and `glass.ask(question, options)`, which puts the
+`glass.store(patch)` (its stored values), `glass.ask(question, options)`, which puts the
 question on an Action card and waits for the user (that wait doesn't count toward the 10 seconds;
-it gives up after nine and a half minutes).
+it gives up after nine and a half minutes), and `glass.control(name, args)` (Session controls).
 
 A two-way app's view commands run only from the glass's own window, never from the CLI or the
 socket, so only the user's clicks can answer anything. A two-way view (and a built-in one) can
 also offer **point and ask**: `glass.host('attach', { label, text })` puts `text` on the user's
 next prompt as context Claude reads, shown as a chip in the top bar until then.
+
+## Session controls
+
+An app can make the Claude session do things the user could do at the prompt: send a prompt,
+switch the model, compact, clear, run any slash command. Each one it uses is named in its
+manifest, and Settings (and `claude-glass apps`) shows them:
+
+```json
+"permissions": { "session": ["prompt", "model", "compact"] }
+```
+
+`"session": "*"` asks for all of them. The view calls `glass.control(name, args)` (`control` in
+React props), a hook handler `glass.control(name, args)`; the glass mod carries it out:
+
+| Control | `args` | What happens |
+|---|---|---|
+| `prompt` | `{ text }` | sent as the user's prompt, once Claude is free (with anything attached) |
+| `fill` | `{ text }` | put in the prompt box, not sent: the user edits and sends it |
+| `interrupt` | | ends the running turn, like Stop |
+| `compact` | `{ instructions? }` | `/compact`, with instructions if given |
+| `clear` | | `/clear` (the glass follows the new session) |
+| `model` | `{ model }` | `/model <model>`: an alias (`sonnet`, `opus`) or a full id |
+| `command` | `{ command, args? }` | any slash command, as if typed: `{ command: 'review' }`, `{ command: 'effort', args: 'high' }` |
+
+```js
+// A review app's "Fix these" button.
+await glass.control('prompt', { text: `Fix the review findings:\n${findings.join('\n')}` });
+```
+
+From a view, the promise settles once the control is queued (slash commands wait until Claude is
+free, like typed ones) and rejects with why not, such as a control the manifest doesn't name. Only
+the glass itself queues controls, from a view in its window or a hook handler; nothing on the
+socket (the CLI, Claude) can. Conversation and Terminal use `prompt` the same way for their
+message box and command line. Session controls don't need `twoWay`: that one is for hooks.
 
 ## Permissions
 
@@ -336,6 +370,7 @@ in its manifest; the user sees what each app can use in Settings (and in `claude
 | `microphone` | `getUserMedia({ audio: true })` (never the camera), for the view and for pages it embeds from its `network` origins (give the inner iframe `allow="microphone"`). macOS will also ask the user once. |
 | `storage` | its own persistent `localStorage`/IndexedDB, at origin `glass-app://<type>` |
 | `twoWay` | hooks on the Claude session (`register(on)`, above), and point and ask from its view |
+| `session` | session controls: `glass.control(name, args)` for the names listed, or `"*"` (see Session controls) |
 | `reads` | other apps' public state, for the types listed (see Public state) |
 | `sharedSignIn` | the sign-in of pages it embeds from its `network` origins follows the user to every glass: their `localStorage` and cookies, saved together in `~/.claude/claude-glass/app-storage.json` (owner-only) and given to a glass whose page is missing either. Only for sites made for many devices signed in at once (a pairing token, like vmux's). Leave it off for sites that rotate refresh tokens or keep sign-in elsewhere (IndexedDB): glasses would log each other out, or restore half a sign-in. Signing out in one glass doesn't reach the shared copy; **Reset data** clears it. |
 
@@ -348,8 +383,8 @@ Settings has a **Reset data** link for apps with `network` or `storage`: it clea
 storage and the storage and cookies of its declared origins (e.g. to log an embedded page out).
 
 Everything else, for every app, stays denied. Apps with these permissions can talk back to other
-services (a voice app, say): that's allowed as the app's own choice. Only `twoWay` reaches back
-into the Claude session, and only through the hooks above.
+services (a voice app, say): that's allowed as the app's own choice. Only `twoWay` and `session`
+reach back into the Claude session, and only through the hooks and controls above.
 
 ## Turning apps off
 

@@ -84,6 +84,8 @@ export interface AppHookGlass {
   store(patch: Record<string, unknown>): void; // write some
   /** Ask the user in the glass (an Action card) and wait: the label they picked, or their own words. */
   ask(question: string, options?: (string | { label: string; description?: string })[]): Promise<string>;
+  /** Make the Claude session do something the app's permissions.session allows (SESSION_CONTROLS); throws otherwise. */
+  control(control: SessionControl, args?: Record<string, unknown>): void;
 }
 
 /** What an app's command / onEvent gets beside its state. */
@@ -169,9 +171,24 @@ export interface AppPermissions {
   sharedSignIn: boolean; // its network origins' sign-in (localStorage + cookies) follows the user to every glass
   twoWay: boolean; // it may answer back into the Claude session (hooks, point and ask)
   reads: string[]; // app types whose public state (their share()) it may read
+  session: SessionControl[]; // what it may make the Claude session do (glass.session), e.g. send a prompt
 }
 
-export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false, reads: [] };
+/**
+ * What an app may make the Claude session do (`glass.control(name, args)` from its view or a
+ * hook handler), each named in `permissions.session` ("*" = all). The mod carries them out:
+ *   prompt     { text }           sent as the user's prompt once Claude is free
+ *   fill       { text }           put in the prompt box, not sent
+ *   interrupt  {}                 end the running turn (Stop)
+ *   compact    { instructions? }  compact the conversation
+ *   clear      {}                 /clear (the glass follows the new session)
+ *   model      { model }          /model <model>
+ *   command    { command, args? } any slash command, as if typed
+ */
+export const SESSION_CONTROLS = ['prompt', 'fill', 'interrupt', 'compact', 'clear', 'model', 'command'] as const;
+export type SessionControl = typeof SESSION_CONTROLS[number];
+
+export const NO_PERMISSIONS: AppPermissions = { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false, reads: [], session: [] };
 
 const APP_TYPE = /^[a-z][a-z0-9-]{0,39}$/;
 
@@ -190,7 +207,12 @@ export function parsePermissions(raw: unknown): AppPermissions {
     if (typeof t !== 'string' || !APP_TYPE.test(t)) throw new Error(`permissions.reads: "${t}" is not an app type`);
     return t;
   });
-  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0, twoWay: r.twoWay === true, reads: [...new Set(reads)] };
+  const session = (r.session === '*' ? ['*'] : Array.isArray(r.session) ? r.session : r.session == null ? [] : [r.session]).flatMap((c) => {
+    if (c === '*') return [...SESSION_CONTROLS];
+    if (!SESSION_CONTROLS.includes(c as SessionControl)) throw new Error(`permissions.session: "${c}" is not one of ${SESSION_CONTROLS.join(', ')} (or "*")`);
+    return [c as SessionControl];
+  });
+  return { network: [...new Set(network)], microphone: r.microphone === true, storage: r.storage === true, sharedSignIn: r.sharedSignIn === true && network.length > 0, twoWay: r.twoWay === true, reads: [...new Set(reads)], session: [...new Set(session)] };
 }
 
 /**

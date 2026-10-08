@@ -107,8 +107,22 @@ async function watchControls($: any, gen: number) {
     // Asked from the glass: the user's own prompt, sent once Claude is free (not awaited, so a
     // Stop can still come through meanwhile).
     if (c?.kind === 'prompt' && typeof c.text === 'string') void $.prompt.submit({ text: c.text, asUser: true }).catch(() => {})
+    if (c?.kind === 'session') await control($, c.control, c.args ?? {}, c.app)
   }
   $.clock.after(100, () => { void watchControls($, gen) })
+}
+
+// An app's session control (its manifest's permissions.session; the glass checked it). Slash
+// commands queue until Claude is free, like a typed one; nothing here waits on them.
+async function control($: any, name: string, a: any, app: string) {
+  const run = (command: string, args = '') => void $.command.run({ command, args }).catch((e: any) => $.ui.toast(`${app}: /${command} failed: ${e?.message ?? e}`))
+  if (name === 'prompt') void $.prompt.submit({ text: String(a.text), asUser: true }).catch(() => {})
+  else if (name === 'fill') await $.prompt.fill({ text: String(a.text) }).catch(() => {})
+  else if (name === 'interrupt') { if (turnId) await $.turn.abort({ turnId }).catch(() => {}) }
+  else if (name === 'compact') run('compact', a.instructions ? String(a.instructions) : '')
+  else if (name === 'clear') run('clear')
+  else if (name === 'model') run('model', String(a.model))
+  else if (name === 'command' && typeof a.command === 'string') run(a.command, String(a.args ?? ''))
 }
 
 /** Bind the session to its glass (opening it on autoStart) and learn what the hooks need. */

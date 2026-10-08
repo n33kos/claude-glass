@@ -10,8 +10,10 @@ Stop). Tiling, dragging, desktops and settings shape how it's viewed.
 - Everything that reaches the session goes through the mod; nothing else talks to Claude Code.
   Claude Code's own prompts always keep working too: every workflow (terminal, tmux, voice, IDE)
   takes input its own way, and the glass is one more, never the only one.
-- Custom apps answer back only with the `twoWay` permission; the built-ins that do (Action,
-  Conversation, Terminal) are reviewed here. The plan is `docs/plans/mods.md`.
+- Apps answer back only through permissions they declare: `twoWay` (hooks on mod events) and
+  `session` (controls the mod carries out: prompt, fill, interrupt, compact, clear, model, any
+  slash command; `SESSION_CONTROLS` in `src/apps/types.ts`). Something any app might want from
+  the session belongs there, not behind a check on an app's name. The plan is `docs/plans/mods.md`.
 - CLI first, no servers: the mod, the user and Claude all drive a glass through the
   `claude-glass` CLI over its Unix socket. Never add a port, HTTP endpoint or daemon.
 - Not a file browser, IDE, or editor. Apps render what Claude did or chose to show.

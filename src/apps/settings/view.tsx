@@ -413,8 +413,8 @@ function AppSettings({ type, specs, stored }: { type: string; specs: Record<stri
   );
 }
 
-function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[] }): string {
-  return [p.twoWay ? 'answering Claude (two-way)' : '', p.reads?.length ? `reads what ${p.reads.join(', ')} share${p.reads.length === 1 ? 's' : ''}` : '',p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
+function permissionText(p: { network: string[]; microphone: boolean; storage: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[]; session?: string[] }): string {
+  return [p.twoWay ? 'answering Claude (two-way)' : '', p.session?.length ? `the session: ${p.session.join(', ')}` : '', p.reads?.length ? `reads what ${p.reads.join(', ')} share${p.reads.length === 1 ? 's' : ''}` : '',p.network.length ? `network (${p.network.map((o) => o.replace(/^\w+:\/\//, '')).join(', ')})` : '', p.microphone ? 'microphone' : '', p.storage ? 'storage' : '', p.sharedSignIn ? 'shared sign-in' : '']
     .filter(Boolean).join(' · ');
 }
 

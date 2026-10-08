@@ -458,7 +458,7 @@ describe('custom apps', () => {
     expect(subscriptions(hooks)).toEqual({ 'tool.call': ['Bash'], 'prompt.submit': ['*'] });
     let asked = '';
     const writes: unknown[] = [];
-    const glassFor = (app: any) => ({ app: app.type, stored: { refused: 2 }, store: (p: unknown) => writes.push(p), ask: async (q: string) => { asked = q; return 'No'; } });
+    const glassFor = (app: any) => ({ app: app.type, stored: { refused: 2 }, store: (p: unknown) => writes.push(p), ask: async (q: string) => { asked = q; return 'No'; }, control: () => {} });
     expect(await runHooks(hooks, 'tool.call', { tool: 'Bash', input: { command: 'rm -rf /' } }, glassFor)).toEqual({ answer: { deny: 'Guard: not deleting the root folder.' } });
     expect(writes).toEqual([{ refused: 3 }]);
     expect(await runHooks(hooks, 'tool.call', { tool: 'Bash', input: { command: 'npm run deploy' } }, glassFor)).toEqual({ answer: { deny: 'Guard: the user said "No".' } });
@@ -694,12 +694,16 @@ describe('state colors', () => {
 
 describe('app permissions', () => {
   it('none by default; explicit origins only', () => {
-    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false, reads: [] });
+    expect(parsePermissions(undefined)).toEqual({ network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: false, reads: [], session: [] });
     expect(parsePermissions({ network: ['http://127.0.0.1:3100/api', 'ws://127.0.0.1:3100'], microphone: true, storage: true }))
-      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false, twoWay: false, reads: [] });
+      .toEqual({ network: ['http://127.0.0.1:3100', 'ws://127.0.0.1:3100'], microphone: true, storage: true, sharedSignIn: false, twoWay: false, reads: [], session: [] });
     // Answering back into the session is its own, explicit permission.
     expect(parsePermissions({ twoWay: true }).twoWay).toBe(true);
     expect(parsePermissions({ twoWay: 'yes' }).twoWay).toBe(false);
+    // Session controls: each named, or "*" for all; unknown ones refuse the app.
+    expect(parsePermissions({ session: ['prompt', 'model', 'prompt'] }).session).toEqual(['prompt', 'model']);
+    expect(parsePermissions({ session: '*' }).session).toEqual(['prompt', 'fill', 'interrupt', 'compact', 'clear', 'model', 'command']);
+    expect(() => parsePermissions({ session: ['shutdown'] })).toThrow(/not one of/);
     // Shared sign-in is opt-in, and means nothing without origins to share.
     expect(parsePermissions({ network: ['http://localhost:3100'], sharedSignIn: true }).sharedSignIn).toBe(true);
     expect(parsePermissions({ sharedSignIn: true }).sharedSignIn).toBe(false);

@@ -4,7 +4,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSy
 import net from 'node:net';
 import { basename, dirname } from 'node:path';
 import { APPS, isInternal } from '../apps/registry';
-import { appInfo, clip, coerceSetting, settingValues, storedValues, type AppDef, type AppHookEvent, type AppHookGlass } from '../apps/types';
+import { appInfo, clip, coerceSetting, settingValues, storedValues, type AppDef, type AppHookEvent, type AppHookGlass, SESSION_CONTROLS, type SessionControl } from '../apps/types';
 import type { ActionState } from '../apps/action';
 import { summarizeTool } from '../apps/terminal';
 import { coerceConfigValue, loadConfig, saveConfig, settingKey, writeJsonAtomic } from './config';
@@ -261,6 +261,7 @@ export class GlassCore {
       stored: storedValues(app, this.state.stored?.[app.type]),
       store: (patch) => this.dispatch({ type: 'stored.set', app: app.type, values: patch }),
       ask: (question, options = []) => whileAsking(this.askUser(app.type, question, options)),
+      control: (control, args = {}) => this.sessionControl(app.type, control, args),
     };
   }
 
@@ -308,33 +309,70 @@ export class GlassCore {
     return runHooks(this.appHooks, event, ev, (app) => this.glassFor(app));
   }
 
-  // ---- Controls: the glass asking the mod to do something (interrupt) -------------------------
+  // ---- Controls: the glass asking the mod to do something (Stop, a prompt, /compact …) --------
   // Not glass state: a short queue the mod collects with `claude-glass watch`, a CLI call that
-  // waits on the socket until there's something (or a while passes). Only the glass's own
-  // window adds to it (main's IPC), never the socket.
-  private controls: ({ kind: 'interrupt'; at: number } | { kind: 'prompt'; text: string; at: number })[] = [];
+  // waits on the socket until there's something (or a while passes). Only the glass itself adds
+  // to it (main's IPC from its window, an app's hook handler), never the socket.
+  private controls: ({ kind: 'interrupt'; at: number } | { kind: 'prompt'; text: string; at: number } | { kind: 'session'; control: SessionControl; args: Record<string, unknown>; app: string; at: number })[] = [];
   private watchers = new Set<() => void>();
+  private wake(): void { for (const fn of [...this.watchers]) fn(); }
 
   /** The user pressed Stop in the glass (with the interrupt button on). */
   interrupt(): void {
     if (this.config.interruptButton !== true || this.state.session.activity !== 'working') return;
     this.controls.push({ kind: 'interrupt', at: Date.now() });
-    for (const fn of [...this.watchers]) fn();
+    this.wake();
   }
 
-  /** The user messaged Claude from the glass (Conversation's box, or the header field when askBox is
-   *  on): the mod submits it as their prompt. */
+  /** The user messaged Claude from the glass's header field (askBox): the mod submits it as their prompt. */
   submitPrompt(text: string, from: 'conversation' | 'header'): void {
     const t = String(text ?? '').trim().slice(0, 10_000);
     if ((from === 'header' && this.config.askBox !== true) || !t) return;
     this.controls.push({ kind: 'prompt', text: t, at: Date.now() });
-    for (const fn of [...this.watchers]) fn();
+    this.wake();
+  }
+
+  /**
+   * An app makes the Claude session do something (`glass.control(name, args)` from its view or
+   * a hook handler): only what its manifest's permissions.session names. Throws why not.
+   */
+  sessionControl(type: string, control: string, args: Record<string, unknown> = {}): void {
+    const app = APPS[type];
+    if (!app || this.isOff(type)) throw new Error(`no app "${type}"`);
+    if (!SESSION_CONTROLS.includes(control as SessionControl)) throw new Error(`no session control "${control}" (${SESSION_CONTROLS.join(', ')})`);
+    if (!app.permissions?.session?.includes(control as SessionControl)) throw new Error(`${type} may not ${control}: add "${control}" to its manifest's "permissions": { "session": [...] }`);
+    const text = (v: unknown, max = 10_000) => String(v ?? '').trim().slice(0, max);
+    let a: Record<string, unknown>;
+    switch (control as SessionControl) {
+      case 'prompt': case 'fill':
+        a = { text: text(args.text) };
+        if (!a.text) throw new Error(`${control} needs text`);
+        break;
+      case 'interrupt':
+        if (this.state.session.activity !== 'working') return; // nothing running
+        a = {};
+        break;
+      case 'compact': a = args.instructions ? { instructions: text(args.instructions) } : {}; break;
+      case 'clear': a = {}; break;
+      case 'model':
+        a = { model: text(args.model, 200) };
+        if (!a.model) throw new Error('model needs a model (an alias like sonnet, or a full id)');
+        break;
+      case 'command': {
+        const command = text(args.command, 100).replace(/^\//, '');
+        if (!/^[\w:.-]+$/.test(command)) throw new Error('command needs a slash command name, like "cost" or "/review"');
+        a = { command, args: text(args.args) };
+        break;
+      }
+    }
+    this.controls.push({ kind: 'session', control: control as SessionControl, args: a!, app: type, at: Date.now() });
+    this.wake();
   }
 
   /** The mod's wait for controls: whatever is queued (dropping stale ones), or [] after ms. */
   watchControls(ms: number): Promise<unknown[]> {
-    // A Stop goes stale fast; a prompt waits (the mod submits it once Claude is idle).
-    const take = () => { const fresh = this.controls.filter((c) => c.kind === 'prompt' || Date.now() - c.at < 15_000); this.controls = []; return fresh; };
+    // A Stop goes stale fast; anything else waits (the mod submits it once Claude is idle).
+    const take = () => { const stop = (c: typeof this.controls[number]) => c.kind === 'interrupt' || (c.kind === 'session' && c.control === 'interrupt'); const fresh = this.controls.filter((c) => !stop(c) || Date.now() - c.at < 15_000); this.controls = []; return fresh; };
     if (this.controls.length) return Promise.resolve(take());
     return new Promise((resolve) => {
       const done = () => { clearTimeout(t); this.watchers.delete(done); resolve(take()); };
@@ -458,7 +496,7 @@ export class GlassCore {
     return Object.values(APPS).filter((a) => !this.isOff(a.type)).map((a) => ({
       type: a.type, title: a.title, singleton: a.singleton, description: a.description,
       source: a.source,
-      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage || a.permissions.sharedSignIn || a.permissions.twoWay) ? { permissions: a.permissions } : {}),
+      ...(a.permissions && (a.permissions.network.length || a.permissions.microphone || a.permissions.storage || a.permissions.sharedSignIn || a.permissions.twoWay || a.permissions.session?.length) ? { permissions: a.permissions } : {}),
       commands: Object.fromEntries(Object.entries(a.commands).filter(([k]) => !isInternal(a, k))),
       ...(a.settings ? { settings: Object.fromEntries(Object.entries(a.settings).map(([k, s]) => [k, { ...s, value: settingValues(a, this.config.appSettings?.[a.type])[k] }])) } : {}),
     }));

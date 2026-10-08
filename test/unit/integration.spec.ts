@@ -435,6 +435,22 @@ describe('two-way apps and point-and-ask, through the CLI the mod uses', () => {
     expect(await out(['watch', '--ms', '50'])).toEqual([{ kind: 'prompt', text: 'and why?', at: expect.any(Number) }]);
     g.config.askBox = false;
   });
+
+  it('session controls: an app does only what its permissions.session names; the mod collects them with watch', async () => {
+    g.sessionControl('guard', 'compact', { instructions: 'keep the plan' });
+    g.sessionControl('guard', 'command', { command: '/cost' });
+    expect(await out(['watch', '--ms', '50'])).toEqual([
+      { kind: 'session', control: 'compact', args: { instructions: 'keep the plan' }, app: 'guard', at: expect.any(Number) },
+      { kind: 'session', control: 'command', args: { command: 'cost', args: '' }, app: 'guard', at: expect.any(Number) },
+    ]);
+    expect(() => g.sessionControl('guard', 'clear')).toThrow(/may not clear/);
+    expect(() => g.sessionControl('guard', 'prompt', { text: '  ' })).toThrow(/needs text/);
+    expect(() => g.sessionControl('guard', 'command', { command: 'rm -rf' })).toThrow(/slash command name/);
+    expect(() => g.sessionControl('tool-count', 'prompt', { text: 'hi' })).toThrow(/may not prompt/);
+    // Conversation's box goes the same way (built-ins declare it too).
+    g.sessionControl('conversation', 'prompt', { text: 'hello' });
+    expect(await out(['watch', '--ms', '50'])).toEqual([{ kind: 'session', control: 'prompt', args: { text: 'hello' }, app: 'conversation', at: expect.any(Number) }]);
+  });
 });
 
 describe('the Stop button (controls the mod collects)', () => {

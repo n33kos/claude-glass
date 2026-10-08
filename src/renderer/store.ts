@@ -19,6 +19,7 @@ declare global {
       applyUpdate(): void;
       interrupt(): void; // Stop: end Claude's turn (interruptButton)
       submitPrompt(text: string, from: 'conversation' | 'header'): void; // message Claude from the glass
+      session(type: string, control: string, args: Record<string, unknown>): Promise<{ ok: boolean; error?: string }>; // an app's session control (permissions.session)
       onUpdate(fn: (u: { version: string } | null) => void): () => void;
       projectImages(): Promise<{ ok: boolean; result?: { root: string; images: { path: string; rel: string; mtime: number; size: number }[] }; error?: string }>;
       openLink(url: string): void;

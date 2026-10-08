@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('glass', {
   applyUpdate: () => ipcRenderer.send('glass:applyUpdate'),
   interrupt: () => ipcRenderer.send('glass:interrupt'),
   submitPrompt: (text: string, from: 'conversation' | 'header') => ipcRenderer.send('glass:submitPrompt', text, from),
+  session: (type: string, control: string, args: Record<string, unknown>) => ipcRenderer.invoke('glass:session', type, control, args),
   onUpdate: (fn: (u: { version: string } | null) => void) => {
     const h = (_e: unknown, u: { version: string } | null) => fn(u);
     ipcRenderer.on('glass:update', h);

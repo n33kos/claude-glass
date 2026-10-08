@@ -57,7 +57,7 @@ export const action: AppDef<ActionState> = {
   },
   viewCommands: ['answer', 'dismiss'],
   internal: ['request', 'answer', 'close', 'dismiss'],
-  permissions: { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: true, reads: [] },
+  permissions: { network: [], microphone: false, storage: false, sharedSignIn: false, twoWay: true, reads: [], session: [] },
   settings: {
     approvals: { type: 'bool', label: 'Answer permission prompts from the glass (and the terminal, whichever is first)', default: true },
     keepAnswered: { type: 'bool', label: 'Keep answered requests listed', default: false },

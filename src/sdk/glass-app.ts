@@ -5,6 +5,7 @@
 //       glass.run('select', { index: 2 })   // only commands the manifest marks as view commands
 //       glass.store({ pinned: [...] })        // persistent values the manifest declares ("stored")
 //       glass.host('lightbox', { src })      // host services
+//       glass.control('prompt', { text })     // make the Claude session do something (permissions.session)
 // The view is a sandboxed frame: it talks to the glass only through these messages.
 
 export interface GlassProps<S = any> {
@@ -88,6 +89,16 @@ const glass = {
   ask<T = any>(service: string, args: Record<string, unknown> = {}): Promise<T> {
     const id = nextId++;
     return new Promise<T>((resolve, reject) => { pending.set(id, { resolve, reject }); post({ kind: 'host', service, args, id }); });
+  },
+  /**
+   * Make the Claude session do something the manifest's "permissions": { "session": [...] } names:
+   * 'prompt' { text } (sent as the user's prompt once Claude is free) | 'fill' { text } (into the
+   * prompt box, not sent) | 'interrupt' | 'compact' { instructions? } | 'clear' | 'model' { model }
+   * | 'command' { command, args? } (any slash command). Resolves once queued for the mod; rejects
+   * with why not (not permitted, no text).
+   */
+  control(name: string, args: Record<string, unknown> = {}): Promise<void> {
+    return glass.ask('control', { control: name, args });
   },
   /**
    * Overlay apps: the areas (view pixels) that take the pointer; everywhere else clicks, hovers

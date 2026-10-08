@@ -131,4 +131,28 @@ describe('the glass mod', () => {
     expect(r.text).toBe('Co-Authored-By: Claude (via the glass)')
     expect(ran.filter((x) => x.cmd === 'hook').map((x) => x.argv[2])).toEqual(['attribution.text'])
   })
+  test('session controls from an app: the mod runs them (slash commands, the prompt box, a prompt)', async ($, on) => {
+    let sent = false
+    const ran = fakeGlass(on, { watch: () => (sent ? [] : (sent = true, [
+      { kind: 'session', control: 'model', args: { model: 'sonnet' }, app: 'review' },
+      { kind: 'session', control: 'compact', args: { instructions: 'keep the plan' }, app: 'review' },
+      { kind: 'session', control: 'command', args: { command: 'cost', args: '' }, app: 'review' },
+      { kind: 'session', control: 'fill', args: { text: 'draft' }, app: 'review' },
+      { kind: 'session', control: 'prompt', args: { text: 'review done: fix it' }, app: 'review' },
+    ])) })
+    const commands: string[] = []
+    const filled: string[] = []
+    const submitted: string[] = []
+    on('command.run', async (_$: any, e: any) => { commands.push(`/${e.command} ${e.args}`.trim()); return { text: '' } })
+    on('prompt.fill', async (_$: any, e: any) => { filled.push(e.text); return { isFilled: true } })
+    on('prompt.submit', async (_$: any, e: any) => { submitted.push(e.text); return { text: e.text } })
+    on('session.id', async () => ({ value: 'controls' }))
+    on('session.start', async () => ({ cwd: '/tmp/controls' }))
+    await $.session.start({ cwd: '/tmp/controls' } as any) // the controls loop starts with the mod
+    for (let i = 0; i < 50 && !submitted.length; i++) await new Promise((r) => setTimeout(r, 20))
+    expect(ran.some((r) => r.cmd === 'watch')).toBe(true)
+    expect(commands).toEqual(['/model sonnet', '/compact keep the plan', '/cost'])
+    expect(filled).toEqual(['draft'])
+    expect(submitted).toEqual(['review done: fix it'])
+  })
 })

@@ -1,4 +1,4 @@
-import { type AppDef, type Args, capTail, str, unknownCommand } from '../types';
+import { type AppDef, type Args, capTail, NO_PERMISSIONS, str, unknownCommand } from '../types';
 
 export interface Message {
   id: string;
@@ -21,6 +21,8 @@ export const conversation: AppDef<ConversationState> = {
   title: 'Conversation',
   icon: '💬',
   singleton: true,
+  // Its message box / command line is sent as the user's prompt.
+  permissions: { ...NO_PERMISSIONS, session: ['prompt'] },
   description: 'The conversation between the user and Claude, without tool calls. Streams automatically.',
   commands: {
     clear: { usage: 'clear', help: 'Clear the conversation view' },

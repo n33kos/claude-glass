@@ -313,7 +313,10 @@ view), keep **stored values** the glass saves for it (per session, per project f
 every glass, shared live between glasses), and ship instructions for Claude, with parts that
 depend on settings. Views are sandboxed
 with no network, microphone or storage unless the manifest asks for specific origins or
-capabilities, which Settings shows. Full guide: [docs/apps.md](docs/apps.md).
+capabilities, which Settings shows. An app can also ask to drive the session itself
+(`"permissions": { "session": [...] }`): send a prompt, fill the prompt box, stop the turn,
+compact, clear, switch the model, or run any slash command, from a button in its view
+(`glass.control('prompt', { text })`). Full guide: [docs/apps.md](docs/apps.md).
 
 ## How it works
 
@@ -356,7 +359,8 @@ Claude Code session
   frozen glass can't hold Claude up.
 - **One more way in, never the only one.** What you send from the glass goes through the mod,
   exactly as if typed; Claude Code's own prompts keep working, so the terminal, tmux, voice or an
-  IDE work alongside it. Custom apps answer back only with the `twoWay` permission.
+  IDE work alongside it. Custom apps answer back only with the `twoWay` (hooks) or `session`
+  (controls they name) permissions.
 
 **Protocol.** One JSON line per connection: `{"op": …}` → `{"ok": true, "result": …}` or
 `{"ok": false, "error": …}`. Ops: `ping`, `event` (session events from the mod), `dispatch` (a
@@ -376,8 +380,8 @@ open once; if you close one, it stays closed. Apps with `onEvent` see every even
 **The glass → the session** (opt-in, two-way): every prompt passes through the glass while one is
 open (`claude-glass hook prompt.submit`: what you attached, the guide when it changed, two-way
 apps' hooks); the tool calls two-way apps hook do too (`claude-glass hook tool.call`). Permission
-prompts and questions wait on `claude-glass action wait`, and the Stop button and the Ask box on
-`claude-glass watch`: CLI calls that block on the socket until there's an answer. Nothing else
+prompts and questions wait on `claude-glass action wait`, and the Stop button, the Ask box and
+apps' session controls (prompt, model, compact, clear, any slash command) on `claude-glass watch`: CLI calls that block on the socket until there's an answer. Nothing else
 runs; nothing on the socket can approve anything (only the glass's own window).
 
 **State.** A glass is one `GlassState`: the session (activity, what it's waiting on), the ordered

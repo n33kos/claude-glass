@@ -55,7 +55,7 @@ export interface AppManifest {
   autoOpen?: boolean;
   display?: 'window' | 'overlay'; // overlay: covers the whole glass, click-through
   chrome?: 'window' | 'none'; // none: no glass panel or title bar; the view draws its own look
-  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[] };
+  permissions?: { network?: string[]; microphone?: boolean; storage?: boolean; sharedSignIn?: boolean; twoWay?: boolean; reads?: string[]; session?: string[] | '*' };
   settings?: Record<string, unknown>;
   stored?: Record<string, unknown>; // persistent values: { key: { scope, default } }
 }

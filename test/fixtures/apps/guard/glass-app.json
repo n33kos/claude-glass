@@ -6,7 +6,7 @@
   "singleton": true,
   "description": "Example two-way app: refuses dangerous shell commands, asks before deploys, and notes itself on every prompt.",
   "commands": {},
-  "permissions": { "twoWay": true, "reads": ["tool-count"] },
+  "permissions": { "twoWay": true, "reads": ["tool-count"], "session": ["prompt", "compact", "command"] },
   "stored": {
     "refused": { "scope": "global", "default": 0 }
   }

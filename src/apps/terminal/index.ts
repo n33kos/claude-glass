@@ -1,5 +1,5 @@
 import { searchResults } from '../browser';
-import { type AppDef, type Args, capTail, clip, str, unknownCommand } from '../types';
+import { type AppDef, type Args, capTail, NO_PERMISSIONS, clip, str, unknownCommand } from '../types';
 
 export interface TermEntry {
   id: string;
@@ -106,6 +106,8 @@ export const terminal: AppDef<TerminalState> = {
   title: 'Terminal',
   icon: '❯',
   singleton: true,
+  // Its message box / command line is sent as the user's prompt.
+  permissions: { ...NO_PERMISSIONS, session: ['prompt'] },
   viewCommands: ['filter'],
   description: 'Every tool call Claude makes, shown as terminal activity. Filled automatically by hooks.',
   commands: {

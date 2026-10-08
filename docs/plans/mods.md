@@ -196,7 +196,11 @@ Separate from the Action app's first version; we try it and keep what works.
 - [x] Any mod event, by Claude Code's own name: the mod hooks `*` and forwards what an app
       subscribed to, as Claude Code has it (no list to keep in step; `src/core/hookable.ts`
       names the few that can't be: streams, drawing, the mod's transport)
-- [ ] Handle methods when an app needs them (`prompt.submit` from a handler, `turn.abort`)
+- [x] **Session controls** (`"permissions": { "session": [...] }`, or `"*"`): `glass.control(name,
+      args)` from a view or a handler: `prompt`, `fill` (the prompt box), `interrupt`, `compact`,
+      `clear`, `model`, `command` (any slash command). Queued like Stop (`claude-glass watch`);
+      the mod runs `$.prompt.submit` / `$.prompt.fill` / `$.turn.abort` / `$.command.run`.
+      Conversation and Terminal declare `prompt` instead of being named in the renderer
 - [x] **Public state**: a core's `share(state)`; readers list types in `permissions.reads`;
       cached only for types some app reads. Built-ins share basics (Changes, Tasks, Terminal,
       Files, Tests, Conversation)

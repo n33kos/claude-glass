@@ -102,9 +102,9 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
     else if (service === 'attach' && typeof args.text === 'string' && (app.builtin || app.permissions.twoWay)) {
       void dispatch({ type: 'attach.add', label: String(args.label ?? app.title), text: args.text, from: app.type });
     }
-    // Conversation's message box, Terminal's command line: sent as the user's prompt (with what's
-    // attached), once Claude is free. Only these built-ins; other apps can't speak for the user.
-    else if (service === 'prompt' && (app.type === 'conversation' || app.type === 'terminal') && app.builtin && typeof args.text === 'string') window.glass.submitPrompt(args.text, 'conversation');
+    // Sent as the user's prompt (with what's attached), once Claude is free: Conversation's message
+    // box, Terminal's command line, any app whose permissions.session has "prompt".
+    else if (service === 'prompt' && typeof args.text === 'string') void window.glass.session(app.type, 'prompt', { text: args.text }).then((r) => { if (!r.ok) console.warn(`app ${app.type}: ${r.error}`); });
     else if (service === 'detach' && app.type === 'conversation' && typeof args.id === 'string') void dispatch({ type: 'attach.remove', id: args.id });
   }
 
@@ -126,6 +126,8 @@ export function FrameView({ app, id, meta, state, width, height, glass, run, sav
     let reply: { ok: boolean; result?: unknown; error?: string };
     if (service === 'read-doc' && app.type === 'markdown' && typeof args.path === 'string') reply = await window.glass.readDoc(id, args.path);
     else if (service === 'project-images' && app.type === 'image') reply = await window.glass.projectImages();
+    // glass.control(name, args): what the app's permissions.session allows (main checks it).
+    else if (service === 'control' && typeof args.control === 'string') reply = await window.glass.session(app.type, args.control, (args.args ?? {}) as Record<string, unknown>);
     else reply = { ok: false, error: `no host service "${service}" for this app` };
     post({ kind: 'reply', id: reqId, ...reply });
   }
