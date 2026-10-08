@@ -389,6 +389,9 @@ Electron, `Claude Glass.app`), so it has its own dock icon and ⌘Tab entry even
 inside tmux, and waits until the socket answers. Every installed version shares one bundle,
 `~/.claude/claude-glass/app/<electron version>-<icon hash>/Claude Glass.app`, built once: macOS ties
 the microphone grant to the app, so updates don't ask again (only an Electron upgrade does).
+Each glass runs it under its project's name (an APFS clone in `named/<project>.app` beside it:
+the same signed app, next to no disk), so the dock tells glasses apart; the menu bar still says
+Claude Glass. Clones unused for 30 days are removed.
 
 **Files**
 

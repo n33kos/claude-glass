@@ -69,7 +69,9 @@ Stop). Tiling, dragging, desktops and settings shape how it's viewed.
 - `require('electron')` from plain Node returns the Electron binary path (used by the CLI to spawn).
 - The launcher runs the shared `~/.claude/claude-glass/app/<electron>-<icon>/Claude Glass.app` (macOS,
   named in `dist/app.json`), not plain Electron; behavior can differ. Don't make it per version:
-  macOS ties the mic grant to its signature. Test fixes against the real glass too: `CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open` exposes it over
+  macOS ties the mic grant to its signature. The dock labels it by its `.app` folder name only, so
+  each glass runs an APFS clone named after its project (`src/cli/launch.ts`); never edit a
+  bundle's Info.plist (macOS then mutes the mic silently) and don't symlink (it resolves back). Test fixes against the real glass too: `CLAUDE_GLASS_DEBUG_PORT=9333 claude-glass open` exposes it over
   CDP (pages embedded in app frames are their own targets in `/json/list`).
 - Embedded pages (an app's declared origins inside its frame) have storage partitioned under the
   glass; `clearStorageData({ origin })` doesn't reach it, only code running in the live frame does.

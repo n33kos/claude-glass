@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { namedApp } from '../../src/cli/launch';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -826,6 +827,27 @@ describe('updates', () => {
     // A record pointing back at the old folder still ends in one CLI, not a loop.
     writeFileSync(join(config, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'glass@n33kos': { installPath: old, version: '1.3.1' } } }));
     expect(run(now)).toBe('1.3.1 open --x');
+  });
+});
+
+describe('dock names', () => {
+  it.runIf(process.platform === 'darwin')('each project runs a clone of the shared bundle named after it; unused ones go', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-app-'));
+    const shared = join(dir, 'Claude Glass.app');
+    mkdirSync(join(shared, 'Contents', 'MacOS'), { recursive: true });
+    writeFileSync(join(shared, 'Contents', 'MacOS', 'Electron'), 'bin');
+    const app = namedApp(shared, '/Users/x/my-proj');
+    expect(app).toBe(join(dir, 'named', 'my-proj.app'));
+    expect(readFileSync(join(app, 'Contents', 'MacOS', 'Electron'), 'utf8')).toBe('bin');
+    expect(namedApp(shared, '/Users/x/my-proj/')).toBe(app); // reused
+    expect(namedApp(shared, '/Users/x/Claude Glass')).toBe(shared);
+    expect(namedApp(shared, '/')).toBe(shared);
+    expect(namedApp(shared, '/Users/x/.hidden')).toBe(join(dir, 'named', 'hidden.app'));
+    utimesSync(app, new Date(0), new Date(0));
+    namedApp(shared, '/Users/x/other');
+    expect(existsSync(app)).toBe(false);
+    expect(existsSync(join(dir, 'named', 'other.app'))).toBe(true);
+    expect(namedApp(join(dir, 'missing.app'), '/Users/x/p')).toBe(join(dir, 'missing.app')); // can't clone: the shared one
   });
 });
 
